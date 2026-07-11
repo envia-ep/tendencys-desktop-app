@@ -1,0 +1,69 @@
+{
+  "login": {
+    "signingIn": "Signing in...",
+    "timeoutTitle": "Sign-in timed out",
+    "timeoutDescription": "Accounts did not finish signing you in. Try again, or open Accounts in your browser.",
+    "openInBrowser": "Open in browser",
+    "recoveryRail": "Sign-in recovery"
+  },
+  "auth": {
+    "validating": "Validating your session...",
+    "failedTitle": "Authentication failed",
+    "failedDescription": "We could not validate your session. Please try signing in again.",
+    "tryAgain": "Try again"
+  },
+  "updater": {
+    "installed": "Version {{version}} installed. Restart to finish updating.",
+    "restart": "Restart now",
+    "restarting": "Restarting...",
+    "dismiss": "Later"
+  },
+  "topBar": {
+    "back": "Go back",
+    "forward": "Go forward",
+    "refresh": "Refresh",
+    "openInBrowser": "Open in browser",
+    "userMenu": "User menu",
+    "signOut": "Sign out"
+  },
+  "serviceRail": {
+    "label": "Services",
+    "expand": "Expand menu",
+    "collapse": "Collapse menu"
+  },
+  "welcome": {
+    "title": "Every tool you need to power your business",
+    "subtitle": "Shipping, fulfillment, payments and banking — trusted by 20,000+ companies in 10+ countries.",
+    "signIn": "Sign in",
+    "createAccount": "Create an account",
+    "secureNote": "Your credentials are protected with encrypted, single sign-on access.",
+    "showcaseHeading": "Everything in one place",
+    "showcase": {
+      "envia-shipping": "100+ carriers, local and international shipments",
+      "envia-fulfillment": "Orders processed and shipped in under 24h",
+      "envia-returns": "Returns handled through the same fulfillment network",
+      "ecart-pay": "The safest way to get paid, anywhere",
+      "ecart-banking": "Manage your business finances in one place",
+      "ecart-api": "1.3M+ requests served, 40+ integrations",
+      "parapaquetes": "Packaging and supplies at wholesale pricing",
+      "tendencys-partners": "Earn commissions referring our solutions"
+    }
+  },
+  "webView": {
+    "launcherTitle": "Open {{service}}",
+    "launcherDescription": "Sign-in cookies live in your system browser. Sign in to this service, then use Open in browser for full access.",
+    "launcherOpenedDescription": "Opened in browser — sign-in cookies live there. Use Open in browser again anytime, or show an optional in-app preview.",
+    "previewBanner": "Preview only — product sessions live in your browser.",
+    "previewBlockedHint": "This service blocked in-app embedding. Keep using the browser.",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview",
+    "blockedTitle": "Cannot embed {{service}}",
+    "blockedDescription": "This service cannot be displayed inside the app due to security restrictions. Sign in via Accounts in your browser, then open the service there.",
+    "openInBrowser": "Open in browser",
+    "signInToService": "Sign in to service",
+    "loading": "Loading {{service}}...",
+    "loadErrorTitle": "Could not load {{service}}",
+    "loadErrorDescription": "The service did not respond. Retry, or open it in your browser.",
+    "retry": "Retry"
+  }
+}

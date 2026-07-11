@@ -1,0 +1,44 @@
+[package]
+name = "tendencys-desktop"
+version = "0.1.0"
+description = "Tendencys Multi-Service Desktop App"
+authors = ["Tendencys"]
+edition = "2021"
+
+[lib]
+name = "tendencys_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# Pinned exact: the multiwebview API lives behind `unstable` and can shift
+# between minor versions. Bump deliberately, never via `cargo update`.
+[dependencies]
+tauri = { version = "=2.11.3", features = ["unstable"] }
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tauri-plugin-log = "2"
+# unsafe-headers: Accounts JWT validation requires a custom Referer matching JWT aud
+# (tendencys://authentication). Browsers forbid setting Referer on fetch.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+keyring = "3"
+uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
+hostname = "0.4"
+urlencoding = "2"
+cookie = "0.18"
+
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-process = "2.3.1"
+tauri-plugin-updater = "2.10.1"

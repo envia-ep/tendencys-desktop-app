@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-validate-accounts-token"
+description = "Allows validating Accounts SSO handoff JWTs via native HTTP"
+commands.allow = ["validate_accounts_token"]

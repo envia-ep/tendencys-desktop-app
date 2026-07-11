@@ -1,0 +1,12 @@
+[[permission]]
+identifier = "allow-device-key"
+description = "Allows device key generation, signing, and Accounts device-key login/register"
+commands.allow = [
+  "has_device_key",
+  "get_device_key_meta",
+  "generate_device_keypair",
+  "set_device_key_method_id",
+  "delete_device_key",
+  "login_with_device_key",
+  "register_device_key"
+]

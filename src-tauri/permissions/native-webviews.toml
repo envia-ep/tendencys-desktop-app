@@ -1,0 +1,69 @@
+[[permission]]
+identifier = "allow-select-service"
+description = "Allows showing/creating a product child webview"
+commands.allow = ["select_service"]
+
+[[permission]]
+identifier = "allow-prewarm-service"
+description = "Allows background-creating a hidden product child webview to pre-run SSO"
+commands.allow = ["prewarm_service"]
+
+[[permission]]
+identifier = "allow-navigate-service"
+description = "Allows navigating an existing product child webview"
+commands.allow = ["navigate_service"]
+
+[[permission]]
+identifier = "allow-service-history-back"
+description = "Allows walking the active product webview history back"
+commands.allow = ["service_history_back"]
+
+[[permission]]
+identifier = "allow-service-history-forward"
+description = "Allows walking the active product webview history forward"
+commands.allow = ["service_history_forward"]
+
+[[permission]]
+identifier = "allow-reload-service"
+description = "Allows reloading the active product child webview"
+commands.allow = ["reload_service"]
+
+[[permission]]
+identifier = "allow-set-service-visible"
+description = "Allows hiding/showing the active product child webview"
+commands.allow = ["set_service_visible"]
+
+[[permission]]
+identifier = "allow-set-content-left-inset"
+description = "Allows updating the left chrome inset to match the collapsible service menu's width"
+commands.allow = ["set_content_left_inset"]
+
+[[permission]]
+identifier = "allow-open-shell-login"
+description = "Allows opening the Accounts login in an in-app child webview"
+commands.allow = ["open_shell_login"]
+
+[[permission]]
+identifier = "allow-close-shell-login"
+description = "Allows closing the Accounts login child webview"
+commands.allow = ["close_shell_login"]
+
+[[permission]]
+identifier = "allow-logout-webviews"
+description = "Allows tearing down all product and auth child webviews on logout"
+commands.allow = ["logout_webviews"]
+
+[[permission]]
+identifier = "allow-seed-accounts-session"
+description = "Allows writing the Accounts _atid cookie into the shared product webview store"
+commands.allow = ["seed_accounts_session"]
+
+[[permission]]
+identifier = "allow-clear-accounts-session"
+description = "Allows removing the Accounts _atid cookie from the shared product webview store on logout"
+commands.allow = ["clear_accounts_session"]
+
+[[permission]]
+identifier = "allow-read-accounts-session"
+description = "Allows reading the Accounts _atid cookie back from the shared product webview store"
+commands.allow = ["read_accounts_session"]

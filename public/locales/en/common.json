@@ -1,0 +1,53 @@
+{
+  "login": {
+    "signingIn": "Signing in..."
+  },
+  "auth": {
+    "validating": "Validating your session...",
+    "failedTitle": "Authentication failed",
+    "failedDescription": "We could not validate your session. Please try signing in again.",
+    "tryAgain": "Try again"
+  },
+  "updater": {
+    "available": "Version {{version}} is ready to install.",
+    "install": "Update now",
+    "installing": "Updating...",
+    "dismiss": "Dismiss"
+  },
+  "topBar": {
+    "back": "Go back",
+    "forward": "Go forward",
+    "searchPlaceholder": "Search Tendencys",
+    "openInBrowser": "Open in browser",
+    "signInToService": "Sign in to service",
+    "help": "Help",
+    "userMenu": "User menu",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "serviceRail": {
+    "label": "Services",
+    "addService": "Add service",
+    "comingSoon": "Coming soon"
+  },
+  "sidebar": {
+    "quickLinks": "Quick links",
+    "bookmarks": "Bookmarks",
+    "noBookmarks": "No bookmarks yet",
+    "addBookmark": "Add bookmark",
+    "removeBookmark": "Remove bookmark",
+    "bookmarkLabel": "Label",
+    "bookmarkPath": "Path (e.g. /shipments)",
+    "saveBookmark": "Save",
+    "cancel": "Cancel",
+    "openInBrowser": "Open in browser",
+    "signInToService": "Sign in to service",
+    "wmsAuthHint": "WMS uses its own login. Open in browser to sign in."
+  },
+  "webView": {
+    "blockedTitle": "Cannot embed {{service}}",
+    "blockedDescription": "This service cannot be displayed inside the app due to security restrictions. Sign in via Accounts in your browser, then open the service there.",
+    "openInBrowser": "Open in browser",
+    "signInToService": "Sign in to service"
+  }
+}

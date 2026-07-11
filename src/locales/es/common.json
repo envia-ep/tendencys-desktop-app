@@ -1,0 +1,69 @@
+{
+  "login": {
+    "signingIn": "Iniciando sesión...",
+    "timeoutTitle": "El inicio de sesión expiró",
+    "timeoutDescription": "Accounts no terminó de iniciar tu sesión. Intenta de nuevo, o abre Accounts en el navegador.",
+    "openInBrowser": "Abrir en navegador",
+    "recoveryRail": "Recuperación de inicio de sesión"
+  },
+  "auth": {
+    "validating": "Validando tu sesión...",
+    "failedTitle": "Autenticación fallida",
+    "failedDescription": "No pudimos validar tu sesión. Por favor intenta iniciar sesión de nuevo.",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "updater": {
+    "installed": "Versión {{version}} instalada. Reinicia para terminar de actualizar.",
+    "restart": "Reiniciar ahora",
+    "restarting": "Reiniciando...",
+    "dismiss": "Más tarde"
+  },
+  "topBar": {
+    "back": "Atrás",
+    "forward": "Adelante",
+    "refresh": "Actualizar",
+    "openInBrowser": "Abrir en navegador",
+    "userMenu": "Menú de usuario",
+    "signOut": "Cerrar sesión"
+  },
+  "serviceRail": {
+    "label": "Servicios",
+    "expand": "Expandir menú",
+    "collapse": "Colapsar menú"
+  },
+  "welcome": {
+    "title": "Todas las herramientas que necesitas para impulsar tu negocio",
+    "subtitle": "Envíos, fulfillment, pagos y banca — con la confianza de más de 20,000 empresas en más de 10 países.",
+    "signIn": "Iniciar sesión",
+    "createAccount": "Crear una cuenta",
+    "secureNote": "Tus credenciales están protegidas con acceso cifrado de inicio de sesión único.",
+    "showcaseHeading": "Todo en un solo lugar",
+    "showcase": {
+      "envia-shipping": "Más de 100 paqueterías, envíos locales e internacionales",
+      "envia-fulfillment": "Pedidos procesados y enviados en menos de 24h",
+      "envia-returns": "Devoluciones gestionadas en la misma red de fulfillment",
+      "ecart-pay": "La forma más segura de cobrar, desde cualquier lugar",
+      "ecart-banking": "Administra las finanzas de tu negocio en un solo lugar",
+      "ecart-api": "Más de 1.3M de solicitudes atendidas, 40+ integraciones",
+      "parapaquetes": "Empaque y suministros a precios de mayoreo",
+      "tendencys-partners": "Gana comisiones al referir nuestras soluciones"
+    }
+  },
+  "webView": {
+    "launcherTitle": "Abrir {{service}}",
+    "launcherDescription": "Las cookies de sesión viven en tu navegador. Inicia sesión en este servicio y usa Abrir en navegador para acceso completo.",
+    "launcherOpenedDescription": "Abierto en el navegador — las cookies de sesión viven allí. Vuelve a Abrir en navegador cuando quieras, o muestra una vista previa opcional.",
+    "previewBanner": "Solo vista previa — las sesiones del producto viven en tu navegador.",
+    "previewBlockedHint": "Este servicio bloqueó la incrustación. Sigue usando el navegador.",
+    "showPreview": "Mostrar vista previa",
+    "hidePreview": "Ocultar vista previa",
+    "blockedTitle": "No se puede incrustar {{service}}",
+    "blockedDescription": "Este servicio no puede mostrarse dentro de la app por restricciones de seguridad. Inicia sesión vía Accounts en el navegador y ábrelo allí.",
+    "openInBrowser": "Abrir en navegador",
+    "signInToService": "Iniciar sesión en el servicio",
+    "loading": "Cargando {{service}}...",
+    "loadErrorTitle": "No se pudo cargar {{service}}",
+    "loadErrorDescription": "El servicio no respondió. Reintenta o ábrelo en tu navegador.",
+    "retry": "Reintentar"
+  }
+}

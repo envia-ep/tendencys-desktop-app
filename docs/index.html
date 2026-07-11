@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Download Tendencys Desktop</title>
+    <meta
+      name="description"
+      content="Download the Tendencys Desktop app for macOS and Windows."
+    />
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: #121c2e;
+        --border: #22304a;
+        --text: #e8eef7;
+        --muted: #9fb0c8;
+        --primary: #2f6df6;
+        --primary-hover: #2258d6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background: radial-gradient(
+            1200px 600px at 50% -10%,
+            #1a2740 0%,
+            var(--bg) 60%
+          )
+          no-repeat;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px;
+      }
+      main {
+        width: 100%;
+        max-width: 560px;
+        text-align: center;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 8px;
+      }
+      p.sub {
+        color: var(--muted);
+        margin: 0 0 28px;
+        font-size: 15px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 28px 24px;
+      }
+      .primary-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 16px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--primary);
+        border: none;
+        border-radius: 12px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .primary-btn:hover {
+        background: var(--primary-hover);
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 12px;
+      }
+      .others {
+        margin-top: 22px;
+        border-top: 1px solid var(--border);
+        padding-top: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .others a {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 14px;
+        transition: border-color 0.15s ease;
+      }
+      .others a:hover {
+        border-color: var(--primary);
+      }
+      .others a .size {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .state {
+        color: var(--muted);
+        font-size: 14px;
+        padding: 12px 0;
+      }
+      a.releases {
+        color: var(--muted);
+        font-size: 13px;
+        text-decoration: underline;
+      }
+      .footer {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Tendencys Desktop</h1>
+      <p class="sub">Every tool you need to power your business, in one app.</p>
+      <div class="card" id="card">
+        <div class="state" id="state">Loading the latest release…</div>
+      </div>
+      <p class="footer">
+        The app updates itself automatically after install.
+      </p>
+    </main>
+
+    <script>
+      const REPO = "envia-ep/tendencys-desktop-app";
+      const API = `https://api.github.com/repos/${REPO}/releases/latest`;
+      const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
+
+      // Match Tauri bundle asset names by suffix.
+      const PLATFORMS = {
+        "macos-arm": {
+          label: "macOS (Apple Silicon)",
+          patterns: [/aarch64\.dmg$/i],
+        },
+        "macos-intel": {
+          label: "macOS (Intel)",
+          patterns: [/x64\.dmg$/i],
+        },
+        windows: {
+          label: "Windows",
+          patterns: [/x64-setup\.exe$/i, /\.msi$/i],
+        },
+        "linux-deb": {
+          label: "Linux (.deb)",
+          patterns: [/amd64\.deb$/i],
+        },
+        "linux-appimage": {
+          label: "Linux (AppImage)",
+          patterns: [/amd64\.AppImage$/i],
+        },
+      };
+
+      function isAppleSilicon() {
+        try {
+          const canvas = document.createElement("canvas");
+          const gl =
+            canvas.getContext("webgl") ||
+            canvas.getContext("experimental-webgl");
+          if (!gl) return true;
+          const ext = gl.getExtension("WEBGL_debug_renderer_info");
+          if (!ext) return true;
+          const renderer = (
+            gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || ""
+          ).toLowerCase();
+          return renderer.includes("apple") && !renderer.includes("intel");
+        } catch {
+          return true;
+        }
+      }
+
+      function detectPlatform() {
+        const p = (
+          (navigator.userAgentData && navigator.userAgentData.platform) ||
+          navigator.platform ||
+          ""
+        ).toLowerCase();
+        if (p.includes("mac") || p.includes("darwin")) {
+          return isAppleSilicon() ? "macos-arm" : "macos-intel";
+        }
+        if (p.includes("win")) return "windows";
+        if (p.includes("linux")) return "linux-appimage";
+        return null;
+      }
+
+      function findAsset(assets, key) {
+        for (const pattern of PLATFORMS[key].patterns) {
+          const match = assets.find((a) => pattern.test(a.name));
+          if (match) return match;
+        }
+        return null;
+      }
+
+      function formatSize(bytes) {
+        if (!bytes) return "";
+        const mb = bytes / (1024 * 1024);
+        return `${mb.toFixed(1)} MB`;
+      }
+
+      function render(release) {
+        const assets = release.assets || [];
+        const detected = detectPlatform();
+        const available = Object.keys(PLATFORMS)
+          .map((key) => ({ key, asset: findAsset(assets, key) }))
+          .filter((entry) => entry.asset);
+
+        const card = document.getElementById("card");
+
+        if (available.length === 0) {
+          card.innerHTML =
+            `<div class="state">No installers are available yet.</div>` +
+            `<a class="releases" href="${RELEASES_PAGE}">View all releases</a>`;
+          return;
+        }
+
+        // Primary = detected platform if we have an asset for it, else first.
+        let primary = available.find((e) => e.key === detected);
+        if (!primary && detected && detected.startsWith("macos")) {
+          primary = available.find((e) => e.key.startsWith("macos"));
+        }
+        if (!primary) primary = available[0];
+
+        const others = available.filter((e) => e.key !== primary.key);
+        const version = release.tag_name || "";
+
+        card.innerHTML = `
+          <a class="primary-btn" href="${primary.asset.browser_download_url}">
+            Download for ${PLATFORMS[primary.key].label}
+          </a>
+          <div class="meta">${version} · ${formatSize(primary.asset.size)}</div>
+          ${
+            others.length
+              ? `<div class="others">${others
+                  .map(
+                    (e) => `
+                <a href="${e.asset.browser_download_url}">
+                  <span>${PLATFORMS[e.key].label}</span>
+                  <span class="size">${formatSize(e.asset.size)}</span>
+                </a>`
+                  )
+                  .join("")}</div>`
+              : ""
+          }
+        `;
+      }
+
+      fetch(API, { headers: { Accept: "application/vnd.github+json" } })
+        .then((res) => {
+          if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+          return res.json();
+        })
+        .then(render)
+        .catch(() => {
+          document.getElementById("card").innerHTML =
+            `<div class="state">Could not load the latest release.</div>` +
+            `<a class="releases" href="${RELEASES_PAGE}">Download from GitHub</a>`;
+        });
+    </script>
+  </body>
+</html>

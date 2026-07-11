@@ -1,0 +1,53 @@
+{
+  "login": {
+    "signingIn": "Iniciando sesión..."
+  },
+  "auth": {
+    "validating": "Validando tu sesión...",
+    "failedTitle": "Autenticación fallida",
+    "failedDescription": "No pudimos validar tu sesión. Por favor intenta iniciar sesión de nuevo.",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "updater": {
+    "available": "La versión {{version}} está lista para instalarse.",
+    "install": "Actualizar ahora",
+    "installing": "Actualizando...",
+    "dismiss": "Descartar"
+  },
+  "topBar": {
+    "back": "Atrás",
+    "forward": "Adelante",
+    "searchPlaceholder": "Buscar en Tendencys",
+    "openInBrowser": "Abrir en navegador",
+    "signInToService": "Iniciar sesión en el servicio",
+    "help": "Ayuda",
+    "userMenu": "Menú de usuario",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión"
+  },
+  "serviceRail": {
+    "label": "Servicios",
+    "addService": "Agregar servicio",
+    "comingSoon": "Próximamente"
+  },
+  "sidebar": {
+    "quickLinks": "Enlaces rápidos",
+    "bookmarks": "Marcadores",
+    "noBookmarks": "Sin marcadores",
+    "addBookmark": "Agregar marcador",
+    "removeBookmark": "Eliminar marcador",
+    "bookmarkLabel": "Etiqueta",
+    "bookmarkPath": "Ruta (ej. /shipments)",
+    "saveBookmark": "Guardar",
+    "cancel": "Cancelar",
+    "openInBrowser": "Abrir en navegador",
+    "signInToService": "Iniciar sesión en el servicio",
+    "wmsAuthHint": "WMS usa su propio inicio de sesión. Ábrelo en el navegador para autenticarte."
+  },
+  "webView": {
+    "blockedTitle": "No se puede incrustar {{service}}",
+    "blockedDescription": "Este servicio no puede mostrarse dentro de la app por restricciones de seguridad. Inicia sesión vía Accounts en el navegador y ábrelo allí.",
+    "openInBrowser": "Abrir en navegador",
+    "signInToService": "Iniciar sesión en el servicio"
+  }
+}

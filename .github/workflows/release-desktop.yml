@@ -1,0 +1,155 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ steps.tag.outputs.version }}',
+              name: 'Tendencys Desktop ${{ steps.tag.outputs.version }}',
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Import Apple Developer Certificate
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+          rm certificate.p12
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Production build config. Unset secrets fall back to the in-code defaults
+      # (empty string is falsy, so `import.meta.env.X || default` keeps the default),
+      # except the two shell-level vars which otherwise default to SANDBOX.
+      - name: Create .env file
+        shell: bash
+        run: |
+          cat > .env << 'ENVEOF'
+          VITE_TENDENCYS_BASE_URL=${{ secrets.VITE_TENDENCYS_BASE_URL }}
+          VITE_SHELL_SITE_ID=${{ secrets.VITE_SHELL_SITE_ID }}
+          VITE_ENVIA_SHIPPING_URL=${{ secrets.VITE_ENVIA_SHIPPING_URL }}
+          VITE_ENVIA_SHIPPING_SITE_ID=${{ secrets.VITE_ENVIA_SHIPPING_SITE_ID }}
+          VITE_ENVIA_CARGO_URL=${{ secrets.VITE_ENVIA_CARGO_URL }}
+          VITE_ENVIA_CARGO_SITE_ID=${{ secrets.VITE_ENVIA_CARGO_SITE_ID }}
+          VITE_ENVIA_FULFILLMENT_URL=${{ secrets.VITE_ENVIA_FULFILLMENT_URL }}
+          VITE_ENVIA_FULFILLMENT_SITE_ID=${{ secrets.VITE_ENVIA_FULFILLMENT_SITE_ID }}
+          VITE_ENVIA_RETURNS_URL=${{ secrets.VITE_ENVIA_RETURNS_URL }}
+          VITE_ENVIA_RETURNS_SITE_ID=${{ secrets.VITE_ENVIA_RETURNS_SITE_ID }}
+          VITE_ECART_PAY_URL=${{ secrets.VITE_ECART_PAY_URL }}
+          VITE_ECART_PAY_SITE_ID=${{ secrets.VITE_ECART_PAY_SITE_ID }}
+          VITE_ECART_BANKING_URL=${{ secrets.VITE_ECART_BANKING_URL }}
+          VITE_ECART_BANKING_SITE_ID=${{ secrets.VITE_ECART_BANKING_SITE_ID }}
+          VITE_ECART_API_URL=${{ secrets.VITE_ECART_API_URL }}
+          VITE_ECART_API_SITE_ID=${{ secrets.VITE_ECART_API_SITE_ID }}
+          VITE_TENDENCYS_PARTNERS_URL=${{ secrets.VITE_TENDENCYS_PARTNERS_URL }}
+          VITE_TENDENCYS_PARTNERS_SITE_ID=${{ secrets.VITE_TENDENCYS_PARTNERS_SITE_ID }}
+          ENVEOF
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tauriScript: npx tauri
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: [create-release, build]
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              draft: false,
+            });
