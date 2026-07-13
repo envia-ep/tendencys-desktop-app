@@ -6,10 +6,10 @@ use device_key::{
     login_with_device_key, register_device_key, set_device_key_method_id,
 };
 use webview_manager::{
-    clear_accounts_session, close_shell_login, logout_webviews, navigate_service, open_shell_login,
-    prewarm_service, read_accounts_session, reload_service, reposition_all, seed_accounts_session,
-    select_service, service_history_back, service_history_forward, set_content_left_inset,
-    set_service_visible, ServiceWebviews,
+    clear_accounts_session, clear_shared_web_data, close_shell_login, logout_webviews,
+    navigate_service, open_shell_login, prewarm_service, read_accounts_session, reload_service,
+    reposition_all, seed_accounts_session, select_service, service_history_back,
+    service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -58,6 +58,7 @@ pub fn run() {
             logout_webviews,
             seed_accounts_session,
             clear_accounts_session,
+            clear_shared_web_data,
             read_accounts_session
         ])
         .setup(|app| {
@@ -73,10 +74,21 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
             }
-            if cfg!(debug_assertions) {
+            // Always log to a file (LogDir) so `[sso]` diagnostics are recoverable
+            // from an affected user's release build; add stdout only in debug.
+            // macOS: ~/Library/Logs/com.tendencys.desktop/tendencys.log
+            {
+                use tauri_plugin_log::{Target, TargetKind};
+                let mut targets = vec![Target::new(TargetKind::LogDir {
+                    file_name: Some("tendencys".into()),
+                })];
+                if cfg!(debug_assertions) {
+                    targets.push(Target::new(TargetKind::Stdout));
+                }
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
+                        .targets(targets)
                         .build(),
                 )?;
             }

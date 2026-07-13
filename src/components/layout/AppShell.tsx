@@ -122,6 +122,8 @@ export function AppShell() {
   const nativeMountedRef = useRef<Set<string>>(new Set());
   /** Services whose last SSO attempt bounced to Accounts `/login`. */
   const ssoFailedRef = useRef<Set<string>>(new Set());
+  /** Services we already re-seeded + retried once after an auth-required bounce. */
+  const ssoReseedTriedRef = useRef<Set<string>>(new Set());
   const lastUrlRef = useRef<Record<string, string>>({});
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Coalesce React Strict Mode double-invoke for the same service id. */
@@ -276,6 +278,8 @@ export function AppShell() {
     let unlisten: (() => void) | undefined;
     void listenServiceLoaded((serviceId) => {
       ssoLog(`service=${serviceId} OK (service-loaded)`);
+      // Fresh successful load — allow a future bounce to self-heal once again.
+      ssoReseedTriedRef.current.delete(serviceId);
       if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
       setLoadingServiceId((prev) => (prev === serviceId ? null : prev));
       setErrorServiceId((prev) => (prev === serviceId ? null : prev));
@@ -360,6 +364,35 @@ export function AppShell() {
         return;
       }
 
+      // One-shot self-heal: a login-sites bounce is usually a missing/stale shared
+      // `_atid` (the "varies by user" failure). If we still hold the shell token,
+      // re-seed it and retry the handoff once before surfacing the product login —
+      // this keeps signed-in users (and Shipping's 2FA) from being stranded.
+      if (
+        failedService?.authMode === "login-sites" &&
+        failedService.ssoReady !== false &&
+        !ssoReseedTriedRef.current.has(serviceId)
+      ) {
+        const token = useAuthStore.getState().session?.token;
+        const sso = buildServiceSsoUrl(failedService);
+        if (token && sso) {
+          ssoReseedTriedRef.current.add(serviceId);
+          ssoLog(`service=${serviceId} auth-required -> reseed _atid + retry login-sites`);
+          if (serviceId === activeService.id) beginLoad(serviceId);
+          void (async () => {
+            try {
+              await seedAccountsSession(TENDENCYS_BASE_URL, token);
+              lastUrlRef.current[serviceId] = sso;
+              await navigateService(serviceId, sso);
+            } catch {
+              // Could not even re-navigate; the next auth-required bounce (retry
+              // flag now set) falls through to the visible product login.
+            }
+          })();
+          return;
+        }
+      }
+
       nativeMountedRef.current.delete(serviceId);
       ssoFailedRef.current.add(serviceId);
       clearSsoInitiatedFor(serviceId);
@@ -378,7 +411,7 @@ export function AppShell() {
     return () => {
       unlisten?.();
     };
-  }, [activeService.id, clearSsoInitiatedFor]);
+  }, [activeService.id, clearSsoInitiatedFor, beginLoad]);
 
   const handleNativeRetry = useCallback(
     (service: ServiceDefinition) => {

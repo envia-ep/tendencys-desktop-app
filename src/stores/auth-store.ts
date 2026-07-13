@@ -18,6 +18,7 @@ import type { TendencysAccount } from "@/lib/accounts-api";
 import { useServiceStore } from "@/stores/service-store";
 import {
   clearAccountsSession,
+  clearSharedWebData,
   logoutWebviews,
   readAccountsSession,
   seedAccountsSession,
@@ -178,6 +179,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // silent login stops, clear the shared `_atid`, and tear down webviews.
     await deleteDeviceKey();
     await clearAccountsSession(TENDENCYS_BASE_URL).catch(() => undefined);
+    // Wipe the whole shared jar (Accounts `ec_session` + product sessions), not
+    // just `_atid` — otherwise the next user's `/login` auto-redirects as the
+    // previous user. Must run before logoutWebviews() closes the webviews.
+    await clearSharedWebData().catch(() => undefined);
     await logoutWebviews();
   },
 

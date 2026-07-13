@@ -498,6 +498,65 @@ pub async fn clear_accounts_session(
     Ok(())
 }
 
+/// Wipe the ENTIRE shared WKWebsiteDataStore — every cookie (Accounts
+/// `ec_session` + each product's own session), local storage, and caches — not
+/// just the `_atid` cookie that `clear_accounts_session` expires. Called on
+/// logout so the next user starts from a truly empty jar and Accounts `/login`
+/// cannot auto-redirect as the previous user (the root cause of "sign in as B,
+/// get signed in as A").
+#[tauri::command]
+pub async fn clear_shared_web_data(app: AppHandle) -> Result<(), String> {
+    // `clear_all_browsing_data` wipes the data store its webview is pinned to, so
+    // any SHARED_DATA_STORE webview works. Reuse an existing one; otherwise spin
+    // up a hidden throwaway pinned to the shared store just for the wipe.
+    let mut created = false;
+    let webview = if let Some(existing) = app.get_webview(ATID_SEED_LABEL) {
+        existing
+    } else if let Some((_, existing)) = app.webviews().into_iter().find(|(label, _)| {
+        label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL
+    }) {
+        existing
+    } else {
+        let window = app.get_window(MAIN_WINDOW).ok_or("main window not found")?;
+        let (pos, size) = content_rect(&window, DEFAULT_LEFT_INSET).map_err(|e| e.to_string())?;
+        let blank: tauri::Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
+        let builder = WebviewBuilder::new(ATID_SEED_LABEL, WebviewUrl::External(blank))
+            .data_store_identifier(SHARED_DATA_STORE);
+        let wv = window
+            .add_child(builder, pos, size)
+            .map_err(|e| e.to_string())?;
+        let _ = wv.hide();
+        created = true;
+        wv
+    };
+
+    let _ = webview.clear_all_browsing_data();
+    log::info!("[sso] clear_shared_web_data requested");
+
+    // wry's macOS `clear_all_browsing_data` is fire-and-forget (`removeDataOfTypes`
+    // with an empty completion handler). Give the async removal a grace window so
+    // the store is actually empty before logout closes the webviews and before the
+    // next user's `/login` loads — otherwise the load races the wipe and still
+    // sees the previous session.
+    // ponytail: fixed 500ms grace for the async wipe. Upgrade path: thread the
+    // WKWebsiteDataStore completion handler through wry to resolve exactly when the
+    // removal finishes instead of guessing.
+    const CLEAR_GRACE_MS: u64 = 500;
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        std::thread::sleep(std::time::Duration::from_millis(CLEAR_GRACE_MS));
+    })
+    .await;
+
+    // Tear down the throwaway webview created solely for the wipe.
+    if created {
+        if let Some(wv) = app.get_webview(ATID_SEED_LABEL) {
+            let _ = wv.close();
+        }
+    }
+
+    Ok(())
+}
+
 /// Show the target product webview (creating it on first use) and hide the rest.
 /// `url` is only used on creation; re-selecting an existing service preserves its
 /// state. New webviews stay hidden until first load completes (load-gating), so

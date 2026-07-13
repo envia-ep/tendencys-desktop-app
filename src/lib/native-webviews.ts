@@ -108,6 +108,16 @@ export async function clearAccountsSession(accountsBase: string): Promise<void> 
   await invoke("clear_accounts_session", { accountsBase });
 }
 
+/**
+ * Wipe the ENTIRE shared WKWebView data store (all cookies incl. Accounts
+ * `ec_session` + each product session, local storage, caches) on logout, so the
+ * next user starts from an empty jar and `/login` cannot auto-redirect as the
+ * previous user. Awaits the async wipe's grace window before resolving.
+ */
+export async function clearSharedWebData(): Promise<void> {
+  await invoke("clear_shared_web_data");
+}
+
 /** Read the live `_atid` back from the shared product WKWebView cookie jar (or null). */
 export async function readAccountsSession(
   accountsBase: string,
