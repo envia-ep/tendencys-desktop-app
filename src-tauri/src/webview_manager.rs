@@ -755,6 +755,28 @@ pub async fn open_shell_login(
     // Hidden until on_page_load(Finished) reveals it — avoids a dark flash of
     // the empty native webview while the Accounts page is still loading.
     let _ = webview.hide();
+
+    // Fallback reveal: the Accounts /login route runs a WebAuthn
+    // conditional-mediation / session probe on load that keeps WKWebView from
+    // ever firing PageLoadEvent::Finished (/signup does not, which is why it
+    // shows). Without this, the webview stays hidden forever — a blank white
+    // pane the user cannot dismiss until the 20s connect timeout closes it.
+    // Reveal and emit the "loaded" signal after a grace period if on_page_load
+    // hasn't already; the page has reliably painted its form by then.
+    // ponytail: fixed 1500ms grace, not event-driven — if a slow link ever
+    // flashes the pre-paint surface, upgrade to a WKWebView didCommit hook.
+    let app_reveal = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let app_on_main = app_reveal.clone();
+        let _ = app_reveal.run_on_main_thread(move || {
+            if let Some(webview) = app_on_main.get_webview(AUTH_LABEL) {
+                let _ = webview.show();
+                let _ = app_on_main.emit_to(main_target(), "shell-login-loaded", ());
+            }
+        });
+    });
+
     Ok(())
 }
 
