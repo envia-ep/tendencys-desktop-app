@@ -64,13 +64,35 @@ export default function LoginPage() {
       clearCheckTimer();
       clearConnectTimer();
       setPhase("connecting");
-      connectTimerRef.current = setTimeout(() => {
-        if (useAuthStore.getState().session) return;
-        void closeShellLogin().catch(() => undefined);
-        setPhase("timedOut");
-      }, CONNECT_TIMEOUT_MS);
-      const redirectB64 = btoa(`${DEEP_LINK_SCHEME}://authentication`);
-      void openShellLogin(TENDENCYS_BASE_URL, SHELL_SITE_ID, redirectB64, authPath);
+      const openAuth = () => {
+        const redirectB64 = btoa(`${DEEP_LINK_SCHEME}://authentication`);
+        void openShellLogin(
+          TENDENCYS_BASE_URL,
+          SHELL_SITE_ID,
+          redirectB64,
+          authPath,
+        );
+      };
+      // The connect timeout means the Accounts form never signalled it painted.
+      // For "login" this can be a lingering web session that auto-redirected and
+      // suppressed the form; reopening `/login` re-wipes the shared store
+      // (open_shell_login clears on auth_path == "login") so the second attempt
+      // lands on the real form instead of a dead white pane. Recover once, then
+      // surface the timeout screen if it still fails.
+      const arm = (isRecovery: boolean) => {
+        connectTimerRef.current = setTimeout(() => {
+          if (useAuthStore.getState().session) return;
+          if (authPath === "login" && !isRecovery) {
+            openAuth();
+            arm(true);
+            return;
+          }
+          void closeShellLogin().catch(() => undefined);
+          setPhase("timedOut");
+        }, CONNECT_TIMEOUT_MS);
+      };
+      openAuth();
+      arm(false);
     },
     [clearCheckTimer, clearConnectTimer],
   );

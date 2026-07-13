@@ -686,7 +686,19 @@ pub async fn open_shell_login(
         redirect
     );
     eprintln!("[open_shell_login] {login_url}");
-    let parsed: tauri::Url = login_url.parse().map_err(|e| format!("invalid url: {e}"))?;
+
+    // Interactive "Sign in" (auth_path == "login") only ever runs after silent
+    // device-key SSO already failed, so any Accounts web session lingering in the
+    // shared jar (e.g. a stale `ec_session` from a prior install) is not ours to
+    // reuse — and if present it makes `/login` auto-redirect to the deep link and
+    // close this webview before the form paints, leaving a dead white pane. Wipe
+    // the shared store first so `/login` renders the real form. Signup never
+    // auto-redirects, so it loads its URL directly.
+    let needs_clear = auth_path == "login";
+    let initial_url = if needs_clear { "about:blank" } else { &login_url };
+    let parsed: tauri::Url = initial_url
+        .parse()
+        .map_err(|e| format!("invalid url: {e}"))?;
     let (pos, size) = content_rect(&window, AUTH_LEFT_INSET).map_err(|e| e.to_string())?;
 
     // Accounts host, captured for reading the `_atid` the /login page sets in the
@@ -739,6 +751,12 @@ pub async fn open_shell_login(
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }
+            // Ignore the `about:blank` bootstrap used while we wipe the shared
+            // store — revealing/emitting on it would flash a blank pane and tell
+            // LoginPage the form is ready before `/login` has even loaded.
+            if payload.url().scheme() == "about" {
+                return;
+            }
             // Reveal only once the Accounts form has actually painted, so the
             // native rect never flashes its blank/black pre-load surface —
             // mirrors the load-gating pattern used for product webviews.
@@ -756,18 +774,48 @@ pub async fn open_shell_login(
     // the empty native webview while the Accounts page is still loading.
     let _ = webview.hide();
 
+    // When clearing, wipe the shared WKWebsiteDataStore (all `accounts.*`
+    // cookies + storage, not just `_atid`) then navigate to `/login`. wry's
+    // macOS `clear_all_browsing_data` is fire-and-forget
+    // (`removeDataOfTypes:...` with an empty completion handler), so we give the
+    // async removal a short grace before loading `/login` — otherwise the load
+    // would race the wipe and still see the stale session.
+    // ponytail: fixed 500ms grace for the async data wipe. Upgrade path: thread
+    // the WKWebsiteDataStore completion handler through wry to navigate exactly
+    // when the removal finishes instead of guessing.
+    const CLEAR_GRACE_MS: u64 = 500;
+    if needs_clear {
+        let _ = webview.clear_all_browsing_data();
+        let app_nav = app.clone();
+        let login_url_nav = login_url.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(CLEAR_GRACE_MS));
+            let app_on_main = app_nav.clone();
+            let _ = app_nav.run_on_main_thread(move || {
+                if let (Some(webview), Ok(url)) =
+                    (app_on_main.get_webview(AUTH_LABEL), login_url_nav.parse())
+                {
+                    let _ = webview.navigate(url);
+                }
+            });
+        });
+    }
+
     // Fallback reveal: the Accounts /login route runs a WebAuthn
     // conditional-mediation / session probe on load that keeps WKWebView from
     // ever firing PageLoadEvent::Finished (/signup does not, which is why it
     // shows). Without this, the webview stays hidden forever — a blank white
     // pane the user cannot dismiss until the 20s connect timeout closes it.
     // Reveal and emit the "loaded" signal after a grace period if on_page_load
-    // hasn't already; the page has reliably painted its form by then.
-    // ponytail: fixed 1500ms grace, not event-driven — if a slow link ever
+    // hasn't already; the page has reliably painted its form by then. When we
+    // clear first, the /login load only starts after CLEAR_GRACE_MS, so push the
+    // reveal out by that much.
+    // ponytail: fixed 1500ms load grace, not event-driven — if a slow link ever
     // flashes the pre-paint surface, upgrade to a WKWebView didCommit hook.
+    let reveal_delay = 1500 + if needs_clear { CLEAR_GRACE_MS } else { 0 };
     let app_reveal = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+        std::thread::sleep(std::time::Duration::from_millis(reveal_delay));
         let app_on_main = app_reveal.clone();
         let _ = app_reveal.run_on_main_thread(move || {
             if let Some(webview) = app_on_main.get_webview(AUTH_LABEL) {
