@@ -95,7 +95,7 @@ Configured in `src/config/services.ts`, override any URL/site ID via `.env.local
 
 | Service | Default URL | Auth mode | Notes |
 |---------|-------------|-----------|-------|
-| Envia Shipping | `https://shipping.envia.com` | `login-sites` | `ssoReady: false` — legacy cookie auth, no `/authentication` callback yet |
+| Envia Shipping | `https://ship.envia.com` | `login-sites` | Callback is `/authentication`. Use `ship.envia.com` (or `ship-stage.envia.com`), not `shipping.envia.com` — that alias 404s the callback and isn't whitelisted. |
 | Envia Cargo | `https://cargo.envia.com` | `login-sites` | |
 | Envia Fulfillment | `https://fulfillment.envia.com` | `login-sites` | |
 | Envia Returns | `https://returns.envia.com` | `login-sites` | |

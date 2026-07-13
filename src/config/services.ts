@@ -37,8 +37,7 @@ export const SERVICES: ServiceDefinition[] = [
     id: "envia-shipping",
     name: "Envia Shipping",
     url:
-      import.meta.env.VITE_ENVIA_SHIPPING_URL ||
-      "https://shipping.envia.com",
+      import.meta.env.VITE_ENVIA_SHIPPING_URL || "https://ship.envia.com",
     siteId:
       import.meta.env.VITE_ENVIA_SHIPPING_SITE_ID ||
       "62f1259459ad8b9e8dc0b85c",
@@ -46,9 +45,6 @@ export const SERVICES: ServiceDefinition[] = [
     accentColor: "#0066CC",
     authMode: "login-sites",
     authCallbackPath: "/authentication",
-    // GAP: envia-clients still uses the legacy PHP `u_t_e.com` cookie and has no
-    // `/authentication` route, so the Accounts handoff has nowhere to land yet.
-    ssoReady: false,
     quickLinks: [
       { label: "Dashboard", path: "/" },
       { label: "Shipments", path: "/shipments" },
