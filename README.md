@@ -193,11 +193,40 @@ Set under Settings → Secrets and variables → Actions. `GITHUB_TOKEN` is prov
 | `APPLE_ID` | Notarization account | Apple Developer email |
 | `APPLE_PASSWORD` | Notarization | App-specific password (appleid.apple.com → App-Specific Passwords) |
 | `APPLE_TEAM_ID` | Notarization | Apple Developer → Membership |
+| `AZURE_SIGNING_ENDPOINT` | Windows signing (region URL) | Trusted Signing account → e.g. `https://wus2.codesigning.azure.net` (its presence toggles Windows signing on) |
+| `AZURE_SIGNING_ACCOUNT` | Windows signing | Trusted Signing **account** name |
+| `AZURE_SIGNING_PROFILE` | Windows signing | Trusted Signing **certificate profile** name |
+| `AZURE_TENANT_ID` | Windows signing auth | App Registration → Directory (tenant) ID |
+| `AZURE_CLIENT_ID` | Windows signing auth | App Registration → Application (client) ID |
+| `AZURE_CLIENT_SECRET` | Windows signing auth | App Registration → client secret value |
 | `VITE_TENDENCYS_BASE_URL` | Prod Accounts URL | `https://accounts.envia.com` (without it the build defaults to **sandbox**) |
 | `VITE_SHELL_SITE_ID` | Prod Desktop site id | `ecartdb.sites` document `_id` |
 | `VITE_*_URL` / `VITE_*_SITE_ID` | Per-service overrides | Optional — unset falls back to the in-code prod defaults in `src/config/services.ts` |
 
-Windows code signing (to avoid the SmartScreen "unknown publisher" prompt) is optional and not yet wired — it needs an OV/EV cert from a CA.
+### Windows code signing (Azure Trusted Signing)
+
+Windows installers are signed via **Azure Trusted Signing** so customers don't hit
+the SmartScreen "unknown publisher" wall. Signing is wired into the release
+workflow and turns on automatically once the six `AZURE_*` secrets above are set —
+if `AZURE_SIGNING_ENDPOINT` is empty, the Windows build simply ships unsigned
+instead of failing the release.
+
+One-time setup:
+
+1. In the Azure Portal create a **Trusted Signing account** and a **Certificate
+   Profile** of type **Public Trust**, then complete Microsoft's identity
+   validation. Public Trust requires a legal entity with **3+ years** of
+   verifiable existence.
+2. Create an **App Registration** (service principal) with a client secret and
+   grant it the **Trusted Signing Certificate Profile Signer** role on the
+   account.
+3. Set the six `AZURE_*` secrets (endpoint/account/profile + tenant/client
+   id/secret) from the table above.
+
+On Windows builds, CI installs [`trusted-signing-cli`](https://github.com/Levminer/trusted-signing-cli)
+and injects `bundle.windows.signCommand` into `tauri.conf.json`, so Tauri signs
+both the inner `.exe` and the installer in one pass (see
+`.github/workflows/release-desktop.yml`).
 
 ## Environment Variables
 

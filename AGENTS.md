@@ -58,9 +58,14 @@ auto-update silently from that release on next launch.
 ### If a release build fails
 
 - Read the failing job's logs in the Actions tab. macOS failures are almost always
-  notarization (`APPLE_ID` / `APPLE_PASSWORD` app-specific password / `APPLE_TEAM_ID`).
+ notarization (`APPLE_ID` / `APPLE_PASSWORD` app-specific password / `APPLE_TEAM_ID`).
+- Windows signing uses **Azure Trusted Signing** (`trusted-signing-cli` +
+ `bundle.windows.signCommand`); failures are usually the `AZURE_*` secrets
+ (tenant/client id/secret, or endpoint/account/profile). It only runs when
+ `AZURE_SIGNING_ENDPOINT` is set — otherwise the Windows build ships unsigned
+ rather than failing the release.
 - Fix the secret or code, commit, then cut a **new** version tag. Do not retry by
-  re-pushing the same tag.
+ re-pushing the same tag.
 
 ### Related pieces (do not break)
 

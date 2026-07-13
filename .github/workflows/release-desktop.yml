@@ -51,6 +51,10 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    # Evaluated once per job; the `secrets` context is not allowed directly in
+    # step `if:` conditions, so derive a plain boolean env from it here.
+    env:
+      WINDOWS_SIGNING_ENABLED: ${{ secrets.AZURE_SIGNING_ENDPOINT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -122,6 +126,24 @@ jobs:
           VITE_TENDENCYS_PARTNERS_SITE_ID=${{ secrets.VITE_TENDENCYS_PARTNERS_SITE_ID }}
           ENVEOF
 
+      # Wire Windows code signing via Azure Trusted Signing. Installs the signer
+      # and injects bundle.windows.signCommand so Tauri signs both the inner
+      # .exe and the installer in one pass. Skipped automatically if the Trusted
+      # Signing config secrets are absent (Windows builds stay unsigned instead
+      # of failing the whole release).
+      - name: Setup Windows code signing (Azure Trusted Signing)
+        if: matrix.platform == 'windows-latest' && env.WINDOWS_SIGNING_ENABLED == 'true'
+        shell: bash
+        env:
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          cargo install trusted-signing-cli
+          SIGN_CMD="trusted-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Tendencys %1"
+          jq --arg cmd "$SIGN_CMD" '.bundle.windows += {"signCommand": $cmd}' src-tauri/tauri.conf.json > src-tauri/tauri.conf.tmp.json
+          mv src-tauri/tauri.conf.tmp.json src-tauri/tauri.conf.json
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -134,6 +156,11 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Azure Trusted Signing credentials consumed by trusted-signing-cli
+          # (invoked through bundle.windows.signCommand on Windows builds).
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         with:
           tauriScript: npx tauri
           releaseId: ${{ needs.create-release.outputs.release_id }}
