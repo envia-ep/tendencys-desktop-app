@@ -12,6 +12,7 @@
     "store:default",
     "updater:default",
     "process:default",
+    "sentry:default",
     {
       "identifier": "http:default",
       "allow": [

@@ -31,7 +31,7 @@ import {
   pathFromServiceUrl,
   type ShellHistoryEntry,
 } from "@/lib/shell-history";
-import { ssoLog } from "@/lib/sso-log";
+import { ssoCaptureFailure, ssoLog } from "@/lib/sso-log";
 import { getServiceById, SERVICES, type ServiceDefinition } from "@/config/services";
 
 /** If a product webview never fires its first-load event, surface a retry. */
@@ -396,6 +396,14 @@ export function AppShell() {
       nativeMountedRef.current.delete(serviceId);
       ssoFailedRef.current.add(serviceId);
       clearSsoInitiatedFor(serviceId);
+
+      // Terminal: silent SSO could not be recovered and the product login is
+      // about to surface. Capture it (no token) so per-user failures are grouped.
+      ssoCaptureFailure("silent SSO failed; surfacing product login", {
+        serviceId,
+        authMode: failedService?.authMode ?? "unknown",
+        reseedTried: ssoReseedTriedRef.current.has(serviceId),
+      });
 
       if (serviceId !== activeService.id) return;
       if (loadTimerRef.current) clearTimeout(loadTimerRef.current);

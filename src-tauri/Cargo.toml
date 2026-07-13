@@ -35,6 +35,10 @@ base64 = "0.22"
 hostname = "0.4"
 urlencoding = "2"
 cookie = "0.18"
+# Crash/error reporting. tauri-plugin-sentry 0.5 pins the sentry-rust 0.42 line
+# and re-exports sentry-rust-minidump for native hard-crash capture.
+sentry = "0.42"
+tauri-plugin-sentry = "0.5"
 
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

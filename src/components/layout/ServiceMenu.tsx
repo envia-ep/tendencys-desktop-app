@@ -19,12 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 import { MENU_COLLAPSED_WIDTH, MENU_EXPANDED_WIDTH } from "@/config/layout";
@@ -75,42 +69,37 @@ export function ServiceMenu({
     ? (account.firstName?.[0] ?? account.email[0]).toUpperCase()
     : "?";
 
+  // Native product webviews overlay everything right of this rail, so a DOM
+  // tooltip (side="right") would render underneath them and stay invisible.
+  // Use the OS-native `title` tooltip when collapsed — it draws above the
+  // native child webviews.
   const iconBtn = (opts: {
     label: string;
     onClick?: () => void;
     disabled?: boolean;
     children: ReactNode;
-  }) => {
-    const btn = (
-      <button
-        type="button"
-        onClick={opts.onClick}
-        disabled={opts.disabled}
-        className={cn(
-          "flex h-9 items-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-40",
-          collapsed ? "w-9 justify-center" : "w-full gap-2 px-2",
-        )}
-        aria-label={opts.label}
-      >
-        {opts.children}
-      </button>
-    );
-    if (!collapsed) return btn;
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{btn}</TooltipTrigger>
-        <TooltipContent side="right">{opts.label}</TooltipContent>
-      </Tooltip>
-    );
-  };
+  }) => (
+    <button
+      type="button"
+      onClick={opts.onClick}
+      disabled={opts.disabled}
+      className={cn(
+        "flex h-9 items-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-40",
+        collapsed ? "w-9 justify-center" : "w-full gap-2 px-2",
+      )}
+      aria-label={opts.label}
+      title={collapsed ? opts.label : undefined}
+    >
+      {opts.children}
+    </button>
+  );
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <nav
-        className="flex h-full shrink-0 flex-col bg-primary py-3 transition-[width] duration-150"
-        style={{ width }}
-        aria-label={t("serviceRail.label")}
-      >
+    <nav
+      className="flex h-full shrink-0 flex-col bg-primary py-3 transition-[width] duration-150"
+      style={{ width }}
+      aria-label={t("serviceRail.label")}
+    >
         <div className="mb-2 px-2">
           <DropdownMenu
             onOpenChange={collapsed ? onUserMenuOpenChange : undefined}
@@ -121,6 +110,7 @@ export function ServiceMenu({
                   type="button"
                   className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-sm font-medium text-white hover:bg-white/25"
                   aria-label={t("topBar.userMenu")}
+                  title={displayName || t("topBar.userMenu")}
                 >
                   {initials}
                 </button>
@@ -185,6 +175,7 @@ export function ServiceMenu({
             disabled={!canGoBack}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 disabled:opacity-40"
             aria-label={t("topBar.back")}
+            title={t("topBar.back")}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -194,6 +185,7 @@ export function ServiceMenu({
             disabled={!canGoForward}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 disabled:opacity-40"
             aria-label={t("topBar.forward")}
+            title={t("topBar.forward")}
           >
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -202,6 +194,7 @@ export function ServiceMenu({
             onClick={onRefresh}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
             aria-label={t("topBar.refresh")}
+            title={t("topBar.refresh")}
           >
             <RotateCw className="h-4 w-4" />
           </button>
@@ -210,8 +203,9 @@ export function ServiceMenu({
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2">
           {SERVICES.map((service) => {
             const isActive = service.id === activeService.id;
-            const row = (
+            return (
               <button
+                key={service.id}
                 type="button"
                 onClick={() => onSelectService(service)}
                 className={cn(
@@ -223,6 +217,7 @@ export function ServiceMenu({
                 )}
                 aria-label={service.name}
                 aria-current={isActive ? "page" : undefined}
+                title={collapsed ? service.name : undefined}
               >
                 <ServiceIcon icon={service.icon} className="h-4 w-4 shrink-0" />
                 {!collapsed && (
@@ -231,17 +226,6 @@ export function ServiceMenu({
                   </span>
                 )}
               </button>
-            );
-
-            if (!collapsed) {
-              return <div key={service.id}>{row}</div>;
-            }
-
-            return (
-              <Tooltip key={service.id}>
-                <TooltipTrigger asChild>{row}</TooltipTrigger>
-                <TooltipContent side="right">{service.name}</TooltipContent>
-              </Tooltip>
             );
           })}
         </div>
@@ -272,6 +256,7 @@ export function ServiceMenu({
             aria-label={
               collapsed ? t("serviceRail.expand") : t("serviceRail.collapse")
             }
+            title={collapsed ? t("serviceRail.expand") : undefined}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -285,7 +270,6 @@ export function ServiceMenu({
             )}
           </button>
         </div>
-      </nav>
-    </TooltipProvider>
+    </nav>
   );
 }
