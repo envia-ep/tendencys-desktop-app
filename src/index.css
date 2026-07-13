@@ -5,6 +5,9 @@
   --color-foreground: #1a1a1a;
   --color-primary: #004d74;
   --color-primary-foreground: #ffffff;
+  --color-primary-deep: #00253a;
+  --color-primary-glow: #0a7ab0;
+  --color-primary-accent: #16b6c4;
   --color-secondary: #f4f4f5;
   --color-secondary-foreground: #1a1a1a;
   --color-muted: #f4f4f5;
@@ -43,4 +46,125 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Hero showcase animated background & effects --- */
+
+/* Deep brand gradient base for the showcase panel. */
+.hero-surface {
+  background:
+    radial-gradient(
+      120% 120% at 100% 0%,
+      var(--color-primary-glow) 0%,
+      var(--color-primary) 42%,
+      var(--color-primary-deep) 100%
+    );
+}
+
+/* Slow-drifting aurora blobs layered over the surface. */
+.hero-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      32% 32% at 22% 28%,
+      color-mix(in srgb, var(--color-primary-accent) 55%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      36% 36% at 82% 18%,
+      color-mix(in srgb, var(--color-primary-glow) 60%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      40% 40% at 68% 82%,
+      color-mix(in srgb, var(--color-primary-accent) 40%, transparent) 0%,
+      transparent 70%
+    );
+  filter: blur(14px);
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+/* Faint drifting grid to add a subtle sense of depth/tech. */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, #ffffff 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, #ffffff 6%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(80% 80% at 50% 40%, #000 0%, transparent 100%);
+  animation: grid-pan 30s linear infinite;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1.05);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) rotate(6deg) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-2%, 4%, 0) rotate(-4deg) scale(1.08);
+    opacity: 0.9;
+  }
+}
+
+@keyframes grid-pan {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 44px 44px, 44px 44px;
+  }
+}
+
+/* Diagonal shine sweep used on hover of showcase cards. */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.card-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, #ffffff 22%, transparent) 50%,
+    transparent 100%
+  );
+  transform: skewX(-18deg);
+  transition: none;
+  pointer-events: none;
+}
+.card-shine:hover::after {
+  animation: card-shine-sweep 0.85s ease;
+}
+
+@keyframes card-shine-sweep {
+  0% {
+    left: -120%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-aurora,
+  .hero-grid {
+    animation: none;
+  }
+  .card-shine:hover::after {
+    animation: none;
+  }
 }

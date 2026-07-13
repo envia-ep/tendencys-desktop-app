@@ -1,21 +1,9 @@
 import { ShieldCheck } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { ServiceIcon } from "@/components/ServiceIcon";
-import { SERVICES } from "@/config/services";
+import { ServiceShowcase } from "@/components/auth/ServiceShowcase";
 import accountsLogo from "@/assets/logos/accounts-logo.svg";
-
-/** Only these products have a punchy, translated capability caption (see i18n `welcome.showcase.*`). */
-const SHOWCASE_CAPTION_IDS = new Set([
-  "envia-shipping",
-  "envia-fulfillment",
-  "envia-returns",
-  "ecart-pay",
-  "ecart-banking",
-  "ecart-api",
-  "parapaquetes",
-  "tendencys-partners",
-]);
 
 type WelcomeScreenProps = {
   onSignIn: () => void;
@@ -30,11 +18,17 @@ type WelcomeScreenProps = {
  */
 export function WelcomeScreen({ onSignIn, onCreateAccount }: WelcomeScreenProps) {
   const { t } = useTranslation();
+  const reduce = useReducedMotion();
 
   return (
     <div className="flex h-screen bg-white">
       <div className="flex w-full flex-col items-center justify-center px-8 md:w-[440px] md:shrink-0">
-        <div className="flex w-full max-w-sm flex-col gap-6">
+        <motion.div
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="flex w-full max-w-sm flex-col gap-6"
+        >
           <img src={accountsLogo} alt="Tendencys" className="h-8 w-auto" />
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold leading-tight text-foreground">
@@ -60,42 +54,9 @@ export function WelcomeScreen({ onSignIn, onCreateAccount }: WelcomeScreenProps)
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{t("welcome.secureNote")}</span>
           </div>
-        </div>
+        </motion.div>
       </div>
-      <div className="hidden flex-1 flex-col justify-center overflow-y-auto bg-primary px-10 py-12 text-white md:flex">
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/60">
-            {t("welcome.showcaseHeading")}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            {SERVICES.map((service) => (
-              <div
-                key={service.id}
-                className="flex flex-col gap-2 rounded-lg bg-white/5 p-4"
-              >
-                <span
-                  className="flex h-8 w-8 items-center justify-center rounded-md"
-                  style={{ backgroundColor: `${service.accentColor}33` }}
-                >
-                  <ServiceIcon
-                    icon={service.icon}
-                    className="h-4 w-4"
-                    style={{ color: service.accentColor }}
-                  />
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">{service.name}</span>
-                  {SHOWCASE_CAPTION_IDS.has(service.id) && (
-                    <span className="text-xs text-white/70">
-                      {t(`welcome.showcase.${service.id}`)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <ServiceShowcase />
     </div>
   );
 }

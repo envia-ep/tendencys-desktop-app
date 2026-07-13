@@ -38,8 +38,21 @@
     "createAccount": "Create an account",
     "secureNote": "Your credentials are protected with encrypted, single sign-on access.",
     "showcaseHeading": "Everything in one place",
+    "showcaseTagline": "One login. Every tool to run your business.",
+    "featuredLabel": "Featured",
+    "stats": {
+      "companies": "20,000+",
+      "companiesLabel": "Companies",
+      "countries": "10+",
+      "countriesLabel": "Countries",
+      "requests": "1.3M+",
+      "requestsLabel": "API requests",
+      "carriers": "100+",
+      "carriersLabel": "Carriers"
+    },
     "showcase": {
       "envia-shipping": "100+ carriers, local and international shipments",
+      "envia-cargo": "Full-truckload and LTL freight across one network",
       "envia-fulfillment": "Orders processed and shipped in under 24h",
       "envia-returns": "Returns handled through the same fulfillment network",
       "ecart-pay": "The safest way to get paid, anywhere",

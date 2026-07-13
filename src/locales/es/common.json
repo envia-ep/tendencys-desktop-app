@@ -38,8 +38,21 @@
     "createAccount": "Crear una cuenta",
     "secureNote": "Tus credenciales están protegidas con acceso cifrado de inicio de sesión único.",
     "showcaseHeading": "Todo en un solo lugar",
+    "showcaseTagline": "Un solo acceso. Todas las herramientas para tu negocio.",
+    "featuredLabel": "Destacado",
+    "stats": {
+      "companies": "20,000+",
+      "companiesLabel": "Empresas",
+      "countries": "10+",
+      "countriesLabel": "Países",
+      "requests": "1.3M+",
+      "requestsLabel": "Solicitudes API",
+      "carriers": "100+",
+      "carriersLabel": "Paqueterías"
+    },
     "showcase": {
       "envia-shipping": "Más de 100 paqueterías, envíos locales e internacionales",
+      "envia-cargo": "Carga completa y consolidada (FTL y LTL) en una sola red",
       "envia-fulfillment": "Pedidos procesados y enviados en menos de 24h",
       "envia-returns": "Devoluciones gestionadas en la misma red de fulfillment",
       "ecart-pay": "La forma más segura de cobrar, desde cualquier lugar",

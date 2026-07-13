@@ -735,10 +735,14 @@ pub async fn open_shell_login(
             // Cancel the deep-link navigation; the shell handles the token.
             false
         })
-        .on_page_load(move |_webview, payload| {
+        .on_page_load(move |webview, payload| {
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }
+            // Reveal only once the Accounts form has actually painted, so the
+            // native rect never flashes its blank/black pre-load surface —
+            // mirrors the load-gating pattern used for product webviews.
+            let _ = webview.show();
             // Real "the Accounts form is now visible and interactive" signal —
             // LoginPage uses this to stop its connecting timeout instead of
             // guessing a fixed duration that would fire while the user types.
@@ -748,7 +752,9 @@ pub async fn open_shell_login(
     let webview = window
         .add_child(builder, pos, size)
         .map_err(|e| e.to_string())?;
-    let _ = webview.show();
+    // Hidden until on_page_load(Finished) reveals it — avoids a dark flash of
+    // the empty native webview while the Accounts page is still loading.
+    let _ = webview.hide();
     Ok(())
 }
 
