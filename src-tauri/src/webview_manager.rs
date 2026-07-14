@@ -27,7 +27,16 @@
 //! webviews use top=0 and only a left inset — wry pins child WKWebViews to the
 //! window top (`ViewMinYMargin`), so a top inset cannot be relied on.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+
+/// True once the shared WKWebsiteDataStore has been wiped for the interactive
+/// `/login` in this app run. Any stale/foreign Accounts session (e.g. an
+/// `ec_session` from a prior install) only needs clearing on the FIRST interactive
+/// login; repeated retries within the same run reuse the now-clean jar instead of
+/// re-clearing and re-loading `/login`. Reset on logout/account switch so the next
+/// user starts clean again.
+static SHARED_JAR_CLEARED: AtomicBool = AtomicBool::new(false);
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
@@ -774,7 +783,12 @@ pub async fn open_shell_login(
     // close this webview before the form paints, leaving a dead white pane. Wipe
     // the shared store first so `/login` renders the real form. Signup never
     // auto-redirects, so it loads its URL directly.
-    let needs_clear = auth_path == "login";
+    // Clear only on the FIRST interactive `/login` of this run (see
+    // SHARED_JAR_CLEARED). `swap` flips the flag and tells us whether a prior open
+    // already wiped the jar, so repeated retries skip the clear+re-navigate churn
+    // that otherwise reloads the whole Accounts page (env.js, recaptcha,
+    // /api/login/sites) each time. Short-circuit keeps signup from touching it.
+    let needs_clear = auth_path == "login" && !SHARED_JAR_CLEARED.swap(true, Ordering::SeqCst);
     let initial_url = if needs_clear { "about:blank" } else { &login_url };
     let parsed: tauri::Url = initial_url
         .parse()
@@ -929,5 +943,8 @@ pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
         }
     }
     *app.state::<ServiceWebviews>().active.lock().unwrap() = None;
+    // Logout (and account switch) wipes the shared jar via the TS layer, so the
+    // next interactive login must clear again to drop any leftover foreign session.
+    SHARED_JAR_CLEARED.store(false, Ordering::SeqCst);
     Ok(())
 }

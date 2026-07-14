@@ -213,6 +213,18 @@ struct OptionsResponse {
     challenge: String,
 }
 
+/// Encode a 429 so the TS layer can detect it and back off instead of retrying.
+/// Shape: `RATE_LIMITED|<retry-after-seconds-or-empty>|<raw-body>`. The body may
+/// be JSON (app-level 429) or HTML (Cloudflare edge 429) — TS parses defensively.
+fn rate_limited_err(headers: &reqwest::header::HeaderMap, body: &str) -> String {
+    let retry_after = headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    format!("RATE_LIMITED|{retry_after}|{body}")
+}
+
 #[derive(Serialize)]
 struct LoginBody<'a> {
     token: &'a str,
@@ -244,7 +256,11 @@ pub async fn login_with_device_key(
         .map_err(|e| format!("options request: {e}"))?;
     if !options_res.status().is_success() {
         let status = options_res.status();
+        let headers = options_res.headers().clone();
         let body = options_res.text().await.unwrap_or_default();
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(rate_limited_err(&headers, &body));
+        }
         return Err(format!("options failed ({status}): {body}"));
     }
     let options: OptionsResponse = options_res
@@ -277,13 +293,19 @@ pub async fn login_with_device_key(
         .map_err(|e| format!("login request: {e}"))?;
 
     let status = login_res.status();
-    let body: serde_json::Value = login_res
-        .json()
+    let headers = login_res.headers().clone();
+    let body_text = login_res
+        .text()
         .await
-        .map_err(|e| format!("login parse: {e}"))?;
+        .map_err(|e| format!("login read: {e}"))?;
     if !status.is_success() {
-        return Err(format!("login failed ({status}): {}", body.to_string()));
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(rate_limited_err(&headers, &body_text));
+        }
+        return Err(format!("login failed ({status}): {body_text}"));
     }
+    let body: serde_json::Value =
+        serde_json::from_str(&body_text).map_err(|e| format!("login parse: {e}"))?;
     Ok(body)
 }
 

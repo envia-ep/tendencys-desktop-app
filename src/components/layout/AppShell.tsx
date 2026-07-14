@@ -38,6 +38,13 @@ import { getServiceById, SERVICES, type ServiceDefinition } from "@/config/servi
 const LOAD_TIMEOUT_MS = 20000;
 /** Wait for auth webview `_atid` settle (500ms) + first service paint before pre-warm. */
 const PREWARM_DELAY_MS = 2500;
+/**
+ * Gap between each service pre-warm. Without it, every product's `/login-sites`
+ * handoff fires within a couple seconds of login — a burst from one IP that can
+ * trip the Accounts edge rate limit. Spreading them keeps the warm-up benefit
+ * while staying well under any per-minute cap.
+ */
+const PREWARM_STAGGER_MS = 1200;
 /** Brief gate so the first `/login-sites` does not race auth webview teardown. */
 const SSO_SETTLE_MS = 600;
 
@@ -311,10 +318,13 @@ export function AppShell() {
 
     let cancelled = false;
     const activeId = activeService.id;
-    // ponytail: fixed delay + sequential warm is the simplest scheduler; it
-    // lets the visible service paint first. Pre-warming ~4 web apps costs memory —
-    // revisit (requestIdleCallback / concurrency cap) if it regresses startup.
+    // ponytail: fixed delay + sequential, staggered warm is the simplest scheduler;
+    // it lets the visible service paint first and spreads the `/login-sites` calls
+    // (PREWARM_STAGGER_MS apart) so they don't burst the Accounts edge. Pre-warming
+    // ~8 web apps costs memory — revisit (requestIdleCallback / concurrency cap) if
+    // it regresses startup.
     const timer = setTimeout(async () => {
+      let warmed = 0;
       for (const service of SERVICES) {
         if (cancelled) return;
         if (service.id === activeId) continue;
@@ -324,9 +334,14 @@ export function AppShell() {
         if (nativeMountedRef.current.has(service.id)) continue;
         const sso = buildServiceSsoUrl(service);
         if (!sso) continue;
+        if (warmed > 0) {
+          await new Promise((resolve) => setTimeout(resolve, PREWARM_STAGGER_MS));
+          if (cancelled) return;
+        }
         nativeMountedRef.current.add(service.id);
         lastUrlRef.current[service.id] = sso;
         markSsoInitiated(service.id);
+        warmed += 1;
         try {
           await prewarmService(service.id, sso);
         } catch {

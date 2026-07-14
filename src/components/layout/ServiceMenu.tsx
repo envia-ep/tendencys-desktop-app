@@ -173,7 +173,7 @@ export function ServiceMenu({
             type="button"
             onClick={onNavigateBack}
             disabled={!canGoBack}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.back")}
             title={t("topBar.back")}
           >
@@ -183,7 +183,7 @@ export function ServiceMenu({
             type="button"
             onClick={onNavigateForward}
             disabled={!canGoForward}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.forward")}
             title={t("topBar.forward")}
           >
@@ -192,7 +192,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onRefresh}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white active:bg-white/20"
             aria-label={t("topBar.refresh")}
             title={t("topBar.refresh")}
           >

@@ -16,7 +16,7 @@ import {
   listenShellLoginLoaded,
   openShellLogin,
 } from "@/lib/native-webviews";
-import { tryDeviceKeyLogin } from "@/lib/device-keys";
+import { isDeviceKeyRateLimited, tryDeviceKeyLogin } from "@/lib/device-keys";
 
 /** Survive React Strict Mode remounts — one auth attempt per unauthenticated visit. */
 let loginStarted = false;
@@ -82,7 +82,9 @@ export default function LoginPage() {
       const arm = (isRecovery: boolean) => {
         connectTimerRef.current = setTimeout(() => {
           if (useAuthStore.getState().session) return;
-          if (authPath === "login" && !isRecovery) {
+          // Under an active rate-limit backoff, reopening `/login` hits the same
+          // edge that limited us — surface the timeout screen instead of retrying.
+          if (authPath === "login" && !isRecovery && !isDeviceKeyRateLimited()) {
             openAuth();
             arm(true);
             return;
@@ -97,38 +99,44 @@ export default function LoginPage() {
     [clearCheckTimer, clearConnectTimer],
   );
 
-  const startAuth = useCallback(async () => {
-    setPhase("checking");
-    clearCheckTimer();
-    checkTimerRef.current = setTimeout(() => {
+  const startAuth = useCallback(
+    async (force = false) => {
+      setPhase("checking");
+      clearCheckTimer();
+      checkTimerRef.current = setTimeout(() => {
+        if (useAuthStore.getState().session) return;
+        // A slow/absent device key is a normal case, not an error — land on Welcome.
+        setPhase((prev) => (prev === "checking" ? "welcome" : prev));
+      }, CHECK_TIMEOUT_MS);
+
+      const deviceResult = await tryDeviceKeyLogin({ force });
+      clearCheckTimer();
       if (useAuthStore.getState().session) return;
-      // A slow/absent device key is a normal case, not an error — land on Welcome.
-      setPhase((prev) => (prev === "checking" ? "welcome" : prev));
-    }, CHECK_TIMEOUT_MS);
 
-    const deviceResult = await tryDeviceKeyLogin();
-    clearCheckTimer();
-    if (useAuthStore.getState().session) return;
-
-    if (deviceResult.kind === "handoff") {
-      const ok = await useAuthStore
-        .getState()
-        .validateAndLogin(deviceResult.authorization, deviceResult.sessionToken);
-      if (ok) return;
-    }
-    if (deviceResult.kind === "intermediate") {
-      // Open Accounts intermediate step (terms / phone) in the system browser;
-      // deep link still returns to the app with the handoff JWT.
-      try {
-        const { openUrl } = await import("@tauri-apps/plugin-opener");
-        await openUrl(deviceResult.redirectUrl);
-        return;
-      } catch {
-        // Fall through to Welcome.
+      if (deviceResult.kind === "handoff") {
+        const ok = await useAuthStore
+          .getState()
+          .validateAndLogin(deviceResult.authorization, deviceResult.sessionToken);
+        if (ok) return;
       }
-    }
-    setPhase((prev) => (prev === "timedOut" ? prev : "welcome"));
-  }, [clearCheckTimer]);
+      if (deviceResult.kind === "intermediate") {
+        // Open Accounts intermediate step (terms / phone) in the system browser;
+        // deep link still returns to the app with the handoff JWT.
+        try {
+          const { openUrl } = await import("@tauri-apps/plugin-opener");
+          await openUrl(deviceResult.redirectUrl);
+          return;
+        } catch {
+          // Fall through to Welcome.
+        }
+      }
+      // Everything else (unavailable, error, and a rate_limited backoff) lands on
+      // Welcome so the user decides when to retry — no automatic re-fire that would
+      // pile more requests onto the same edge that rate-limited us.
+      setPhase((prev) => (prev === "timedOut" ? prev : "welcome"));
+    },
+    [clearCheckTimer],
+  );
 
   const retryLogin = useCallback(async () => {
     clearCheckTimer();
@@ -136,7 +144,9 @@ export default function LoginPage() {
     resetLoginGate();
     await closeShellLogin().catch(() => undefined);
     loginStarted = true;
-    await startAuth();
+    // User-initiated retry forces a fresh silent attempt (bypasses the negative
+    // cache), but device-keys still honours an active rate-limit backoff.
+    await startAuth(true);
   }, [clearCheckTimer, clearConnectTimer, startAuth]);
 
   useEffect(() => {

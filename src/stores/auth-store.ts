@@ -4,6 +4,7 @@ import {
   deleteDeviceKey,
   hasDeviceKey,
   registerDeviceKey,
+  resetDeviceKeyLoginCache,
   tryDeviceKeyLogin,
 } from "@/lib/device-keys";
 import {
@@ -174,6 +175,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await clearSession();
     useServiceStore.getState().clearSsoInitiated();
+    // Drop any cached failed silent-login result so the next sign-in starts clean.
+    resetDeviceKeyLoginCache();
     set({ session: null, error: null });
     // Fully remove automatic sign-in on this device: unlink the device key so
     // silent login stops, clear the shared `_atid`, and tear down webviews.

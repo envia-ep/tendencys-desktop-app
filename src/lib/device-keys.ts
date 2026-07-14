@@ -20,7 +20,13 @@ export type DeviceKeyLoginResult =
     }
   | { kind: "intermediate"; redirectUrl: string }
   | { kind: "unavailable" }
+  | { kind: "rate_limited"; retryAfterMs: number; message: string }
   | { kind: "error"; message: string };
+
+/** How long a failed silent login is cached so cold-start double-attempts and
+ * quick retries don't re-hit `options` + `login`. A 429 uses its `Retry-After`
+ * instead (falling back to this) so we never hammer the rate limiter. */
+const NEGATIVE_CACHE_MS = 60_000;
 
 function extractAuthorizationFromRedirect(redirectUrl: string): string | null {
   try {
@@ -71,12 +77,29 @@ export async function registerDeviceKey(sessionToken: string): Promise<void> {
   }
 }
 
-/**
- * Attempt silent device-key login. Falls back to interactive SSO when unavailable.
- */
-export async function tryDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
-  if (!isTauri()) return { kind: "unavailable" };
+/** Rust encodes a 429 as `RATE_LIMITED|<retry-after-seconds>|<body>`. */
+function parseRateLimited(message: string): DeviceKeyLoginResult | null {
+  if (!message.startsWith("RATE_LIMITED|")) return null;
+  const rest = message.slice("RATE_LIMITED|".length);
+  const sepIdx = rest.indexOf("|");
+  const retryRaw = sepIdx >= 0 ? rest.slice(0, sepIdx) : "";
+  const body = sepIdx >= 0 ? rest.slice(sepIdx + 1) : rest;
+  const retrySecs = Number.parseInt(retryRaw, 10);
+  const retryAfterMs =
+    Number.isFinite(retrySecs) && retrySecs > 0
+      ? retrySecs * 1000
+      : NEGATIVE_CACHE_MS;
+  let humanMessage = "Too many attempts. Please try again in a moment.";
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed?.message) humanMessage = String(parsed.message);
+  } catch {
+    // Body is not JSON (e.g. a Cloudflare HTML page) — keep the default copy.
+  }
+  return { kind: "rate_limited", retryAfterMs, message: humanMessage };
+}
 
+async function performDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
   const linked = await hasDeviceKey();
   if (!linked) return { kind: "unavailable" };
 
@@ -110,7 +133,71 @@ export async function tryDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
     return { kind: "error", message: "Device login did not return a handoff token." };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const rateLimited = parseRateLimited(message);
+    if (rateLimited) {
+      console.warn("[device-key] login rate-limited; backing off");
+      return rateLimited;
+    }
     console.warn("[device-key] login failed:", message);
     return { kind: "error", message };
+  }
+}
+
+let inFlight: Promise<DeviceKeyLoginResult> | null = null;
+let cachedResult: DeviceKeyLoginResult | null = null;
+let cacheUntil = 0;
+
+/** Clear the coalescing/negative cache — call on logout/account switch so a
+ * fresh sign-in is never blocked by a stale failed attempt. */
+export function resetDeviceKeyLoginCache(): void {
+  inFlight = null;
+  cachedResult = null;
+  cacheUntil = 0;
+}
+
+/** True while a device-key 429 backoff is still active. */
+export function isDeviceKeyRateLimited(): boolean {
+  return (
+    cachedResult?.kind === "rate_limited" && Date.now() < cacheUntil
+  );
+}
+
+/**
+ * Attempt silent device-key login. Falls back to interactive SSO when unavailable.
+ *
+ * Concurrent callers share one in-flight request, and a failed attempt is cached
+ * briefly so the cold-start double-attempt (remint + LoginPage) and quick retries
+ * don't re-hit `options` + `login`. `force` (a user-initiated retry) bypasses the
+ * generic-error cache but still honours an active rate-limit backoff.
+ */
+export async function tryDeviceKeyLogin(
+  options?: { force?: boolean },
+): Promise<DeviceKeyLoginResult> {
+  if (!isTauri()) return { kind: "unavailable" };
+
+  if (cachedResult && Date.now() < cacheUntil) {
+    if (cachedResult.kind === "rate_limited" || !options?.force) {
+      return cachedResult;
+    }
+  }
+
+  if (inFlight) return inFlight;
+
+  inFlight = performDeviceKeyLogin();
+  try {
+    const result = await inFlight;
+    if (result.kind === "rate_limited") {
+      cachedResult = result;
+      cacheUntil = Date.now() + (result.retryAfterMs || NEGATIVE_CACHE_MS);
+    } else if (result.kind === "error") {
+      cachedResult = result;
+      cacheUntil = Date.now() + NEGATIVE_CACHE_MS;
+    } else {
+      cachedResult = null;
+      cacheUntil = 0;
+    }
+    return result;
+  } finally {
+    inFlight = null;
   }
 }
