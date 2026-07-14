@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Associated Domains lets the embedded WKWebView run passkey (WebAuthn)
+		ceremonies for the Accounts relying-party hosts. Without this, macOS
+		blocks navigator.credentials.get() inside the shell's auth webview and
+		passkey sign-in fails. Each host must also list this app's
+		TeamID.com.tendencys.desktop in its /.well-known/apple-app-site-association.
+		Only takes effect in a signed + notarized build.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:accounts.envia.com</string>
+		<string>webcredentials:accounts-sandbox.envia.com</string>
+	</array>
+</dict>
+</plist>
