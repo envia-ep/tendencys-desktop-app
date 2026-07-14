@@ -103,6 +103,19 @@ fn is_accounts_host(url: &tauri::Url) -> bool {
         .unwrap_or(false)
 }
 
+/// Envia Shipping relays the Accounts handoff through a `/login?page=...&t=<jwt>`
+/// hop before landing on the real product page: Accounts `/login-sites` ->
+/// `ship.envia.com/authentication` (repo `envia`) sets its session then 302s to
+/// `shipping.envia.com/login?...&t=<temporal jwt>` (repo `envia-clients`, whose
+/// `/login` is a server route that exchanges `t` and 302s onward). That `/login`
+/// is a normal mid-flight redirect, NOT a dead session — and it uniquely carries
+/// a `t` query param, which a genuine session-expired `/login` never has. Without
+/// this exception the desktop treats the hop as an SSO failure and restarts the
+/// whole chain on every visit.
+fn is_temporal_token_relay(url: &tauri::Url) -> bool {
+    url.path() == "/login" && url.query_pairs().any(|(k, _)| k == "t")
+}
+
 /// Decode a JWT payload WITHOUT verifying the signature and return its claim
 /// shape: `(has_id, aud, exp)`. Used only for diagnostics — never exposes the
 /// token value. Returns None when the token cannot be decoded.
@@ -274,8 +287,12 @@ fn build_service_webview(
             let is_accounts_login = is_accounts_host(url) && url.path() == "/login";
             // Product `/login` means the product session died (or handoff failed
             // and bounced here). Treat like SSO failure so the shell can retry
-            // `/login-sites` on the next select.
-            let is_product_login = !is_accounts_host(url) && url.path() == "/login";
+            // `/login-sites` on the next select. Exception: Shipping's token-relay
+            // hop (`/login?...&t=<jwt>`) is a legitimate mid-handoff redirect, not a
+            // failure — see `is_temporal_token_relay`.
+            let is_product_login = !is_accounts_host(url)
+                && url.path() == "/login"
+                && !is_temporal_token_relay(url);
             if is_accounts_login || is_product_login {
                 let _ = app_for_nav.emit_to(main_target(), "auth-required", &id_for_nav);
                 return true;
@@ -296,8 +313,12 @@ fn build_service_webview(
             }
             let loaded_url = payload.url();
             // Catch product `/login` on finished load too (some redirects skip
-            // on_navigation for the final document).
-            if !is_accounts_host(loaded_url) && loaded_url.path() == "/login" {
+            // on_navigation for the final document). Shipping's token-relay hop
+            // (`/login?...&t=<jwt>`) is excluded — it is a normal mid-handoff step.
+            if !is_accounts_host(loaded_url)
+                && loaded_url.path() == "/login"
+                && !is_temporal_token_relay(loaded_url)
+            {
                 let _ = app_for_load.emit_to(main_target(), "auth-required", &id_for_load);
             }
             if !is_accounts_host(loaded_url)
