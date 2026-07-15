@@ -49,12 +49,14 @@ export async function hasDeviceKey(): Promise<boolean> {
   }
 }
 
-/** Unlink this device locally (keyring + meta) so silent login stops on next launch. */
+/** Wipe local keyring + meta only (does not touch Accounts). Ordinary logout
+ * must NOT call this — device keys are machine trust. Use for intentional
+ * factory reset so silent remint stops on this machine. */
 export async function deleteDeviceKey(): Promise<void> {
   if (!isTauri()) return;
   try {
     await invoke("delete_device_key");
-    console.info("[device-key] deleted");
+    console.info("[device-key] deleted locally");
   } catch (error) {
     console.error("[device-key] delete failed:", error);
   }
@@ -65,15 +67,45 @@ export async function registerDeviceKey(sessionToken: string): Promise<void> {
   // Accounts checks the session token's `aud` (= HOSTNAME) against the request
   // Referer; pass the decoded audience so the register POST is not rejected.
   const referer = extractAudience(sessionToken) || TENDENCYS_BASE_URL;
-  try {
+
+  const attempt = async (): Promise<void> => {
     await invoke<DeviceKeyMeta>("register_device_key", {
       accountsBaseUrl: TENDENCYS_BASE_URL,
       sessionToken,
       referer,
     });
+  };
+
+  try {
+    await attempt();
     console.info("[device-key] registered");
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("[device-key] register failed:", error);
+
+    // Device_id is globally unique to one Accounts user. After A logs out (key
+    // kept) and B signs in, register conflicts — wipe local identity and mint a
+    // fresh UUID so B owns silent remint on this machine.
+    if (message.toLowerCase().includes("already registered")) {
+      await deleteDeviceKey();
+      try {
+        await attempt();
+        console.info("[device-key] registered after key rotation");
+        return;
+      } catch (retryError) {
+        console.error("[device-key] register retry failed:", retryError);
+        return;
+      }
+    }
+
+    // Accounts returns 429 for the device cap, but this is not a transient rate
+    // limit — it means the account has hit the 10-device maximum. Surface it
+    // clearly so the user (or support) knows to unlink an old device.
+    if (message.includes("maximum") && message.includes("linked devices")) {
+      console.error(
+        "[device-key] device limit reached — unlink an old device in account settings",
+      );
+    }
   }
 }
 
@@ -101,7 +133,9 @@ function parseRateLimited(message: string): DeviceKeyLoginResult | null {
 
 async function performDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
   const linked = await hasDeviceKey();
-  if (!linked) return { kind: "unavailable" };
+  if (!linked) {
+    return { kind: "unavailable" };
+  }
 
   const redirectUrlB64 = btoa(`${DEEP_LINK_SCHEME}://authentication`);
 

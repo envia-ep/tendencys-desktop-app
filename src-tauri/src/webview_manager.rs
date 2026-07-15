@@ -293,17 +293,9 @@ fn build_service_webview(
             // login-sites falls back to the interactive form when the shared
             // `_atid` is missing/expired. Surface it so a hidden pre-warm webview
             // is revealed for one re-auth instead of silently stuck on a form.
-            let is_accounts_login = is_accounts_host(url) && url.path() == "/login";
-            // Product `/login` means the product session died (or handoff failed
-            // and bounced here). Treat like SSO failure so the shell can retry
-            // `/login-sites` on the next select. Exception: Shipping's token-relay
-            // hop (`/login?...&t=<jwt>`) is a legitimate mid-handoff redirect, not a
-            // failure — see `is_temporal_token_relay`.
-            let is_product_login = !is_accounts_host(url)
-                && url.path() == "/login"
-                && !is_temporal_token_relay(url);
-            if is_accounts_login || is_product_login {
-                let _ = app_for_nav.emit_to(main_target(), "auth-required", &id_for_nav);
+            // Product `/login` (except Shipping's mid-handoff token relay) is the
+            // same class of failure.
+            if emit_auth_required_if_login(&app_for_nav, &id_for_nav, url) {
                 return true;
             }
 
@@ -322,14 +314,8 @@ fn build_service_webview(
             }
             let loaded_url = payload.url();
             // Catch product `/login` on finished load too (some redirects skip
-            // on_navigation for the final document). Shipping's token-relay hop
-            // (`/login?...&t=<jwt>`) is excluded — it is a normal mid-handoff step.
-            if !is_accounts_host(loaded_url)
-                && loaded_url.path() == "/login"
-                && !is_temporal_token_relay(loaded_url)
-            {
-                let _ = app_for_load.emit_to(main_target(), "auth-required", &id_for_load);
-            }
+            // on_navigation for the final document).
+            let _ = emit_auth_required_if_login(&app_for_load, &id_for_load, loaded_url);
             if !is_accounts_host(loaded_url)
                 && loaded_url.path() != "/login-sites"
                 && loaded_url.path() != "/login"
@@ -362,8 +348,50 @@ fn build_service_webview(
     Ok(())
 }
 
+/// Find any existing webview pinned to SHARED_DATA_STORE (seed / svc-* / auth).
+fn find_shared_store_webview(app: &AppHandle) -> Option<tauri::Webview> {
+    if let Some(existing) = app.get_webview(ATID_SEED_LABEL) {
+        return Some(existing);
+    }
+    app.webviews()
+        .into_iter()
+        .find(|(label, _)| label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL)
+        .map(|(_, wv)| wv)
+}
+
+/// Find or create a hidden webview on SHARED_DATA_STORE for cookie jar ops.
+fn shared_store_webview(app: &AppHandle) -> Result<tauri::Webview, String> {
+    if let Some(existing) = find_shared_store_webview(app) {
+        return Ok(existing);
+    }
+    let window = app.get_window(MAIN_WINDOW).ok_or("main window not found")?;
+    let (pos, size) = content_rect(&window, DEFAULT_LEFT_INSET).map_err(|e| e.to_string())?;
+    let blank: tauri::Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
+    let builder = WebviewBuilder::new(ATID_SEED_LABEL, WebviewUrl::External(blank))
+        .data_store_identifier(SHARED_DATA_STORE);
+    let created = window
+        .add_child(builder, pos, size)
+        .map_err(|e| e.to_string())?;
+    let _ = created.hide();
+    Ok(created)
+}
+
+/// Emit `auth-required` when the URL is Accounts `/login` or a product `/login`
+/// that is not Shipping's mid-handoff token relay. Returns true if emitted.
+fn emit_auth_required_if_login(app: &AppHandle, service_id: &str, url: &tauri::Url) -> bool {
+    let is_accounts_login = is_accounts_host(url) && url.path() == "/login";
+    let is_product_login = !is_accounts_host(url)
+        && url.path() == "/login"
+        && !is_temporal_token_relay(url);
+    if is_accounts_login || is_product_login {
+        let _ = app.emit_to(main_target(), "auth-required", service_id);
+        return true;
+    }
+    false
+}
+
 /// Write the shell's Accounts session JWT into the shared WKWebView cookie jar as
-/// `_atid`. Cold restore keeps the shell JWT in the store plugin but session
+/// `_atid`. Cold restore keeps the shell profile in the store plugin but session
 /// cookies do not survive app quit — without this, `/login-sites` 401s and the
 /// product webview sits on Accounts' white "Accessing…" spinner.
 #[tauri::command]
@@ -384,30 +412,7 @@ pub async fn seed_accounts_session(
         .ok_or_else(|| "accounts url missing host".to_string())?
         .to_string();
 
-    let window = app
-        .get_window(MAIN_WINDOW)
-        .ok_or("main window not found")?;
-
-    // Must set the cookie on a webview pinned to SHARED_DATA_STORE — never the
-    // shell `main` webview (different jar).
-    let webview = if let Some(existing) = app.get_webview(ATID_SEED_LABEL) {
-        existing
-    } else if let Some((_, existing)) = app.webviews().into_iter().find(|(label, _)| {
-        label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL
-    }) {
-        existing
-    } else {
-        let (pos, size) = content_rect(&window, DEFAULT_LEFT_INSET).map_err(|e| e.to_string())?;
-        let blank: tauri::Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
-        let builder =
-            WebviewBuilder::new(ATID_SEED_LABEL, WebviewUrl::External(blank))
-                .data_store_identifier(SHARED_DATA_STORE);
-        let created = window
-            .add_child(builder, pos, size)
-            .map_err(|e| e.to_string())?;
-        let _ = created.hide();
-        created
-    };
+    let webview = shared_store_webview(&app)?;
 
     // Match Accounts cookie flags (`secure` + `sameSite: none`) so `/api/login/sites`
     // receives `_atid` on cross-site POSTs from the login-sites page.
@@ -453,13 +458,7 @@ pub async fn read_accounts_session(
         .ok_or_else(|| "accounts url missing host".to_string())?
         .to_string();
 
-    let webview = app.get_webview(ATID_SEED_LABEL).or_else(|| {
-        app.webviews()
-            .into_iter()
-            .find(|(label, _)| label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL)
-            .map(|(_, wv)| wv)
-    });
-    let Some(webview) = webview else {
+    let Some(webview) = find_shared_store_webview(&app) else {
         log::info!("[sso] read _atid: no shared-store webview yet");
         return Ok(None);
     };
@@ -497,17 +496,7 @@ pub async fn clear_accounts_session(
 
     // Only touch an already-existing shared-store webview; if none exists there
     // is nothing to clear (logout_webviews may have closed them all).
-    let webview = app
-        .get_webview(ATID_SEED_LABEL)
-        .or_else(|| {
-            app.webviews()
-                .into_iter()
-                .find(|(label, _)| {
-                    label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL
-                })
-                .map(|(_, wv)| wv)
-        });
-    let Some(webview) = webview else {
+    let Some(webview) = find_shared_store_webview(&app) else {
         return Ok(());
     };
 
@@ -539,26 +528,8 @@ pub async fn clear_shared_web_data(app: AppHandle) -> Result<(), String> {
     // `clear_all_browsing_data` wipes the data store its webview is pinned to, so
     // any SHARED_DATA_STORE webview works. Reuse an existing one; otherwise spin
     // up a hidden throwaway pinned to the shared store just for the wipe.
-    let mut created = false;
-    let webview = if let Some(existing) = app.get_webview(ATID_SEED_LABEL) {
-        existing
-    } else if let Some((_, existing)) = app.webviews().into_iter().find(|(label, _)| {
-        label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL
-    }) {
-        existing
-    } else {
-        let window = app.get_window(MAIN_WINDOW).ok_or("main window not found")?;
-        let (pos, size) = content_rect(&window, DEFAULT_LEFT_INSET).map_err(|e| e.to_string())?;
-        let blank: tauri::Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
-        let builder = WebviewBuilder::new(ATID_SEED_LABEL, WebviewUrl::External(blank))
-            .data_store_identifier(SHARED_DATA_STORE);
-        let wv = window
-            .add_child(builder, pos, size)
-            .map_err(|e| e.to_string())?;
-        let _ = wv.hide();
-        created = true;
-        wv
-    };
+    let created = find_shared_store_webview(&app).is_none();
+    let webview = shared_store_webview(&app)?;
 
     let _ = webview.clear_all_browsing_data();
     log::info!("[sso] clear_shared_web_data requested");
@@ -806,9 +777,14 @@ pub async fn open_shell_login(
     let builder = WebviewBuilder::new(AUTH_LABEL, WebviewUrl::External(parsed))
         .data_store_identifier(SHARED_DATA_STORE)
         .on_navigation(move |url| {
-            let is_callback =
-                url.scheme() == "tendencys" && url.host_str() == Some("authentication");
+            let scheme = url.scheme();
+            let is_callback = scheme == "tendencys" && url.host_str() == Some("authentication");
             if !is_callback {
+                // Log every real navigation (skip internal schemes) so devs can trace
+                // what the accounts page does inside the auth webview.
+                if scheme == "https" || scheme == "http" {
+                    log::info!("[auth-nav] -> {}", url.as_str());
+                }
                 return true;
             }
             if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "authorization") {
@@ -842,6 +818,11 @@ pub async fn open_shell_login(
             false
         })
         .on_page_load(move |webview, payload| {
+            let event_name = match payload.event() {
+                PageLoadEvent::Started => "started",
+                PageLoadEvent::Finished => "finished",
+            };
+            log::info!("[auth-load] {} url={}", event_name, payload.url().as_str());
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }

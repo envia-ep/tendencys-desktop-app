@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth-store";
 import { resetLoginGate } from "@/pages/LoginPage";
+import { claimHandoffToken } from "@/lib/auth-handoff";
 
 /** Survive React Strict Mode remounts — one validation per handoff JWT. */
 let pendingToken: string | null = null;
@@ -15,6 +16,11 @@ function resetPendingAuth() {
   pendingAuth = null;
 }
 
+/**
+ * System-browser / OS deep-link handoff only (`tendencys://authentication?authorization=`).
+ * In-app shell login uses `shell-auth-token` in App.tsx instead — do not treat this
+ * page as the primary auth path.
+ */
 export default function Authentication() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
@@ -43,6 +49,13 @@ export default function Authentication() {
 
     const run = async () => {
       if (!pendingAuth || pendingToken !== authorizationToken) {
+        // If listenShellAuthToken already claimed this token (Strict Mode race or
+        // the Rust layer firing both the IPC event and the deep-link), bail out
+        // so we don't burn the one-time token with a second validate call.
+        if (!claimHandoffToken(authorizationToken)) {
+          setIsValidating(false);
+          return;
+        }
         pendingToken = authorizationToken;
         window.history.replaceState({}, "", window.location.pathname);
         pendingAuth = validateAndLogin(authorizationToken);

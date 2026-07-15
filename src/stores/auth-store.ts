@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { validateAuthorizationToken } from "@/lib/accounts-api";
 import {
-  deleteDeviceKey,
   hasDeviceKey,
   registerDeviceKey,
   resetDeviceKeyLoginCache,
@@ -22,8 +21,8 @@ import {
   clearSharedWebData,
   logoutWebviews,
   readAccountsSession,
-  seedAccountsSession,
 } from "@/lib/native-webviews";
+import { ensureAtidSeeded } from "@/lib/atid-jar";
 
 /**
  * The Accounts `/login` page sets the real session cookie (`_atid`: id + aud) in
@@ -51,6 +50,11 @@ type AuthState = {
    * may be gone and a hidden webview would land on a login form). Consumed once.
    */
   justAuthenticated: boolean;
+  /**
+   * True after cold-start remint finished (success or fail). LoginPage skips a
+   * second automatic device-key attempt when remint already owned the silent path.
+   */
+  silentLoginAttempted: boolean;
   initialize: () => Promise<void>;
   /** Cold-start silent re-mint of the in-memory `_atid` via device-key login. */
   remintSession: () => Promise<void>;
@@ -73,17 +77,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isInitialized: false,
   error: null,
   justAuthenticated: false,
+  silentLoginAttempted: false,
 
   initialize: async () => {
     const stored = await loadSession();
     if (!stored) {
-      set({ isInitialized: true });
+      set({ isInitialized: true, silentLoginAttempted: false });
       return;
     }
 
     if (Date.now() > stored.expiresAt) {
       await clearSession();
-      set({ isInitialized: true });
+      set({ isInitialized: true, silentLoginAttempted: false });
       return;
     }
 
@@ -93,6 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       session: { ...stored, token: "" },
       isInitialized: true,
+      silentLoginAttempted: false,
     });
 
     void get().remintSession();
@@ -104,11 +110,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Browser dev (`npm run dev`) has no device key / native jar — keep the
     // optimistic session so the shell renders; SSO simply won't work off-desktop.
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      set({ silentLoginAttempted: true });
+      return;
+    }
 
     // Without a linked device key there is no silent path — force interactive login.
     if (!(await hasDeviceKey())) {
-      set({ session: null });
+      set({ session: null, silentLoginAttempted: true });
       return;
     }
 
@@ -116,19 +125,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (result.kind === "handoff" && result.sessionToken) {
       // Device-key login is a Rust HTTP call, so nothing populated the shared jar
       // — seed the freshly minted `_atid` ourselves before any product SSO fires.
-      await seedAccountsSession(TENDENCYS_BASE_URL, result.sessionToken).catch(
-        () => undefined,
-      );
+      await ensureAtidSeeded(result.sessionToken);
       set({
         session: { ...current, token: result.sessionToken },
         justAuthenticated: true,
+        silentLoginAttempted: true,
       });
       return;
     }
 
-    // Silent re-mint failed (intermediate step, error, or missing token) — drop
-    // the optimistic session and route to interactive login.
-    set({ session: null });
+    if (result.kind === "intermediate") {
+      // Terms / phone step — open in the system browser; deep link returns the handoff.
+      set({ session: null, silentLoginAttempted: true });
+      try {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(result.redirectUrl);
+      } catch {
+        // LoginPage Welcome is the fallback if the opener fails.
+      }
+      return;
+    }
+
+    // Silent re-mint failed (error, unavailable, rate-limited, missing token) — drop
+    // the optimistic session and route to interactive login. Mark attempted so
+    // LoginPage does not immediately re-hit options+login.
+    set({ session: null, silentLoginAttempted: true });
   },
 
   validateAndLogin: async (
@@ -163,6 +184,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ session, isLoading: false, error: null, justAuthenticated: true });
 
     // Auto-link this device for silent re-auth on next launch (non-blocking).
+    // registerDeviceKey rotates the local key if Accounts reports the device_id
+    // is already owned by another account (logout-kept key + different user).
     void registerDeviceKey(session.token);
 
     return true;
@@ -177,10 +200,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useServiceStore.getState().clearSsoInitiated();
     // Drop any cached failed silent-login result so the next sign-in starts clean.
     resetDeviceKeyLoginCache();
-    set({ session: null, error: null });
-    // Fully remove automatic sign-in on this device: unlink the device key so
-    // silent login stops, clear the shared `_atid`, and tear down webviews.
-    await deleteDeviceKey();
+    set({ session: null, error: null, silentLoginAttempted: true });
+    // Keep the local device key (machine trust) so a later cold launch can remint
+    // without minting a new Accounts row. silentLoginAttempted=true so LoginPage
+    // shows Welcome instead of instantly signing the user back in.
     await clearAccountsSession(TENDENCYS_BASE_URL).catch(() => undefined);
     // Wipe the whole shared jar (Accounts `ec_session` + product sessions), not
     // just `_atid` — otherwise the next user's `/login` auto-redirects as the

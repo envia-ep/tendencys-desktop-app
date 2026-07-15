@@ -6,6 +6,7 @@ import { UpdateBanner } from "@/components/UpdateBanner";
 import { useAuthStore } from "@/stores/auth-store";
 import { useTauriDeepLink } from "@/hooks/useTauriDeepLink";
 import { listenShellAuthToken } from "@/lib/native-webviews";
+import { claimHandoffToken } from "@/lib/auth-handoff";
 import { diagnoseAccountsSession } from "@/lib/sso-log";
 import Home from "@/pages/Home";
 import LoginPage from "@/pages/LoginPage";
@@ -29,18 +30,19 @@ function AppRoutes() {
       diagnoseAccountsSession;
   }, []);
 
-  // Native in-app login delivers the handoff JWT via an event, not the deep link.
+  // Primary in-app handoff path: Rust intercepts tendencys:// in the auth
+  // webview and emits shell-auth-token. Authentication.tsx is only for
+  // system-browser / OS deep-link returns (device-key step-up, intermediate).
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    let handled = false;
     void listenShellAuthToken(async ({ token, atid }) => {
-      if (handled) return;
-      handled = true;
+      // claimHandoffToken guards against Strict Mode double-registration: both
+      // listener instances receive the same event, but only the first proceeds.
+      if (!claimHandoffToken(token)) return;
       const ok = await useAuthStore.getState().validateAndLogin(token, atid);
       if (ok) {
         navigate("/", { replace: true });
       } else {
-        handled = false;
         navigate("/authentication", { replace: true });
       }
     }).then((fn) => {

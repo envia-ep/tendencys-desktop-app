@@ -53,22 +53,21 @@ Three layers, all backed by Accounts:
 
 - The rail's "Sign in" flow opens Accounts `/login` in a dedicated native `auth` webview (left-inset so a recovery rail stays visible if it hangs).
 - On success, Accounts redirects to `tendencys://authentication?authorization=<jwt>`. The Rust side intercepts that navigation (never leaves the app or touches the system browser) and emits the JWT back to the frontend.
-- The shell exchanges that handoff JWT for a session token via Accounts' authorization-validation API and persists it (`src/lib/token-store.ts`).
+- The shell exchanges that handoff JWT for a session profile via Accounts' authorization-validation API and persists the **non-secret profile** only (`src/lib/token-store.ts`). The real `_atid` stays in memory / the shared cookie jar — never on disk.
 
 ### 2. Device-key silent re-auth
 
 - Right after a successful interactive login, the shell generates an **Ed25519 keypair** (`src-tauri/src/device_key.rs`), stores the private key in the OS keyring (Keychain / Credential Manager), and registers the public key with Accounts as a "device key" login method for that account.
 - On every later launch, the shell tries `login_with_device_key` first: it fetches a challenge from Accounts, signs it with the stored private key, and gets back a handoff JWT — **no login form, no browser** — before ever showing the interactive login screen.
 - If Accounts requires an extra step (terms acceptance, phone verification), the shell opens that step in the system browser and still receives the JWT back via the `tendencys://` deep link.
-- Signing out deletes the device key (keyring + local metadata), so silent re-auth stops immediately on that device.
+- Signing out clears the session and shared cookie jar but **keeps** the local device key (machine trust). Silent re-auth still works on the next launch. Use `deleteDeviceKey` (local wipe only) for an intentional factory reset of this machine.
 
 ### 3. Per-product SSO (shared cookie jar)
 
 - Every product webview and the `auth` webview are pinned to the **same WKWebView data store** (`SHARED_DATA_STORE` in `webview_manager.rs`), so Accounts' `_atid` session cookie set during shell login is visible to every product.
 - When a product is opened for the first time (or after a failed SSO attempt), the shell first navigates it to Accounts `/login-sites?site_id=<product>&redirect_url=<callback>` — this reads the shared `_atid` and redirects into the product already authenticated, landing on that product's `/authentication` (or similar) callback route.
-- On cold app restart, the OS session cookie doesn't survive process exit, so the shell explicitly re-writes `_atid` into the shared cookie jar from the stored shell JWT (`seed_accounts_session`) before doing any product SSO.
-- If a product's silent SSO ever fails (missing/expired `_atid`, or the product's own session died), the webview bounces to a login form and the shell surfaces an `auth-required` event so the user can retry via the rail's "Sign in" action.
-- Some products use a legacy **server-entry** mode instead (they build their own Accounts redirect from a `/login` route) rather than `/login-sites`; see `authMode` in `src/config/services.ts`.
+- On cold app restart, the OS session cookie doesn't survive process exit. The shell does **not** persist `_atid`; it re-mints a session via device-key silent login, then writes `_atid` into the shared cookie jar (`seed_accounts_session` / `ensureAtidSeeded`) before any product SSO.
+- If a product's silent SSO ever fails (missing/expired `_atid`, or the product's own session died), the webview bounces to a login form and the shell surfaces an `auth-required` event so the shell can re-seed once and retry, or the user can retry via the rail's "Sign in" action.
 - "Open in browser" is always available and uses the real system browser with the same `/login-sites` SSO handoff — useful when a product needs full browser features the embedded webview doesn't support.
 
 ### Pre-warming
@@ -106,7 +105,6 @@ Configured in `src/config/services.ts`, override any URL/site ID via `.env.local
 
 **Auth modes** (`ServiceAuthMode` in `src/config/services.ts`):
 - `login-sites` — Accounts `/login-sites` handoff using the shared session (current default for all products with a working callback route).
-- `server-entry` — legacy: the product's own server builds the Accounts redirect from a `/login` route.
 - `unsupported` — no Accounts SSO integration yet; the shell just opens the product URL and lets it handle its own login.
 
 Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell skips pre-warm/silent SSO for it and only opens the plain URL.

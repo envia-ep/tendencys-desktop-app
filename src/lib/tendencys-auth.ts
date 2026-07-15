@@ -25,17 +25,12 @@ export function buildServiceAuthCallbackUrl(service: ServiceDefinition): string 
 }
 
 /**
- * Per-service SSO entry using Accounts `/login-sites` (audience-scoped handoff)
- * or the product's own server login entrypoint.
+ * Per-service SSO entry using Accounts `/login-sites` (audience-scoped handoff).
+ * Returns null for unsupported products (open the plain product URL instead).
  */
 export function buildServiceSsoUrl(service: ServiceDefinition): string | null {
   if (service.authMode === "unsupported") {
     return null;
-  }
-
-  if (service.authMode === "server-entry") {
-    const entryPath = service.serverEntryPath ?? "/login";
-    return new URL(entryPath, service.url).toString();
   }
 
   const redirectUrl = encodeURIComponent(

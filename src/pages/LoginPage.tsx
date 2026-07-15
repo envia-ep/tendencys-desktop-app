@@ -103,6 +103,14 @@ export default function LoginPage() {
     async (force = false) => {
       setPhase("checking");
       clearCheckTimer();
+
+      // Remint already owned the silent path for this launch (profile restore).
+      // Skip a redundant options+login unless the user explicitly retries.
+      if (!force && useAuthStore.getState().silentLoginAttempted) {
+        setPhase("welcome");
+        return;
+      }
+
       checkTimerRef.current = setTimeout(() => {
         if (useAuthStore.getState().session) return;
         // A slow/absent device key is a normal case, not an error — land on Welcome.

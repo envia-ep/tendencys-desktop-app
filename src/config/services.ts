@@ -5,11 +5,10 @@ export type QuickLink = {
 
 /**
  * How the desktop shell authenticates into this product after shell login.
- * - login-sites: Accounts `/login-sites` with this siteId (Cargo, Fulfillment, Shipping, Ecart Pay, Banking)
- * - server-entry: product server builds Accounts redirect (legacy; prefer login-sites when callback exists)
+ * - login-sites: Accounts `/login-sites` with this siteId
  * - unsupported: no Accounts SSO yet (WMS) — open product URL only
  */
-export type ServiceAuthMode = "login-sites" | "server-entry" | "unsupported";
+export type ServiceAuthMode = "login-sites" | "unsupported";
 
 export type ServiceDefinition = {
   id: string;
@@ -22,8 +21,6 @@ export type ServiceDefinition = {
   authMode: ServiceAuthMode;
   /** Path Accounts redirects to after SSO (must be whitelisted on the product site). */
   authCallbackPath: string;
-  /** For server-entry: product route that starts Accounts login. */
-  serverEntryPath?: string;
   /**
    * Whether the product's `authCallbackPath` actually accepts the Accounts
    * `?authorization=` handoff yet. When false the shell must not drive SSO/pre-warm
@@ -128,9 +125,7 @@ export const SERVICES: ServiceDefinition[] = [
     icon: "ecart-pay",
     accentColor: "#38A169",
     // `/authentication` accepts the Accounts `?authorization=` handoff. Drive
-    // silent SSO via `/login-sites` + shared `_atid` instead of product `/login`
-    // (server-entry), which redirects to Accounts interactive `/login` with a
-    // legacy site_id and lands on app.ecart.com — blank/broken in the shell.
+    // silent SSO via `/login-sites` + shared `_atid`.
     authMode: "login-sites",
     authCallbackPath: "/authentication",
     quickLinks: [
