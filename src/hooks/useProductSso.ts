@@ -26,6 +26,7 @@ import {
 } from "@/lib/shell-history";
 import { ssoCaptureFailure, ssoLog } from "@/lib/sso-log";
 import { ensureAtidSeeded } from "@/lib/atid-jar";
+import { hasDeviceKey, tryDeviceKeyLogin } from "@/lib/device-keys";
 import { getServiceById, SERVICES, type ServiceDefinition } from "@/config/services";
 
 /** If a product webview never fires its first-load event, surface a retry. */
@@ -326,7 +327,22 @@ export function useProductSso() {
             if (serviceId === activeService.id) beginLoad(serviceId);
             void (async () => {
               try {
-                await ensureAtidSeeded(token);
+                let seedToken = token;
+                // Seed-first may leave a token that /login-sites still rejects —
+                // remint via device key once, then seed that session token.
+                if (await hasDeviceKey()) {
+                  const remint = await tryDeviceKeyLogin({ force: true });
+                  if (remint.kind === "handoff" && remint.sessionToken) {
+                    seedToken = remint.sessionToken;
+                    const current = useAuthStore.getState().session;
+                    if (current) {
+                      useAuthStore.setState({
+                        session: { ...current, token: seedToken },
+                      });
+                    }
+                  }
+                }
+                await ensureAtidSeeded(seedToken);
                 lastUrlRef.current[serviceId] = sso;
                 await navigateService(serviceId, sso);
               } catch {

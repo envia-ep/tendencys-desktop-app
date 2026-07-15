@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { isTauri } from "@/lib/tauri";
 import { DEEP_LINK_SCHEME } from "@/lib/tendencys-auth";
@@ -17,13 +17,25 @@ function extractAuthorization(raw: string): string | null {
   }
 }
 
+/**
+ * Backup deep-link path: navigate to Authentication when JS receives tendencys://.
+ * Primary path is Rust `emit_deep_link_auth` → shell-auth-token → App.tsx.
+ */
 export function useTauriDeepLink() {
   const navigate = useNavigate();
+  // `navigate` from a plain <BrowserRouter> is re-created on every pathname
+  // change (react-router's useNavigateUnstable memoizes on locationPathname).
+  // A ref keeps this effect's deps free of that churn so setup() — which
+  // itself navigates and calls the sticky Tauri getCurrent() — cannot
+  // re-trigger itself in a loop.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   useEffect(() => {
     if (!isTauri()) return;
 
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
 
     const handleUrls = (urls: string[]) => {
       for (const raw of urls) {
@@ -35,7 +47,9 @@ export function useTauriDeepLink() {
 
         const search = new URLSearchParams();
         search.set("authorization", authorization);
-        navigate(`/authentication?${search.toString()}`);
+        navigateRef.current(`/authentication?${search.toString()}`, {
+          replace: true,
+        });
         return;
       }
     };
@@ -48,13 +62,14 @@ export function useTauriDeepLink() {
       // Cold start: app launched by tendencys://… (getCurrent), not only onOpenUrl.
       try {
         const startUrls = await getCurrent();
-        if (startUrls?.length) {
+        if (!cancelled && startUrls?.length) {
           handleUrls(startUrls);
         }
       } catch (err) {
         console.error("[TauriDeepLink] getCurrent failed:", err);
       }
 
+      if (cancelled) return;
       unlisten = await onOpenUrl((urls) => {
         handleUrls(urls);
       });
@@ -63,7 +78,10 @@ export function useTauriDeepLink() {
     void setup();
 
     return () => {
+      cancelled = true;
       unlisten?.();
     };
-  }, [navigate]);
+    // Intentionally run once for the app's lifetime — see navigateRef above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }

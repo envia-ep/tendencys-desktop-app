@@ -16,10 +16,21 @@ function resetPendingAuth() {
   pendingAuth = null;
 }
 
+/** Wait for App.tsx's shell-auth-token path to finish when we lost the claim race. */
+async function waitForSession(ms = 8000): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < ms) {
+    if (useAuthStore.getState().session?.token) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return Boolean(useAuthStore.getState().session?.token);
+}
+
 /**
- * System-browser / OS deep-link handoff only (`tendencys://authentication?authorization=`).
- * In-app shell login uses `shell-auth-token` in App.tsx instead — do not treat this
- * page as the primary auth path.
+ * System-browser / OS deep-link handoff backup (`tendencys://authentication?authorization=`).
+ * Primary path: Rust emits `shell-auth-token` → App.tsx `listenShellAuthToken`.
+ * This page runs when JS `onOpenUrl` navigates here, or when the claim race lost
+ * to App and we only need to wait for session.
  */
 export default function Authentication() {
   const { t } = useTranslation();
@@ -49,11 +60,14 @@ export default function Authentication() {
 
     const run = async () => {
       if (!pendingAuth || pendingToken !== authorizationToken) {
-        // If listenShellAuthToken already claimed this token (Strict Mode race or
-        // the Rust layer firing both the IPC event and the deep-link), bail out
-        // so we don't burn the one-time token with a second validate call.
+        // Rust emit + JS deep-link may both arrive; first claimer validates.
         if (!claimHandoffToken(authorizationToken)) {
+          const ok = await waitForSession();
+          if (cancelled) return;
           setIsValidating(false);
+          if (ok) {
+            navigate("/", { replace: true });
+          }
           return;
         }
         pendingToken = authorizationToken;

@@ -1,40 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { AlertCircle, Loader2, RotateCw } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { WelcomeScreen } from "@/components/auth/WelcomeScreen";
 import { useAuthStore } from "@/stores/auth-store";
-import {
-  DEEP_LINK_SCHEME,
-  SHELL_SITE_ID,
-  TENDENCYS_BASE_URL,
-} from "@/lib/tendencys-auth";
-import { LOGIN_RAIL_WIDTH } from "@/config/layout";
-import {
-  closeShellLogin,
-  listenShellLoginLoaded,
-  openShellLogin,
-} from "@/lib/native-webviews";
-import { isDeviceKeyRateLimited, tryDeviceKeyLogin } from "@/lib/device-keys";
-
-/** Survive React Strict Mode remounts — one auth attempt per unauthenticated visit. */
-let loginStarted = false;
+import { buildShellAuthUrl, openInBrowser } from "@/lib/tendencys-auth";
+import { tryDeviceKeyLogin } from "@/lib/device-keys";
+import { isLoginStarted, setLoginStarted } from "@/lib/login-gate";
 
 /** Silent device-key API call only — a slow/absent key is normal, not an error. */
 const CHECK_TIMEOUT_MS = 10000;
-/**
- * Webview opening only — armed until Accounts' page actually renders. Once
- * `shell-login-loaded` fires the user is looking at a real, interactive form
- * and drives the pace themselves, so no timer runs after that (previously a
- * single 45s clock covered typing time too and could fire mid-keystroke).
- */
-const CONNECT_TIMEOUT_MS = 20000;
 
-type Phase = "checking" | "welcome" | "connecting" | "authenticating" | "timedOut";
+/**
+ * Recovery timeout for the "Continue in your browser" screen. If the browser
+ * never hands the JWT back (e.g. lost/misdirected deep link — see README's
+ * "Only one process should own the tendencys:// scheme" note), this bounds an
+ * otherwise-infinite spinner and drops the user onto the retryable timedOut phase.
+ */
+const BROWSER_TIMEOUT_MS = 120000;
+
+type Phase = "checking" | "welcome" | "awaitingBrowser" | "timedOut";
 
 export function resetLoginGate() {
-  loginStarted = false;
+  setLoginStarted(false);
 }
 
 export default function LoginPage() {
@@ -42,8 +31,9 @@ export default function LoginPage() {
   const session = useAuthStore((s) => s.session);
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const [phase, setPhase] = useState<Phase>("checking");
+  const [authPath, setAuthPath] = useState<"login" | "signup">("login");
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const browserTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearCheckTimer = useCallback(() => {
     if (checkTimerRef.current) {
@@ -52,51 +42,36 @@ export default function LoginPage() {
     }
   }, []);
 
-  const clearConnectTimer = useCallback(() => {
-    if (connectTimerRef.current) {
-      clearTimeout(connectTimerRef.current);
-      connectTimerRef.current = null;
+  const clearBrowserTimer = useCallback(() => {
+    if (browserTimerRef.current) {
+      clearTimeout(browserTimerRef.current);
+      browserTimerRef.current = null;
     }
   }, []);
 
+  const armBrowserTimer = useCallback(() => {
+    clearBrowserTimer();
+    browserTimerRef.current = setTimeout(() => {
+      if (useAuthStore.getState().session) return;
+      setPhase((prev) => (prev === "awaitingBrowser" ? "timedOut" : prev));
+    }, BROWSER_TIMEOUT_MS);
+  }, [clearBrowserTimer]);
+
+  /** Only path: system browser can complete Cloudflare Managed Challenges. */
   const startInteractiveAuth = useCallback(
-    (authPath: "login" | "signup") => {
+    async (path: "login" | "signup") => {
       clearCheckTimer();
-      clearConnectTimer();
-      setPhase("connecting");
-      const openAuth = () => {
-        const redirectB64 = btoa(`${DEEP_LINK_SCHEME}://authentication`);
-        void openShellLogin(
-          TENDENCYS_BASE_URL,
-          SHELL_SITE_ID,
-          redirectB64,
-          authPath,
-        );
-      };
-      // The connect timeout means the Accounts form never signalled it painted.
-      // For "login" this can be a lingering web session that auto-redirected and
-      // suppressed the form; reopening `/login` re-wipes the shared store
-      // (open_shell_login clears on auth_path == "login") so the second attempt
-      // lands on the real form instead of a dead white pane. Recover once, then
-      // surface the timeout screen if it still fails.
-      const arm = (isRecovery: boolean) => {
-        connectTimerRef.current = setTimeout(() => {
-          if (useAuthStore.getState().session) return;
-          // Under an active rate-limit backoff, reopening `/login` hits the same
-          // edge that limited us — surface the timeout screen instead of retrying.
-          if (authPath === "login" && !isRecovery && !isDeviceKeyRateLimited()) {
-            openAuth();
-            arm(true);
-            return;
-          }
-          void closeShellLogin().catch(() => undefined);
-          setPhase("timedOut");
-        }, CONNECT_TIMEOUT_MS);
-      };
-      openAuth();
-      arm(false);
+      setAuthPath(path);
+      setPhase("awaitingBrowser");
+      armBrowserTimer();
+      try {
+        await openInBrowser(buildShellAuthUrl(path));
+      } catch {
+        clearBrowserTimer();
+        setPhase("timedOut");
+      }
     },
-    [clearCheckTimer, clearConnectTimer],
+    [clearCheckTimer, armBrowserTimer, clearBrowserTimer],
   );
 
   const startAuth = useCallback(
@@ -131,8 +106,9 @@ export default function LoginPage() {
         // Open Accounts intermediate step (terms / phone) in the system browser;
         // deep link still returns to the app with the handoff JWT.
         try {
-          const { openUrl } = await import("@tauri-apps/plugin-opener");
-          await openUrl(deviceResult.redirectUrl);
+          await openInBrowser(deviceResult.redirectUrl);
+          setPhase("awaitingBrowser");
+          armBrowserTimer();
           return;
         } catch {
           // Fall through to Welcome.
@@ -143,55 +119,34 @@ export default function LoginPage() {
       // pile more requests onto the same edge that rate-limited us.
       setPhase((prev) => (prev === "timedOut" ? prev : "welcome"));
     },
-    [clearCheckTimer],
+    [clearCheckTimer, armBrowserTimer],
   );
 
   const retryLogin = useCallback(async () => {
     clearCheckTimer();
-    clearConnectTimer();
-    resetLoginGate();
-    await closeShellLogin().catch(() => undefined);
-    loginStarted = true;
-    // User-initiated retry forces a fresh silent attempt (bypasses the negative
-    // cache), but device-keys still honours an active rate-limit backoff.
+    clearBrowserTimer();
+    setLoginStarted(true);
     await startAuth(true);
-  }, [clearCheckTimer, clearConnectTimer, startAuth]);
+  }, [clearCheckTimer, clearBrowserTimer, startAuth]);
 
   useEffect(() => {
     if (session) {
-      loginStarted = false;
+      setLoginStarted(false);
       clearCheckTimer();
-      clearConnectTimer();
+      clearBrowserTimer();
       return;
     }
-    if (!isInitialized || loginStarted) return;
-    loginStarted = true;
+    if (!isInitialized || isLoginStarted()) return;
+    setLoginStarted(true);
     void startAuth();
-  }, [isInitialized, session, startAuth, clearCheckTimer, clearConnectTimer]);
+  }, [isInitialized, session, startAuth, clearCheckTimer, clearBrowserTimer]);
 
-  // Real "Accounts form is visible and interactive" signal — stop guessing a
-  // fixed duration and let the connecting timeout expire only if the page
-  // genuinely never loads (offline, DNS failure, etc.).
   useEffect(() => {
-    if (phase !== "connecting") return;
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-    void listenShellLoginLoaded(() => {
-      if (cancelled) return;
-      clearConnectTimer();
-      setPhase("authenticating");
-    }).then((fn) => {
-      if (cancelled) fn();
-      else unlisten = fn;
-    });
     return () => {
-      cancelled = true;
-      unlisten?.();
+      clearCheckTimer();
+      clearBrowserTimer();
     };
-  }, [phase, clearConnectTimer]);
-
-  useEffect(() => clearCheckTimer, [clearCheckTimer]);
-  useEffect(() => clearConnectTimer, [clearConnectTimer]);
+  }, [clearCheckTimer, clearBrowserTimer]);
 
   if (isInitialized && session) {
     return <Navigate to="/" replace />;
@@ -200,9 +155,37 @@ export default function LoginPage() {
   if (phase === "welcome") {
     return (
       <WelcomeScreen
-        onSignIn={() => startInteractiveAuth("login")}
-        onCreateAccount={() => startInteractiveAuth("signup")}
+        onSignIn={() => void startInteractiveAuth("login")}
+        onCreateAccount={() => void startInteractiveAuth("signup")}
       />
+    );
+  }
+
+  if (phase === "awaitingBrowser") {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-primary p-8 text-white">
+        <Loader2 className="h-10 w-10 animate-spin" />
+        <h1 className="text-xl font-semibold">{t("login.browserTitle")}</h1>
+        <p className="max-w-md text-center text-white/80">
+          {t("login.browserDescription")}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => void startInteractiveAuth(authPath)}
+          >
+            <ExternalLink className="mr-2 h-4 w-4" />
+            {t("login.openInBrowser")}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-white/30 bg-transparent text-white hover:bg-white/10"
+            onClick={() => setPhase("welcome")}
+          >
+            {t("login.backToWelcome")}
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -214,41 +197,28 @@ export default function LoginPage() {
         <p className="max-w-md text-center text-white/80">
           {t("login.timeoutDescription")}
         </p>
-        <Button onClick={() => void retryLogin()}>
-          <RotateCw className="mr-2 h-4 w-4" />
-          {t("auth.tryAgain")}
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button onClick={() => void startInteractiveAuth(authPath)}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            {t("login.openInBrowser")}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-white/30 bg-transparent text-white hover:bg-white/10"
+            onClick={() => void retryLogin()}
+          >
+            <RotateCw className="mr-2 h-4 w-4" />
+            {t("auth.tryAgain")}
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-primary text-white">
-      <aside
-        className="flex h-full shrink-0 flex-col items-center gap-2 py-3"
-        style={{ width: LOGIN_RAIL_WIDTH }}
-        aria-label={t("login.recoveryRail")}
-      >
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-sm font-bold"
-          aria-hidden
-        >
-          T
-        </div>
-        <button
-          type="button"
-          onClick={() => void retryLogin()}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
-          aria-label={t("auth.tryAgain")}
-          title={t("auth.tryAgain")}
-        >
-          <RotateCw className="h-4 w-4" />
-        </button>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-4">
-        <Loader2 className="h-10 w-10 animate-spin" />
-        <p>{t("login.signingIn")}</p>
-      </div>
+    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-primary text-white">
+      <Loader2 className="h-10 w-10 animate-spin" />
+      <p>{t("login.signingIn")}</p>
     </div>
   );
 }

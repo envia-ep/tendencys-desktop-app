@@ -15,11 +15,11 @@ export async function ensureAtidSeeded(
   const existing = await readAccountsSession(TENDENCYS_BASE_URL).catch(
     () => null,
   );
-  if (existing) return true;
+  if (existing) {
+    return true;
+  }
   if (!sessionToken) return false;
-  await seedAccountsSession(TENDENCYS_BASE_URL, sessionToken).catch(
-    () => undefined,
-  );
+  await seedAccountsSession(TENDENCYS_BASE_URL, sessionToken).catch(() => null);
   const after = await readAccountsSession(TENDENCYS_BASE_URL).catch(
     () => null,
   );

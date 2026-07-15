@@ -30,15 +30,16 @@ function AppRoutes() {
       diagnoseAccountsSession;
   }, []);
 
-  // Primary in-app handoff path: Rust intercepts tendencys:// in the auth
-  // webview and emits shell-auth-token. Authentication.tsx is only for
-  // system-browser / OS deep-link returns (device-key step-up, intermediate).
+  // Primary handoff path: Rust emits shell-auth-token from the auth webview
+  // intercept OR from OS tendencys:// deep links (system-browser login).
+  // Authentication.tsx is the JS backup when onOpenUrl navigates there first.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void listenShellAuthToken(async ({ token, atid }) => {
       // claimHandoffToken guards against Strict Mode double-registration: both
       // listener instances receive the same event, but only the first proceeds.
-      if (!claimHandoffToken(token)) return;
+      const claimed = claimHandoffToken(token);
+      if (!claimed) return;
       const ok = await useAuthStore.getState().validateAndLogin(token, atid);
       if (ok) {
         navigate("/", { replace: true });

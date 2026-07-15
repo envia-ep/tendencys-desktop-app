@@ -27,16 +27,8 @@
 //! webviews use top=0 and only a left inset — wry pins child WKWebViews to the
 //! window top (`ViewMinYMargin`), so a top inset cannot be relied on.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashSet;
 use std::sync::Mutex;
-
-/// True once the shared WKWebsiteDataStore has been wiped for the interactive
-/// `/login` in this app run. Any stale/foreign Accounts session (e.g. an
-/// `ec_session` from a prior install) only needs clearing on the FIRST interactive
-/// login; repeated retries within the same run reuse the now-clean jar instead of
-/// re-clearing and re-loading `/login`. Reset on logout/account switch so the next
-/// user starts clean again.
-static SHARED_JAR_CLEARED: AtomicBool = AtomicBool::new(false);
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
@@ -53,14 +45,55 @@ struct ServiceNavigatedPayload {
     replace: bool,
 }
 
-/// Emitted when the in-app Accounts login captures the handoff JWT. `atid` is the
-/// real Accounts session cookie (`createSessionToken`: id + aud) the `/login` page
-/// just set in the shared jar — the token the shell must reuse for silent SSO and
-/// device-key registration (the `/api/accounts/authorization` token lacks `id`).
+/// Emitted when shell auth captures a handoff JWT (`token`) and optionally the
+/// real Accounts session cookie (`atid`) already in the shared jar. In-app login
+/// sets `atid` from `/login`; system-browser deep links leave `atid: None` and
+/// the frontend seeds from the authorization API response token instead.
 #[derive(Clone, Serialize)]
 struct ShellAuthPayload {
     token: String,
     atid: Option<String>,
+}
+
+/// Focus the main window and emit `shell-auth-token` for a system-browser /
+/// OS deep-link URL (`tendencys://authentication?authorization=…`).
+pub fn emit_deep_link_auth(app: &AppHandle, urls: &[String]) {
+    for raw in urls {
+        let Some(token) = extract_deep_link_authorization(raw) else {
+            continue;
+        };
+        if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        log::info!("[sso] deep-link shell-auth-token emitted");
+        let _ = app.emit_to(
+            main_target(),
+            "shell-auth-token",
+            ShellAuthPayload {
+                token,
+                atid: None,
+            },
+        );
+        return;
+    }
+}
+
+fn extract_deep_link_authorization(raw: &str) -> Option<String> {
+    let url = tauri::Url::parse(raw).ok()?;
+    if url.scheme() != "tendencys" {
+        return None;
+    }
+    let host = url.host_str().unwrap_or("");
+    let path = url.path().trim_matches('/');
+    if host != "authentication" && path != "authentication" {
+        return None;
+    }
+    url.query_pairs()
+        .find(|(k, _)| k == "authorization")
+        .map(|(_, v)| v.into_owned())
+        .filter(|t| !t.is_empty())
 }
 
 /// SPA hook: patches history.* and pings the shell via a cancelled custom navigation.
@@ -95,6 +128,11 @@ const SPA_NAV_HOOK: &str = r#"
 "#;
 
 fn emit_service_navigated(app: &AppHandle, service_id: &str, url: &str, replace: bool) {
+    app.state::<ServiceWebviews>()
+        .stuck_on_auth
+        .lock()
+        .unwrap()
+        .remove(service_id);
     let _ = app.emit_to(
         main_target(),
         "service-navigated",
@@ -109,6 +147,22 @@ fn emit_service_navigated(app: &AppHandle, service_id: &str, url: &str, replace:
 fn is_accounts_host(url: &tauri::Url) -> bool {
     url.host_str()
         .map(|h| h.to_ascii_lowercase().contains("accounts"))
+        .unwrap_or(false)
+}
+
+/// The Accounts `/login` and `/login-sites` pages embed an invisible reCAPTCHA
+/// widget, which loads its own iframe navigations (`google.com/recaptcha/...`,
+/// `gstatic.com/...`). wry's `on_navigation`/`on_page_load` don't distinguish
+/// main-frame vs. subframe navigations, so without this check those iframe
+/// loads are misclassified as "the product page navigated", wrongly clearing
+/// the auth-required/stuck state while the webview is still parked on the
+/// failed Accounts login form.
+fn is_third_party_auth_asset(url: &tauri::Url) -> bool {
+    url.host_str()
+        .map(|h| {
+            let h = h.to_ascii_lowercase();
+            h.ends_with("google.com") || h.ends_with("gstatic.com") || h.ends_with("recaptcha.net")
+        })
         .unwrap_or(false)
 }
 
@@ -143,16 +197,6 @@ fn decode_token_shape(token: &str) -> Option<(bool, Option<String>, Option<i64>)
     Some((has_id, aud, exp))
 }
 
-/// Read the non-empty `_atid` cookie for `host` from a specific webview's jar.
-fn read_atid_from_webview(app: &AppHandle, label: &str, host: &str) -> Option<String> {
-    let webview = app.get_webview(label)?;
-    let probe: tauri::Url = format!("https://{host}/").parse().ok()?;
-    let jar = webview.cookies_for_url(probe).unwrap_or_default();
-    jar.iter()
-        .find(|c| c.name() == "_atid" && !c.value().is_empty())
-        .map(|c| c.value().to_string())
-}
-
 /// Log a token's claim shape under the `[sso]` prefix. NEVER logs the raw token:
 /// only whether it carries a valid `id` (required by Accounts `/api/login/sites`),
 /// its `aud`, `exp`, and length. `hasId=false` reproduces the silent-SSO bug.
@@ -174,11 +218,6 @@ fn log_token_shape(context: &str, token: &str) {
 /// (expanded) state in `src/config/layout.ts` (`MENU_EXPANDED_WIDTH`).
 const DEFAULT_LEFT_INSET: f64 = 220.0;
 
-/// Left inset for the Accounts login webview so LoginPage's recovery rail stays
-/// visible. Must match `LOGIN_RAIL_WIDTH` in `src/config/layout.ts`.
-const AUTH_LEFT_INSET: f64 = 56.0;
-
-const AUTH_LABEL: &str = "auth";
 /// Hidden webview that owns the shared data store long enough to seed `_atid`
 /// on cold restore (before any product `svc-*` webview exists).
 const ATID_SEED_LABEL: &str = "atid-seed";
@@ -202,6 +241,11 @@ fn main_target() -> EventTarget {
 pub struct ServiceWebviews {
     pub active: Mutex<Option<String>>,
     pub left_inset: Mutex<f64>,
+    /// service_ids currently parked on the Accounts auth-required fallback
+    /// (`/login` or the `/login-sites` relay). Re-selecting an already-mounted
+    /// webview in this state must not report "loaded" — the webview is still
+    /// showing the failed page, not the product.
+    pub stuck_on_auth: Mutex<HashSet<String>>,
 }
 
 impl Default for ServiceWebviews {
@@ -209,6 +253,7 @@ impl Default for ServiceWebviews {
         Self {
             active: Mutex::new(None),
             left_inset: Mutex::new(DEFAULT_LEFT_INSET),
+            stuck_on_auth: Mutex::new(HashSet::new()),
         }
     }
 }
@@ -245,13 +290,6 @@ pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
             }
         }
     }
-    // Auth leaves a left strip for LoginPage recovery controls.
-    if let Ok((pos, size)) = content_rect(&window, AUTH_LEFT_INSET) {
-        if let Some(webview) = app.get_webview(AUTH_LABEL) {
-            let _ = webview.set_position(pos);
-            let _ = webview.set_size(size);
-        }
-    }
 }
 
 /// Create a hidden product webview glued to the content area. The webview stays
@@ -275,16 +313,46 @@ fn build_service_webview(
     let app_for_load = app.clone();
     let id_for_load = service_id.to_string();
 
-    let builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
+    // `_atid` is committed to the shared cookie store before this webview
+    // exists, but is not reliably visible via `document.cookie` on the
+    // Accounts page that needs it. Hand it over explicitly so the SSO
+    // handoff (`/login-sites`) can read it from its own JS context.
+    let atid_script = parsed
+        .host_str()
+        .filter(|_| is_accounts_host(&parsed))
+        .and_then(|host| fetch_atid_value(app, host).map(|token| (host.to_string(), token)))
+        .map(|(host, token)| atid_bootstrap_script(&host, &token));
+
+    let mut builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
         .data_store_identifier(SHARED_DATA_STORE)
-        .initialization_script(SPA_NAV_HOOK)
+        .initialization_script(SPA_NAV_HOOK);
+    if let Some(script) = &atid_script {
+        builder = builder.initialization_script(script);
+    }
+    let builder = builder
         .on_navigation(move |url| {
             // SPA hook: cancelled custom scheme carries push/replace + href.
             if url.scheme() == "tendencys-nav" {
                 let replace = url.host_str() == Some("r");
                 if let Some(raw) = url.query() {
                     if let Ok(href) = urlencoding::decode(raw) {
-                        emit_service_navigated(&app_for_nav, &id_for_nav, &href, replace);
+                        // The hook fires for every client-side route change,
+                        // including Accounts' own internal SPA router jumps
+                        // (e.g. `/login-sites` -> `/login` via router.push, no
+                        // real page load). Apply the same product-vs-Accounts
+                        // filter as the native navigation/page-load paths so a
+                        // failed SSO handoff isn't misreported as "product
+                        // navigated", which would wrongly clear the stuck state.
+                        let is_accounts_or_auth_asset = href
+                            .parse::<tauri::Url>()
+                            .map(|parsed_href| {
+                                is_accounts_host(&parsed_href)
+                                    || is_third_party_auth_asset(&parsed_href)
+                            })
+                            .unwrap_or(false);
+                        if !is_accounts_or_auth_asset {
+                            emit_service_navigated(&app_for_nav, &id_for_nav, &href, replace);
+                        }
                     }
                 }
                 return false;
@@ -299,8 +367,10 @@ fn build_service_webview(
                 return true;
             }
 
-            // Document navigations on product hosts (skip Accounts SSO hops).
+            // Document navigations on product hosts (skip Accounts SSO hops
+            // and third-party auth widget assets like the reCAPTCHA iframe).
             if !is_accounts_host(url)
+                && !is_third_party_auth_asset(url)
                 && url.path() != "/login-sites"
                 && (url.scheme() == "https" || url.scheme() == "http")
             {
@@ -315,8 +385,15 @@ fn build_service_webview(
             let loaded_url = payload.url();
             // Catch product `/login` on finished load too (some redirects skip
             // on_navigation for the final document).
-            let _ = emit_auth_required_if_login(&app_for_load, &id_for_load, loaded_url);
+            let auth_required = emit_auth_required_if_login(&app_for_load, &id_for_load, loaded_url);
+            // The `/login-sites` relay page itself finishes loading (the "Accessing…"
+            // spinner) before its client-side XHR to `/api/login/sites` resolves and
+            // (on failure) redirects to `/login`. Treat it the same as the `/login`
+            // fallback for "loaded" purposes so the reseed-retry guard isn't cleared
+            // on this transient intermediate page.
+            let is_sso_relay = is_accounts_host(loaded_url) && loaded_url.path() == "/login-sites";
             if !is_accounts_host(loaded_url)
+                && !is_third_party_auth_asset(loaded_url)
                 && loaded_url.path() != "/login-sites"
                 && loaded_url.path() != "/login"
                 && (loaded_url.scheme() == "https" || loaded_url.scheme() == "http")
@@ -337,7 +414,13 @@ fn build_service_webview(
             if active.as_deref() == Some(id_for_load.as_str()) {
                 let _ = webview.show();
             }
-            let _ = app_for_load.emit_to(main_target(), "service-loaded", &id_for_load);
+            // Do not report "loaded" for the auth-required fallback page or the
+            // `/login-sites` relay spinner — otherwise either clears the
+            // reseed-retry guard on every failed attempt, causing an endless
+            // reseed/retry loop that never actually succeeds.
+            if !auth_required && !is_sso_relay {
+                let _ = app_for_load.emit_to(main_target(), "service-loaded", &id_for_load);
+            }
         });
 
     let webview = window
@@ -348,14 +431,45 @@ fn build_service_webview(
     Ok(())
 }
 
-/// Find any existing webview pinned to SHARED_DATA_STORE (seed / svc-* / auth).
+/// Read `_atid` straight out of the shared WKHTTPCookieStore. Used to hand the
+/// value to a fresh product webview via `document.cookie` (see
+/// `atid_bootstrap_script`) — native `set_cookie` alone is committed to the
+/// store but has proven unreliable for JS `document.cookie` visibility on the
+/// very page that needs to read it.
+fn fetch_atid_value(app: &AppHandle, host: &str) -> Option<String> {
+    let webview = find_shared_store_webview(app)?;
+    let probe: tauri::Url = format!("https://{host}/").parse().ok()?;
+    let jar = webview.cookies_for_url(probe).unwrap_or_default();
+    jar.into_iter()
+        .find(|c| c.name() == "_atid" && !c.value().is_empty())
+        .map(|c| c.value().to_string())
+}
+
+/// Build a one-shot init script that writes `_atid` into `document.cookie`
+/// for `accounts_host` pages, guarded so it never runs on any other origin.
+/// Runs at document-start (before the page's own SSO script reads cookies),
+/// unlike `set_cookie`, which is committed to the shared data store but is
+/// not reliably visible to `document.cookie` in the loading page itself.
+fn atid_bootstrap_script(accounts_host: &str, token: &str) -> String {
+    format!(
+        r#"(function () {{
+  if (location.hostname !== {host:?}) return;
+  if (document.cookie.split(';').some(function (c) {{ return c.trim().indexOf('_atid=') === 0; }})) return;
+  document.cookie = '_atid=' + {token:?} + '; path=/; secure';
+}})();"#,
+        host = accounts_host,
+        token = token,
+    )
+}
+
+/// Find any existing webview pinned to SHARED_DATA_STORE (seed / svc-*).
 fn find_shared_store_webview(app: &AppHandle) -> Option<tauri::Webview> {
     if let Some(existing) = app.get_webview(ATID_SEED_LABEL) {
         return Some(existing);
     }
     app.webviews()
         .into_iter()
-        .find(|(label, _)| label.starts_with(SVC_PREFIX) || label.as_str() == AUTH_LABEL)
+        .find(|(label, _)| label.starts_with(SVC_PREFIX))
         .map(|(_, wv)| wv)
 }
 
@@ -384,6 +498,11 @@ fn emit_auth_required_if_login(app: &AppHandle, service_id: &str, url: &tauri::U
         && url.path() == "/login"
         && !is_temporal_token_relay(url);
     if is_accounts_login || is_product_login {
+        app.state::<ServiceWebviews>()
+            .stuck_on_auth
+            .lock()
+            .unwrap()
+            .insert(service_id.to_string());
         let _ = app.emit_to(main_target(), "auth-required", service_id);
         return true;
     }
@@ -590,7 +709,18 @@ pub async fn select_service(
             let _ = webview.set_size(size);
         }
         let _ = webview.show();
-        let _ = app.emit_to(main_target(), "service-loaded", &service_id);
+        // Skip "loaded" when this webview is currently parked on the
+        // auth-required fallback — re-selecting it must not clear the
+        // reseed-retry guard as if the product had actually loaded.
+        let stuck = app
+            .state::<ServiceWebviews>()
+            .stuck_on_auth
+            .lock()
+            .unwrap()
+            .contains(&service_id);
+        if !stuck {
+            let _ = app.emit_to(main_target(), "service-loaded", &service_id);
+        }
         return Ok(());
     }
 
@@ -712,220 +842,14 @@ pub async fn set_service_visible(app: AppHandle, visible: bool) -> Result<(), St
     Ok(())
 }
 
-/// Open the Accounts login (or signup) in a child webview (left-inset so
-/// LoginPage recovery rail stays visible) and capture the
-/// `tendencys://authentication?authorization=<jwt>` redirect in-app, without
-/// ever touching the system browser.
-#[tauri::command]
-pub async fn open_shell_login(
-    app: AppHandle,
-    accounts_base: String,
-    site_id: String,
-    redirect_b64: String,
-    auth_path: String,
-) -> Result<(), String> {
-    if let Some(existing) = app.get_webview(AUTH_LABEL) {
-        let _ = existing.close();
-    }
-
-    let window = app
-        .get_window(MAIN_WINDOW)
-        .ok_or("main window not found")?;
-
-    // Base64 uses +, /, = which are unsafe unescaped in a query value.
-    let redirect = redirect_b64
-        .replace('+', "%2B")
-        .replace('/', "%2F")
-        .replace('=', "%3D");
-    // Full-page OAuth modes: GSI + Apple popups fail silently inside WKWebView.
-    let login_url = format!(
-        "{}/{}?site_id={}&redirect_url={}&google_login_mode=redirection&apple_login_mode=redirection",
-        accounts_base.trim_end_matches('/'),
-        auth_path,
-        site_id,
-        redirect
-    );
-    eprintln!("[open_shell_login] {login_url}");
-
-    // Interactive "Sign in" (auth_path == "login") only ever runs after silent
-    // device-key SSO already failed, so any Accounts web session lingering in the
-    // shared jar (e.g. a stale `ec_session` from a prior install) is not ours to
-    // reuse — and if present it makes `/login` auto-redirect to the deep link and
-    // close this webview before the form paints, leaving a dead white pane. Wipe
-    // the shared store first so `/login` renders the real form. Signup never
-    // auto-redirects, so it loads its URL directly.
-    // Clear only on the FIRST interactive `/login` of this run (see
-    // SHARED_JAR_CLEARED). `swap` flips the flag and tells us whether a prior open
-    // already wiped the jar, so repeated retries skip the clear+re-navigate churn
-    // that otherwise reloads the whole Accounts page (env.js, recaptcha,
-    // /api/login/sites) each time. Short-circuit keeps signup from touching it.
-    let needs_clear = auth_path == "login" && !SHARED_JAR_CLEARED.swap(true, Ordering::SeqCst);
-    let initial_url = if needs_clear { "about:blank" } else { &login_url };
-    let parsed: tauri::Url = initial_url
-        .parse()
-        .map_err(|e| format!("invalid url: {e}"))?;
-    let (pos, size) = content_rect(&window, AUTH_LEFT_INSET).map_err(|e| e.to_string())?;
-
-    // Accounts host, captured for reading the `_atid` the /login page sets in the
-    // shared jar the moment we intercept the handoff callback (webview still alive).
-    let accounts_host = tauri::Url::parse(accounts_base.trim_end_matches('/'))
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_string()));
-
-    let app_for_nav = app.clone();
-    let app_for_load = app.clone();
-    let builder = WebviewBuilder::new(AUTH_LABEL, WebviewUrl::External(parsed))
-        .data_store_identifier(SHARED_DATA_STORE)
-        .on_navigation(move |url| {
-            let scheme = url.scheme();
-            let is_callback = scheme == "tendencys" && url.host_str() == Some("authentication");
-            if !is_callback {
-                // Log every real navigation (skip internal schemes) so devs can trace
-                // what the accounts page does inside the auth webview.
-                if scheme == "https" || scheme == "http" {
-                    log::info!("[auth-nav] -> {}", url.as_str());
-                }
-                return true;
-            }
-            if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "authorization") {
-                let atid = accounts_host
-                    .as_deref()
-                    .and_then(|host| read_atid_from_webview(&app_for_nav, AUTH_LABEL, host));
-                log::info!("[sso] shell-auth-token captured atid_present={}", atid.is_some());
-                let _ = app_for_nav.emit_to(
-                    main_target(),
-                    "shell-auth-token",
-                    ShellAuthPayload {
-                        token: token.into_owned(),
-                        atid,
-                    },
-                );
-                // Keep the auth webview alive briefly so the shared WKWebsiteDataStore
-                // finishes committing the Accounts `_atid` session cookie before we
-                // tear it down. Product `/login-sites` handoffs race this close.
-                let app_close = app_for_nav.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                    let app_on_main = app_close.clone();
-                    let _ = app_close.run_on_main_thread(move || {
-                        if let Some(webview) = app_on_main.get_webview(AUTH_LABEL) {
-                            let _ = webview.close();
-                        }
-                    });
-                });
-            }
-            // Cancel the deep-link navigation; the shell handles the token.
-            false
-        })
-        .on_page_load(move |webview, payload| {
-            let event_name = match payload.event() {
-                PageLoadEvent::Started => "started",
-                PageLoadEvent::Finished => "finished",
-            };
-            log::info!("[auth-load] {} url={}", event_name, payload.url().as_str());
-            if payload.event() != PageLoadEvent::Finished {
-                return;
-            }
-            // Ignore the `about:blank` bootstrap used while we wipe the shared
-            // store — revealing/emitting on it would flash a blank pane and tell
-            // LoginPage the form is ready before `/login` has even loaded.
-            if payload.url().scheme() == "about" {
-                return;
-            }
-            // Reveal only once the Accounts form has actually painted, so the
-            // native rect never flashes its blank/black pre-load surface —
-            // mirrors the load-gating pattern used for product webviews.
-            let _ = webview.show();
-            // Real "the Accounts form is now visible and interactive" signal —
-            // LoginPage uses this to stop its connecting timeout instead of
-            // guessing a fixed duration that would fire while the user types.
-            let _ = app_for_load.emit_to(main_target(), "shell-login-loaded", ());
-        });
-
-    let webview = window
-        .add_child(builder, pos, size)
-        .map_err(|e| e.to_string())?;
-    // Hidden until on_page_load(Finished) reveals it — avoids a dark flash of
-    // the empty native webview while the Accounts page is still loading.
-    let _ = webview.hide();
-
-    // When clearing, wipe the shared WKWebsiteDataStore (all `accounts.*`
-    // cookies + storage, not just `_atid`) then navigate to `/login`. wry's
-    // macOS `clear_all_browsing_data` is fire-and-forget
-    // (`removeDataOfTypes:...` with an empty completion handler), so we give the
-    // async removal a short grace before loading `/login` — otherwise the load
-    // would race the wipe and still see the stale session.
-    // ponytail: fixed 500ms grace for the async data wipe. Upgrade path: thread
-    // the WKWebsiteDataStore completion handler through wry to navigate exactly
-    // when the removal finishes instead of guessing.
-    const CLEAR_GRACE_MS: u64 = 500;
-    if needs_clear {
-        let _ = webview.clear_all_browsing_data();
-        let app_nav = app.clone();
-        let login_url_nav = login_url.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(CLEAR_GRACE_MS));
-            let app_on_main = app_nav.clone();
-            let _ = app_nav.run_on_main_thread(move || {
-                if let (Some(webview), Ok(url)) =
-                    (app_on_main.get_webview(AUTH_LABEL), login_url_nav.parse())
-                {
-                    let _ = webview.navigate(url);
-                }
-            });
-        });
-    }
-
-    // Fallback reveal: the Accounts /login route runs a WebAuthn
-    // conditional-mediation / session probe on load that keeps WKWebView from
-    // ever firing PageLoadEvent::Finished (/signup does not, which is why it
-    // shows). Without this, the webview stays hidden forever — a blank white
-    // pane the user cannot dismiss until the 20s connect timeout closes it.
-    // Reveal and emit the "loaded" signal after a grace period if on_page_load
-    // hasn't already; the page has reliably painted its form by then. When we
-    // clear first, the /login load only starts after CLEAR_GRACE_MS, so push the
-    // reveal out by that much.
-    // ponytail: fixed 1500ms load grace, not event-driven — if a slow link ever
-    // flashes the pre-paint surface, upgrade to a WKWebView didCommit hook.
-    let reveal_delay = 1500 + if needs_clear { CLEAR_GRACE_MS } else { 0 };
-    let app_reveal = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(reveal_delay));
-        let app_on_main = app_reveal.clone();
-        let _ = app_reveal.run_on_main_thread(move || {
-            if let Some(webview) = app_on_main.get_webview(AUTH_LABEL) {
-                let _ = webview.show();
-                let _ = app_on_main.emit_to(main_target(), "shell-login-loaded", ());
-            }
-        });
-    });
-
-    Ok(())
-}
-
-/// Close the Accounts login webview without tearing down product webviews.
-#[tauri::command]
-pub async fn close_shell_login(app: AppHandle) -> Result<(), String> {
-    if let Some(webview) = app.get_webview(AUTH_LABEL) {
-        let _ = webview.close();
-    }
-    Ok(())
-}
-
-/// Tear down all product and auth webviews on logout and clear active state.
+/// Tear down all product webviews on logout and clear active state.
 #[tauri::command]
 pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
     for (label, webview) in app.webviews() {
-        if label.starts_with(SVC_PREFIX)
-            || label == AUTH_LABEL
-            || label == ATID_SEED_LABEL
-        {
+        if label.starts_with(SVC_PREFIX) || label == ATID_SEED_LABEL {
             let _ = webview.close();
         }
     }
     *app.state::<ServiceWebviews>().active.lock().unwrap() = None;
-    // Logout (and account switch) wipes the shared jar via the TS layer, so the
-    // next interactive login must clear again to drop any leftover foreign session.
-    SHARED_JAR_CLEARED.store(false, Ordering::SeqCst);
     Ok(())
 }

@@ -9,10 +9,10 @@ use device_key::{
 };
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
-    clear_accounts_session, clear_shared_web_data, close_shell_login, logout_webviews,
-    navigate_service, open_shell_login, prewarm_service, read_accounts_session, reload_service,
-    reposition_all, seed_accounts_session, select_service, service_history_back,
-    service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
+    clear_accounts_session, clear_shared_web_data, emit_deep_link_auth, logout_webviews,
+    navigate_service, prewarm_service, read_accounts_session, reload_service, reposition_all,
+    seed_accounts_session, select_service, service_history_back, service_history_forward,
+    set_content_left_inset, set_service_visible, ServiceWebviews,
 };
 
 /// Substrings that mark a key or query param as carrying an auth secret we must
@@ -159,13 +159,18 @@ pub fn run() {
     // tendencys:// auth callback into the already-running instance.
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             use tauri::Manager;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
+            // Fallback: some platforms deliver the tendencys:// URL as a second-
+            // instance launch arg rather than (or in addition to) the deep-link
+            // plugin's on_open_url. emit_deep_link_auth no-ops on non-matching
+            // argv entries, so this is safe to call unconditionally.
+            emit_deep_link_auth(app, &argv);
         }));
     }
 
@@ -192,8 +197,6 @@ pub fn run() {
             reload_service,
             set_service_visible,
             set_content_left_inset,
-            open_shell_login,
-            close_shell_login,
             logout_webviews,
             seed_accounts_session,
             clear_accounts_session,
@@ -213,6 +216,25 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
             }
+
+            // System-browser login returns via tendencys:// — handle in Rust so
+            // the JWT reaches the shell even when JS onOpenUrl races mount.
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    let urls: Vec<String> =
+                        event.urls().into_iter().map(|u| u.to_string()).collect();
+                    emit_deep_link_auth(&handle, &urls);
+                });
+                if let Ok(Some(start_urls)) = app.deep_link().get_current() {
+                    let urls: Vec<String> =
+                        start_urls.into_iter().map(|u| u.to_string()).collect();
+                    emit_deep_link_auth(app.handle(), &urls);
+                }
+            }
+
             // Always log to a file (LogDir) so `[sso]` diagnostics are recoverable
             // from an affected user's release build; add stdout only in debug.
             // macOS: ~/Library/Logs/com.tendencys.desktop/tendencys.log

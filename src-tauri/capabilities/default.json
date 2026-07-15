@@ -40,8 +40,6 @@
     "allow-reload-service",
     "allow-set-service-visible",
     "allow-set-content-left-inset",
-    "allow-open-shell-login",
-    "allow-close-shell-login",
     "allow-logout-webviews",
     "allow-seed-accounts-session",
     "allow-clear-accounts-session",

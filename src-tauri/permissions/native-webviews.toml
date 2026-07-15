@@ -39,16 +39,6 @@ description = "Allows updating the left chrome inset to match the collapsible se
 commands.allow = ["set_content_left_inset"]
 
 [[permission]]
-identifier = "allow-open-shell-login"
-description = "Allows opening the Accounts login in an in-app child webview"
-commands.allow = ["open_shell_login"]
-
-[[permission]]
-identifier = "allow-close-shell-login"
-description = "Allows closing the Accounts login child webview"
-commands.allow = ["close_shell_login"]
-
-[[permission]]
 identifier = "allow-logout-webviews"
 description = "Allows tearing down all product and auth child webviews on logout"
 commands.allow = ["logout_webviews"]

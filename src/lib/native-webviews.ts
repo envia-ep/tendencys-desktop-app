@@ -73,24 +73,6 @@ export async function setContentLeftInset(leftInset: number): Promise<void> {
   await invoke("set_content_left_inset", { leftInset });
 }
 
-export async function openShellLogin(
-  accountsBase: string,
-  siteId: string,
-  redirectB64: string,
-  authPath: "login" | "signup" = "login",
-): Promise<void> {
-  await invoke("open_shell_login", {
-    accountsBase,
-    siteId,
-    redirectB64,
-    authPath,
-  });
-}
-
-export async function closeShellLogin(): Promise<void> {
-  await invoke("close_shell_login");
-}
-
 export async function logoutWebviews(): Promise<void> {
   await invoke("logout_webviews");
 }
@@ -136,18 +118,6 @@ export async function listenServiceLoaded(
   return listen<string>("service-loaded", (event) => handler(event.payload));
 }
 
-/**
- * Fires once the embedded Accounts login/signup page finishes its first load
- * and is visible + interactive. Used to stop the "connecting" timeout instead
- * of guessing a fixed duration that could fire while the user is typing.
- */
-export async function listenShellLoginLoaded(
-  handler: () => void,
-): Promise<() => void> {
-  const { listen } = await import("@tauri-apps/api/event");
-  return listen("shell-login-loaded", () => handler());
-}
-
 export type ShellAuthPayload = {
   /** One-time handoff JWT (aud = tendencys://authentication). */
   token: string;
@@ -155,7 +125,7 @@ export type ShellAuthPayload = {
   atid: string | null;
 };
 
-/** Fires when the in-app Accounts login captures a handoff JWT + the real `_atid`. */
+/** Fires when the system-browser deep-link returns a handoff JWT (atid is null). */
 export async function listenShellAuthToken(
   handler: (payload: ShellAuthPayload) => void,
 ): Promise<() => void> {

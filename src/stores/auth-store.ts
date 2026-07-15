@@ -23,6 +23,7 @@ import {
   readAccountsSession,
 } from "@/lib/native-webviews";
 import { ensureAtidSeeded } from "@/lib/atid-jar";
+import { setLoginStarted } from "@/lib/login-gate";
 
 /**
  * The Accounts `/login` page sets the real session cookie (`_atid`: id + aud) in
@@ -158,7 +159,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   ) => {
     set({ isLoading: true, error: null });
 
-    // `/api/accounts/authorization` gives us the account profile (name/email).
+    // `/api/accounts/authorization` gives us the account profile (name/email)
+    // and a 7d session JWT with `id` (createToken) — usable for jar seed +
+    // device-key register. Never seed the one-time handoff JWT itself.
     const result = await validateAuthorizationToken(handoffToken);
 
     if ("error" in result) {
@@ -166,13 +169,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
 
-    // The session token MUST be the real Accounts `_atid` (id + aud), which the
-    // `/login` page already set in the shared jar — the `/api/accounts/authorization`
-    // token has no `id` and is rejected by `/api/login/sites` (silent SSO).
-    // Prefer the value handed to us, then a fresh jar read; only fall back to the
-    // authorization token so the shell stays usable if the jar read races.
+    // Prefer an `_atid` already in the shared jar (in-app /login) or passed from
+    // Rust; otherwise use the authorization response token (system-browser path).
     const sessionToken =
       realSessionToken || (await readRealAtid()) || result.sessionToken;
+
+    if (!sessionToken) {
+      set({
+        isLoading: false,
+        error: "Accounts did not return a session token. Please sign in again.",
+      });
+      return false;
+    }
+
+    // System-browser login never writes cookies into WKWebView — seed when empty.
+    await ensureAtidSeeded(sessionToken);
 
     const session: AuthSession = {
       token: sessionToken,
@@ -183,10 +194,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await saveSession(session);
     set({ session, isLoading: false, error: null, justAuthenticated: true });
 
-    // Auto-link this device for silent re-auth on next launch (non-blocking).
-    // registerDeviceKey rotates the local key if Accounts reports the device_id
-    // is already owned by another account (logout-kept key + different user).
-    void registerDeviceKey(session.token);
+    // Await so cold-start remint works after this interactive login. Rotation on
+    // "already registered" stays inside registerDeviceKey. Clear any prior
+    // silent-login negative cache so auth-required remint can run immediately.
+    resetDeviceKeyLoginCache();
+    await registerDeviceKey(session.token);
 
     return true;
   },
@@ -201,6 +213,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Drop any cached failed silent-login result so the next sign-in starts clean.
     resetDeviceKeyLoginCache();
     set({ session: null, error: null, silentLoginAttempted: true });
+    // A login that completed via the `/authentication` deep-link backup route
+    // (rather than LoginPage's own effect observing `session`) never got a
+    // chance to reset LoginPage's `loginStarted` gate. Reset it here — the only
+    // time that gate matters is the next unauthenticated LoginPage mount, which
+    // is exactly what follows a logout.
+    setLoginStarted(false);
     // Keep the local device key (machine trust) so a later cold launch can remint
     // without minting a new Accounts row. silentLoginAttempted=true so LoginPage
     // shows Welcome instead of instantly signing the user back in.

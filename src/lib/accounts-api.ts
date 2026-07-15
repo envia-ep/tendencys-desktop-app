@@ -92,7 +92,8 @@ export async function validateAuthorizationToken(
 
     const parsed = parseAuthorizationResponse(data);
     if ("error" in parsed) return parsed;
-    // Never seed the one-time handoff JWT as `_atid` — `/login/sites` rejects it.
+    // Never seed the one-time handoff JWT as `_atid` — use data.token (7d
+    // createToken with id) from this response for jar seed / device-key register.
     if (!parsed.sessionToken) {
       return {
         error:

@@ -1,10 +1,12 @@
 {
   "login": {
     "signingIn": "Signing in...",
+    "browserTitle": "Continue in your browser",
+    "browserDescription": "We opened Accounts in your browser so security checks can complete. Sign in there — this app will continue automatically when you return.",
     "timeoutTitle": "Sign-in timed out",
-    "timeoutDescription": "Accounts did not finish signing you in. Try again, or open Accounts in your browser.",
+    "timeoutDescription": "Accounts did not finish signing you in. Open Accounts in your browser again, or try silent sign-in.",
     "openInBrowser": "Open in browser",
-    "recoveryRail": "Sign-in recovery"
+    "backToWelcome": "Back"
   },
   "auth": {
     "validating": "Validating your session...",
@@ -36,7 +38,7 @@
     "subtitle": "Shipping, fulfillment, payments and banking — trusted by 20,000+ companies in 10+ countries.",
     "signIn": "Sign in",
     "createAccount": "Create an account",
-    "secureNote": "Your credentials are protected with encrypted, single sign-on access.",
+    "secureNote": "Sign-in opens in your browser so security checks can complete, then returns you to Tendencys.",
     "showcaseHeading": "Everything in one place",
     "showcaseTagline": "One login. Every tool to run your business.",
     "featuredLabel": "Featured",

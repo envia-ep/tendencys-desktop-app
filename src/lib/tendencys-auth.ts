@@ -11,6 +11,24 @@ export const SHELL_SITE_ID =
 
 export const DEEP_LINK_SCHEME = "tendencys";
 
+/**
+ * Interactive Accounts `/login` or `/signup` URL for the shell.
+ * Uses full-page OAuth modes (GSI/Apple popups fail in WKWebView) and a
+ * `tendencys://authentication` redirect so the system browser can complete
+ * Cloudflare challenges and return via deep link.
+ */
+export function buildShellAuthUrl(authPath: "login" | "signup" = "login"): string {
+  const redirect = encodeURIComponent(
+    btoa(`${DEEP_LINK_SCHEME}://authentication`),
+  );
+  return (
+    `${TENDENCYS_BASE_URL}/${authPath}` +
+    `?site_id=${SHELL_SITE_ID}` +
+    `&redirect_url=${redirect}` +
+    `&google_login_mode=redirection&apple_login_mode=redirection`
+  );
+}
+
 /** Plain service URL (no shell token). Path defaults to `/`. */
 export function buildServiceViewUrl(
   service: ServiceDefinition,

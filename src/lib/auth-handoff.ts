@@ -1,8 +1,8 @@
 /**
  * Deduplicates handoff token validation across concurrent listeners.
  *
- * Primary path: App.tsx `listenShellAuthToken` (in-app auth webview).
- * Secondary path: Authentication.tsx for OS / system-browser deep links only.
+ * Primary path: Rust deep-link / in-app auth → `shell-auth-token` → App.tsx.
+ * Backup path: JS `onOpenUrl` → Authentication.tsx.
  *
  * In React Strict Mode the `listenShellAuthToken` effect mounts twice in dev,
  * and the second async registration completes after the first cleanup — leaving

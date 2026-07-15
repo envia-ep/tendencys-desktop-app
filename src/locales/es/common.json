@@ -1,10 +1,12 @@
 {
   "login": {
     "signingIn": "Iniciando sesión...",
+    "browserTitle": "Continúa en tu navegador",
+    "browserDescription": "Abrimos Accounts en tu navegador para que las verificaciones de seguridad puedan completarse. Inicia sesión allí — esta app continuará automáticamente al volver.",
     "timeoutTitle": "El inicio de sesión expiró",
-    "timeoutDescription": "Accounts no terminó de iniciar tu sesión. Intenta de nuevo, o abre Accounts en el navegador.",
+    "timeoutDescription": "Accounts no terminó de iniciar tu sesión. Ábrelo de nuevo en el navegador, o reintenta el inicio silencioso.",
     "openInBrowser": "Abrir en navegador",
-    "recoveryRail": "Recuperación de inicio de sesión"
+    "backToWelcome": "Volver"
   },
   "auth": {
     "validating": "Validando tu sesión...",
@@ -36,7 +38,7 @@
     "subtitle": "Envíos, fulfillment, pagos y banca — con la confianza de más de 20,000 empresas en más de 10 países.",
     "signIn": "Iniciar sesión",
     "createAccount": "Crear una cuenta",
-    "secureNote": "Tus credenciales están protegidas con acceso cifrado de inicio de sesión único.",
+    "secureNote": "El inicio de sesión se abre en tu navegador para completar las verificaciones de seguridad y luego regresa a Tendencys.",
     "showcaseHeading": "Todo en un solo lugar",
     "showcaseTagline": "Un solo acceso. Todas las herramientas para tu negocio.",
     "featuredLabel": "Destacado",

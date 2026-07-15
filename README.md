@@ -39,8 +39,8 @@ The rest of this document explains each of these pieces in more detail.
 └────┴──────────────────────────────────────────────────────┘
 ```
 
-- The **shell chrome** (service rail) is a normal React view rendered by the main Tauri webview.
-- Every **product** and the **Accounts login screen** are separate native child webviews (Tauri `unstable` multiwebview), positioned and resized to fill everything right of the rail (`src-tauri/src/webview_manager.rs`).
+- The **shell chrome** (service rail) and the **Accounts login screen** are normal React views rendered by the main Tauri webview. Sign-in itself happens in the system browser (see SSO / Authentication).
+- Every **product** is a separate native child webview (Tauri `unstable` multiwebview), positioned and resized to fill everything right of the rail (`src-tauri/src/webview_manager.rs`).
 - Product webviews are **never destroyed** when you switch services — they're hidden/shown, so navigation state, scroll position, and in-flight requests are preserved.
 - A new product webview stays hidden until its first page finishes loading (load-gating), so switching services shows the shell's own loading/error overlay instead of a flash of blank native content.
 - The rail's width is collapsible (icon-only vs. icon+label); the native webview's left inset is kept in sync in real time (`set_content_left_inset`) so it's never covered by or leaves a gap next to the rail.
@@ -49,11 +49,12 @@ The rest of this document explains each of these pieces in more detail.
 
 Three layers, all backed by Accounts:
 
-### 1. Shell login (native, in-app)
+### 1. Shell login (system browser + deep link)
 
-- The rail's "Sign in" flow opens Accounts `/login` in a dedicated native `auth` webview (left-inset so a recovery rail stays visible if it hangs).
-- On success, Accounts redirects to `tendencys://authentication?authorization=<jwt>`. The Rust side intercepts that navigation (never leaves the app or touches the system browser) and emits the JWT back to the frontend.
-- The shell exchanges that handoff JWT for a session profile via Accounts' authorization-validation API and persists the **non-secret profile** only (`src/lib/token-store.ts`). The real `_atid` stays in memory / the shared cookie jar — never on disk.
+- Interactive "Sign in" / "Create account" opens Accounts `/login` or `/signup` in the **system browser** (Safari / Chrome). Cloudflare Managed Challenges are not reliably solvable inside the embedded WKWebView, so the shell does not depend on an in-app auth page for first login.
+- On success, Accounts redirects to `tendencys://authentication?authorization=<jwt>`. Rust handles the deep link (focus main window + emit `shell-auth-token`); JS `onOpenUrl` is a backup.
+- The shell validates the handoff JWT via Accounts' authorization API, **seeds** the response session token as `_atid` into the shared WKWebView jar (browser cookies never reach the app), **awaits** device-key registration, and persists the **non-secret profile** only (`src/lib/token-store.ts`). The real `_atid` stays in memory / the jar — never on disk.
+- Product tabs then SSO via `/login-sites` using that seeded cookie. If a product still hits `auth-required`, the shell remints via device key once and retries.
 
 ### 2. Device-key silent re-auth
 
@@ -122,7 +123,7 @@ npm install
 npm run tauri:dev
 ```
 
-**Deep link / login:** quit any installed **Tendencys.app** (release build) before `tauri:dev`. Only one process should own the `tendencys://` scheme — otherwise Accounts "Open app" can spawn a second Welcome window that never receives the auth token. Keep a single `tauri:dev` instance.
+**Deep link / login:** quit any installed **Tendencys.app** (release build) before `tauri:dev`. Only one process should own the `tendencys://` scheme — otherwise Accounts "Open app" can hand the token to another binary. Prefer `npm run tauri build -- --debug` and run the generated `.app` when testing system-browser login; bare `target/debug` binaries are unreliable for custom schemes on macOS. Keep a single `tauri:dev` / debug app instance.
 
 For frontend-only development (browser, no Tauri APIs — native webviews, device keys, and the updater are all no-ops outside Tauri):
 
