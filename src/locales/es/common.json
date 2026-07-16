@@ -41,6 +41,12 @@
     "greeting": "Hola, {{name}}",
     "greetingFallback": "Bienvenido de nuevo",
     "tagline": "Mira cómo se conectan tus operaciones — envíos, fulfillment, pagos y banca en una sola red.",
+    "chipTagline": "Tu red de operaciones, en vivo",
+    "stats": {
+      "inTransit": "En tránsito",
+      "packed": "Pedidos preparados",
+      "settled": "Pagos liquidados"
+    },
     "exploreHint": "Arrastra para mover, usa la rueda para acercar, haz clic en un edificio para explorar",
     "detailHint": "Producto",
     "vehicleHint": "En movimiento",

@@ -41,6 +41,12 @@
     "greeting": "Hi, {{name}}",
     "greetingFallback": "Welcome back",
     "tagline": "See how your operations connect — shipping, fulfillment, payments, and banking in one network.",
+    "chipTagline": "Your operations network, live",
+    "stats": {
+      "inTransit": "In transit",
+      "packed": "Orders packed",
+      "settled": "Payments settled"
+    },
     "exploreHint": "Drag to pan, scroll to zoom, click a building to explore",
     "detailHint": "Product",
     "vehicleHint": "In motion",

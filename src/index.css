@@ -124,6 +124,58 @@ body {
   }
 }
 
+/* --- Home world HUD --- */
+
+/* Full-bleed dark brand stage the Pixi world paints over (canvas is transparent). */
+.world-stage {
+  background:
+    radial-gradient(
+      130% 120% at 50% 8%,
+      color-mix(in srgb, var(--color-primary-glow) 26%, var(--color-primary-deep)) 0%,
+      var(--color-primary-deep) 55%,
+      #000814 100%
+    );
+}
+
+/* Soft edge vignette so the world reads as a focused stage. */
+.world-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    75% 75% at 50% 46%,
+    transparent 52%,
+    color-mix(in srgb, #000814 70%, transparent) 100%
+  );
+}
+
+/* Frosted glass used by every floating HUD element over the dark world. */
+.hud-glass {
+  background: color-mix(in srgb, var(--color-primary-deep) 48%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 16%, transparent);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow:
+    0 10px 34px color-mix(in srgb, #000814 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+  color: #eaf2ff;
+}
+
+.hud-fade-in {
+  animation: hud-fade-in 0.5s ease both;
+}
+
+@keyframes hud-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Diagonal shine sweep used on hover of showcase cards. */
 .card-shine {
   position: relative;
@@ -165,6 +217,9 @@ body {
     animation: none;
   }
   .card-shine:hover::after {
+    animation: none;
+  }
+  .hud-fade-in {
     animation: none;
   }
 }

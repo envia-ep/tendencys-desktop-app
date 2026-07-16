@@ -19,17 +19,21 @@ export function OpsControls() {
   const setSpeed = useOpsWorldStore((s) => s.setSpeed);
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-border/60 bg-white/85 px-2 py-1.5 shadow-sm backdrop-blur">
+    <div className="hud-glass hud-fade-in pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full px-2 py-1.5">
       <button
         type="button"
         onClick={togglePaused}
         aria-label={paused ? t("home.controls.play") : t("home.controls.pause")}
-        className="flex h-8 w-8 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+        className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
       >
         {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
       </button>
 
-      <div className="flex items-center gap-0.5" role="group" aria-label={t("home.controls.speed")}>
+      <div
+        className="flex items-center gap-0.5"
+        role="group"
+        aria-label={t("home.controls.speed")}
+      >
         {SPEEDS.map((s) => (
           <button
             key={s}
@@ -39,8 +43,8 @@ export function OpsControls() {
             className={cn(
               "h-7 rounded-full px-2 text-xs font-medium tabular-nums transition-colors",
               speed === s
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-secondary",
+                ? "bg-[var(--color-primary-glow)] text-white shadow"
+                : "text-white/70 hover:bg-white/15",
             )}
           >
             {s}x
@@ -48,9 +52,13 @@ export function OpsControls() {
         ))}
       </div>
 
-      <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+      <div className="mx-1 h-5 w-px bg-white/20" aria-hidden />
 
-      <div className="flex items-center gap-0.5" role="group" aria-label={t("home.controls.mode")}>
+      <div
+        className="flex items-center gap-0.5"
+        role="group"
+        aria-label={t("home.controls.mode")}
+      >
         {MODES.map((m) => {
           const active = mode === m;
           const disabled = m !== "sim";
@@ -63,9 +71,7 @@ export function OpsControls() {
               title={disabled ? t("home.controls.comingSoon") : undefined}
               className={cn(
                 "h-7 rounded-full px-2.5 text-xs font-medium capitalize transition-colors",
-                active
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground",
+                active ? "bg-white text-[var(--color-primary-deep)]" : "text-white/70",
                 disabled && "cursor-not-allowed opacity-40",
               )}
             >
