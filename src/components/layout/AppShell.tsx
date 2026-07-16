@@ -2,6 +2,7 @@ import { AlertCircle, ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ServiceMenu } from "./ServiceMenu";
 import { Button } from "@/components/ui/button";
+import { HomeHub } from "@/components/home/HomeHub";
 import { useServiceStore } from "@/stores/service-store";
 import { useProductSso } from "@/hooks/useProductSso";
 import type { ServiceDefinition } from "@/config/services";
@@ -11,11 +12,13 @@ export function AppShell() {
   const toggleMenuCollapsed = useServiceStore((s) => s.toggleMenuCollapsed);
   const {
     activeService,
+    shellView,
     canGoBack,
     canGoForward,
     loadingServiceId,
     errorServiceId,
     handleSelectService,
+    handleShowHome,
     handleNavigateBack,
     handleNavigateForward,
     handleRefresh,
@@ -24,12 +27,16 @@ export function AppShell() {
     handleNativeRetry,
   } = useProductSso();
 
+  const onHome = shellView === "home";
+
   return (
     <div className="flex h-screen overflow-hidden">
       <ServiceMenu
         activeService={activeService}
+        shellView={shellView}
         collapsed={menuCollapsed}
         onSelectService={handleSelectService}
+        onShowHome={handleShowHome}
         onToggleCollapsed={toggleMenuCollapsed}
         onOpenInBrowser={handleOpenInBrowser}
         onNavigateBack={handleNavigateBack}
@@ -40,13 +47,17 @@ export function AppShell() {
         onUserMenuOpenChange={handleUserMenuOpenChange}
       />
 
-      <NativeServiceArea
-        service={activeService}
-        isLoading={loadingServiceId === activeService.id}
-        hasError={errorServiceId === activeService.id}
-        onRetry={() => handleNativeRetry(activeService)}
-        onOpenInBrowser={handleOpenInBrowser}
-      />
+      {onHome ? (
+        <HomeHub onOpenService={handleSelectService} />
+      ) : (
+        <NativeServiceArea
+          service={activeService}
+          isLoading={loadingServiceId === activeService.id}
+          hasError={errorServiceId === activeService.id}
+          onRetry={() => handleNativeRetry(activeService)}
+          onOpenInBrowser={handleOpenInBrowser}
+        />
+      )}
     </div>
   );
 }

@@ -29,7 +29,6 @@ tauri-plugin-log = "2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
-keyring = "3"
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 hostname = "0.4"

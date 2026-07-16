@@ -2,10 +2,13 @@ import type { ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Home,
   LogOut,
+  Plus,
   RotateCw,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,11 +25,14 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 import { MENU_COLLAPSED_WIDTH, MENU_EXPANDED_WIDTH } from "@/config/layout";
+import type { ShellView } from "@/stores/service-store";
 
 type ServiceMenuProps = {
   activeService: ServiceDefinition;
+  shellView: ShellView;
   collapsed: boolean;
   onSelectService: (service: ServiceDefinition) => void;
+  onShowHome: () => void;
   onToggleCollapsed: () => void;
   onOpenInBrowser: () => void;
   onNavigateBack: () => void;
@@ -38,6 +44,14 @@ type ServiceMenuProps = {
   onUserMenuOpenChange?: (open: boolean) => void;
 };
 
+function accountDisplayName(firstName: string, lastName: string, email: string) {
+  return `${firstName} ${lastName}`.trim() || email;
+}
+
+function accountInitials(firstName: string, email: string) {
+  return (firstName?.[0] ?? email[0] ?? "?").toUpperCase();
+}
+
 /**
  * Full-height left chrome column: nav, services, and user actions.
  * Collapsed = icon-only; expanded = icon + labels. Product webviews sit to the
@@ -45,8 +59,10 @@ type ServiceMenuProps = {
  */
 export function ServiceMenu({
   activeService,
+  shellView,
   collapsed,
   onSelectService,
+  onShowHome,
   onToggleCollapsed,
   onOpenInBrowser,
   onNavigateBack,
@@ -58,16 +74,23 @@ export function ServiceMenu({
 }: ServiceMenuProps) {
   const { t } = useTranslation();
   const account = useAuthStore((s) => s.getAccount());
+  const accounts = useAuthStore((s) => s.accounts);
   const logout = useAuthStore((s) => s.logout);
+  const addAccount = useAuthStore((s) => s.addAccount);
+  const switchAccount = useAuthStore((s) => s.switchAccount);
   const width = collapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
+  const onHome = shellView === "home";
 
   const displayName = account
-    ? `${account.firstName} ${account.lastName}`.trim() || account.email
+    ? accountDisplayName(account.firstName, account.lastName, account.email)
     : "";
 
   const initials = account
-    ? (account.firstName?.[0] ?? account.email[0]).toUpperCase()
+    ? accountInitials(account.firstName, account.email)
     : "?";
+
+  const otherAccounts = accounts.filter((a) => a.account.id !== account?.id);
+
 
   // Native product webviews overlay everything right of this rail, so a DOM
   // tooltip (side="right") would render underneath them and stay invisible.
@@ -127,7 +150,7 @@ export function ServiceMenu({
                 </button>
               )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="start" className="w-52">
+            <DropdownMenuContent side="bottom" align="start" className="w-64">
               {account && (
                 <>
                   <DropdownMenuLabel>
@@ -135,7 +158,7 @@ export function ServiceMenu({
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
                         {initials}
                       </span>
-                      <div className="flex min-w-0 flex-col">
+                      <div className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-sm font-medium leading-tight">
                           {displayName}
                         </span>
@@ -143,11 +166,62 @@ export function ServiceMenu({
                           {account.email}
                         </span>
                       </div>
+                      <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </div>
                   </DropdownMenuLabel>
+
+                  {otherAccounts.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                        {t("topBar.signedInAccounts")}
+                      </DropdownMenuLabel>
+                      {otherAccounts.map((slot) => {
+                        const name = accountDisplayName(
+                          slot.account.firstName,
+                          slot.account.lastName,
+                          slot.account.email,
+                        );
+                        const slotInitials = accountInitials(
+                          slot.account.firstName,
+                          slot.account.email,
+                        );
+                        return (
+                          <DropdownMenuItem
+                            key={slot.account.id}
+                            onClick={() => void switchAccount(slot.account.id)}
+                            className="gap-2"
+                            aria-label={t("topBar.switchAccount", {
+                              email: slot.account.email,
+                            })}
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+                              {slotInitials}
+                            </span>
+                            <div className="flex min-w-0 flex-col">
+                              <span className="truncate text-sm leading-tight">
+                                {name}
+                              </span>
+                              <span className="truncate text-xs text-muted-foreground leading-tight">
+                                {slot.account.email}
+                              </span>
+                            </div>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </>
+                  )}
+
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => logout()}
+                    onClick={() => void addAccount()}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("topBar.addAccount")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => void logout()}
                     className="gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
                   >
                     <LogOut className="h-4 w-4" />
@@ -157,7 +231,7 @@ export function ServiceMenu({
               )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {activeService.name}
+                {onHome ? t("home.menuLabel") : activeService.name}
               </DropdownMenuLabel>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -172,7 +246,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onNavigateBack}
-            disabled={!canGoBack}
+            disabled={onHome || !canGoBack}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.back")}
             title={t("topBar.back")}
@@ -182,7 +256,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onNavigateForward}
-            disabled={!canGoForward}
+            disabled={onHome || !canGoForward}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.forward")}
             title={t("topBar.forward")}
@@ -192,7 +266,8 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onRefresh}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white active:bg-white/20"
+            disabled={onHome}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.refresh")}
             title={t("topBar.refresh")}
           >
@@ -201,8 +276,30 @@ export function ServiceMenu({
         </div>
 
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2">
+          <button
+            type="button"
+            onClick={onShowHome}
+            className={cn(
+              "flex items-center gap-2 rounded-lg transition-colors",
+              collapsed ? "h-9 w-9 justify-center" : "h-9 w-full px-2",
+              onHome
+                ? "bg-white text-primary"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+            aria-label={t("home.menuLabel")}
+            aria-current={onHome ? "page" : undefined}
+            title={collapsed ? t("home.menuLabel") : undefined}
+          >
+            <Home className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <span className="truncate text-sm font-medium">
+                {t("home.menuLabel")}
+              </span>
+            )}
+          </button>
+
           {SERVICES.map((service) => {
-            const isActive = service.id === activeService.id;
+            const isActive = !onHome && service.id === activeService.id;
             return (
               <button
                 key={service.id}
@@ -234,6 +331,7 @@ export function ServiceMenu({
           {iconBtn({
             label: t("topBar.openInBrowser"),
             onClick: onOpenInBrowser,
+            disabled: onHome,
             children: (
               <>
                 <ExternalLink className="h-4 w-4 shrink-0" />

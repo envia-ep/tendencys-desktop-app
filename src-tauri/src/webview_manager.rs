@@ -166,6 +166,49 @@ fn is_third_party_auth_asset(url: &tauri::Url) -> bool {
         .unwrap_or(false)
 }
 
+/// Accounts step-up pages the `/login-sites` SSO handoff can land on when the
+/// account still owes a periodic 2FA re-verification, phone verification, or
+/// terms acceptance (see `resolvePostLoginRedirect` in the Accounts backend).
+/// Every product webview runs its own `/login-sites` handoff independently
+/// (prewarm + `auth-required` reseed all fire per-service), so without this
+/// check each open product silently renders its own copy of the Accounts
+/// verification form and gets misreported as a successful "loaded" product —
+/// the user then has to complete the same 2FA/terms/phone step separately in
+/// every tab. See `emit_verification_required_if_stepup`.
+fn is_accounts_step_up(url: &tauri::Url) -> bool {
+    is_accounts_host(url)
+        && matches!(
+            url.path(),
+            "/verify" | "/accept-terms" | "/phone-verification" | "/verify-device"
+        )
+}
+
+/// Emit `verification-required` (deliberately distinct from `auth-required`)
+/// when a product's SSO handoff lands on an Accounts step-up page. Unlike
+/// `auth-required` — where reseeding `_atid` and retrying `/login-sites` can
+/// resolve an expired/invalid session on its own — a step-up page needs the
+/// user to act (enter a 2FA code, accept terms, verify a phone). The frontend
+/// must not auto-retry *this* webview from under the user; it should wait for
+/// this one to navigate away from Accounts, then retry every *other* pending
+/// service now that the account-wide requirement is satisfied. Returns true
+/// if emitted.
+fn emit_verification_required_if_stepup(
+    app: &AppHandle,
+    service_id: &str,
+    url: &tauri::Url,
+) -> bool {
+    if !is_accounts_step_up(url) {
+        return false;
+    }
+    app.state::<ServiceWebviews>()
+        .stuck_on_auth
+        .lock()
+        .unwrap()
+        .insert(service_id.to_string());
+    let _ = app.emit_to(main_target(), "verification-required", service_id);
+    true
+}
+
 /// Envia Shipping relays the Accounts handoff through a `/login?page=...&t=<jwt>`
 /// hop before landing on the real product page: Accounts `/login-sites` ->
 /// `ship.envia.com/authentication` (repo `envia`) sets its session then 302s to
@@ -241,10 +284,12 @@ fn main_target() -> EventTarget {
 pub struct ServiceWebviews {
     pub active: Mutex<Option<String>>,
     pub left_inset: Mutex<f64>,
-    /// service_ids currently parked on the Accounts auth-required fallback
-    /// (`/login` or the `/login-sites` relay). Re-selecting an already-mounted
-    /// webview in this state must not report "loaded" — the webview is still
-    /// showing the failed page, not the product.
+    /// service_ids currently parked on an Accounts fallback page: the
+    /// auth-required login form (`/login` or the `/login-sites` relay) or a
+    /// pending verification step-up (`/verify`, `/accept-terms`,
+    /// `/phone-verification`, `/verify-device`). Re-selecting an
+    /// already-mounted webview in this state must not report "loaded" — the
+    /// webview is still showing an Accounts page, not the product.
     pub stuck_on_auth: Mutex<HashSet<String>>,
 }
 
@@ -367,6 +412,13 @@ fn build_service_webview(
                 return true;
             }
 
+            // Same class of "not actually loaded" fallback as the check above,
+            // but for a pending 2FA/terms/phone step-up rather than a dead
+            // session — see `emit_verification_required_if_stepup`.
+            if emit_verification_required_if_stepup(&app_for_nav, &id_for_nav, url) {
+                return true;
+            }
+
             // Document navigations on product hosts (skip Accounts SSO hops
             // and third-party auth widget assets like the reCAPTCHA iframe).
             if !is_accounts_host(url)
@@ -386,6 +438,8 @@ fn build_service_webview(
             // Catch product `/login` on finished load too (some redirects skip
             // on_navigation for the final document).
             let auth_required = emit_auth_required_if_login(&app_for_load, &id_for_load, loaded_url);
+            let verification_required =
+                emit_verification_required_if_stepup(&app_for_load, &id_for_load, loaded_url);
             // The `/login-sites` relay page itself finishes loading (the "Accessing…"
             // spinner) before its client-side XHR to `/api/login/sites` resolves and
             // (on failure) redirects to `/login`. Treat it the same as the `/login`
@@ -414,11 +468,12 @@ fn build_service_webview(
             if active.as_deref() == Some(id_for_load.as_str()) {
                 let _ = webview.show();
             }
-            // Do not report "loaded" for the auth-required fallback page or the
-            // `/login-sites` relay spinner — otherwise either clears the
-            // reseed-retry guard on every failed attempt, causing an endless
-            // reseed/retry loop that never actually succeeds.
-            if !auth_required && !is_sso_relay {
+            // Do not report "loaded" for the auth-required fallback page, a
+            // pending verification step-up page, or the `/login-sites` relay
+            // spinner — otherwise any of these clears the reseed-retry guard
+            // (or, for step-up, gets mistaken for the product itself) as if
+            // the product had actually loaded.
+            if !auth_required && !verification_required && !is_sso_relay {
                 let _ = app_for_load.emit_to(main_target(), "service-loaded", &id_for_load);
             }
         });
@@ -440,9 +495,11 @@ fn fetch_atid_value(app: &AppHandle, host: &str) -> Option<String> {
     let webview = find_shared_store_webview(app)?;
     let probe: tauri::Url = format!("https://{host}/").parse().ok()?;
     let jar = webview.cookies_for_url(probe).unwrap_or_default();
-    jar.into_iter()
+    let value = jar
+        .into_iter()
         .find(|c| c.name() == "_atid" && !c.value().is_empty())
-        .map(|c| c.value().to_string())
+        .map(|c| c.value().to_string());
+    value
 }
 
 /// Build a one-shot init script that writes `_atid` into `document.cookie`

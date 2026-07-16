@@ -147,3 +147,21 @@ export async function listenAuthRequired(
   const { listen } = await import("@tauri-apps/api/event");
   return listen<string>("auth-required", (event) => handler(event.payload));
 }
+
+/**
+ * Fires (payload: service id) when a product's `/login-sites` SSO handoff
+ * lands on an Accounts step-up page (2FA `/verify`, `/accept-terms`,
+ * `/phone-verification`, `/verify-device`) instead of the product itself.
+ * Deliberately distinct from `listenAuthRequired`: reseeding `_atid` and
+ * retrying won't resolve this — the user has to act on the page that's
+ * already showing. See `useProductSso`'s handler for the cross-service retry
+ * once one of these completes.
+ */
+export async function listenVerificationRequired(
+  handler: (serviceId: string) => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<string>("verification-required", (event) =>
+    handler(event.payload),
+  );
+}

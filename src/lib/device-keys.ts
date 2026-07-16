@@ -40,63 +40,48 @@ function extractAuthorizationFromRedirect(redirectUrl: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export async function hasDeviceKey(): Promise<boolean> {
-  if (!isTauri()) return false;
+export async function hasDeviceKey(accountId: string): Promise<boolean> {
+  if (!isTauri() || !accountId) return false;
   try {
-    return await invoke<boolean>("has_device_key");
+    return await invoke<boolean>("has_device_key", { accountId });
   } catch {
     return false;
   }
 }
 
-/** Wipe local keyring + meta only (does not touch Accounts). Ordinary logout
- * must NOT call this — device keys are machine trust. Use for intentional
- * factory reset so silent remint stops on this machine. */
-export async function deleteDeviceKey(): Promise<void> {
-  if (!isTauri()) return;
+/** Wipe local keyring + meta for one account only (does not touch Accounts).
+ * Ordinary logout of that account should call this so the slot cannot remint.
+ * Other accounts' keys are left intact. */
+export async function deleteDeviceKey(accountId: string): Promise<void> {
+  if (!isTauri() || !accountId) return;
   try {
-    await invoke("delete_device_key");
-    console.info("[device-key] deleted locally");
+    await invoke("delete_device_key", { accountId });
+    console.info("[device-key] deleted locally", accountId);
   } catch (error) {
     console.error("[device-key] delete failed:", error);
   }
 }
 
-export async function registerDeviceKey(sessionToken: string): Promise<void> {
-  if (!isTauri() || !sessionToken) return;
+export async function registerDeviceKey(
+  sessionToken: string,
+  accountId: string,
+): Promise<void> {
+  if (!isTauri() || !sessionToken || !accountId) return;
   // Accounts checks the session token's `aud` (= HOSTNAME) against the request
   // Referer; pass the decoded audience so the register POST is not rejected.
   const referer = extractAudience(sessionToken) || TENDENCYS_BASE_URL;
 
-  const attempt = async (): Promise<void> => {
+  try {
     await invoke<DeviceKeyMeta>("register_device_key", {
+      accountId,
       accountsBaseUrl: TENDENCYS_BASE_URL,
       sessionToken,
       referer,
     });
-  };
-
-  try {
-    await attempt();
-    console.info("[device-key] registered");
+    console.info("[device-key] registered", accountId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[device-key] register failed:", error);
-
-    // Device_id is globally unique to one Accounts user. After A logs out (key
-    // kept) and B signs in, register conflicts — wipe local identity and mint a
-    // fresh UUID so B owns silent remint on this machine.
-    if (message.toLowerCase().includes("already registered")) {
-      await deleteDeviceKey();
-      try {
-        await attempt();
-        console.info("[device-key] registered after key rotation");
-        return;
-      } catch (retryError) {
-        console.error("[device-key] register retry failed:", retryError);
-        return;
-      }
-    }
 
     // Accounts returns 429 for the device cap, but this is not a transient rate
     // limit — it means the account has hit the 10-device maximum. Surface it
@@ -131,8 +116,10 @@ function parseRateLimited(message: string): DeviceKeyLoginResult | null {
   return { kind: "rate_limited", retryAfterMs, message: humanMessage };
 }
 
-async function performDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
-  const linked = await hasDeviceKey();
+async function performDeviceKeyLogin(
+  accountId: string,
+): Promise<DeviceKeyLoginResult> {
+  const linked = await hasDeviceKey(accountId);
   if (!linked) {
     return { kind: "unavailable" };
   }
@@ -144,6 +131,7 @@ async function performDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
       redirect_url?: string;
       token?: string;
     }>("login_with_device_key", {
+      accountId,
       accountsBaseUrl: TENDENCYS_BASE_URL,
       siteId: SHELL_SITE_ID,
       redirectUrlB64,
@@ -177,7 +165,9 @@ async function performDeviceKeyLogin(): Promise<DeviceKeyLoginResult> {
   }
 }
 
+let inFlightAccountId: string | null = null;
 let inFlight: Promise<DeviceKeyLoginResult> | null = null;
+let cachedAccountId: string | null = null;
 let cachedResult: DeviceKeyLoginResult | null = null;
 let cacheUntil = 0;
 
@@ -185,7 +175,9 @@ let cacheUntil = 0;
  * fresh sign-in is never blocked by a stale failed attempt. */
 export function resetDeviceKeyLoginCache(): void {
   inFlight = null;
+  inFlightAccountId = null;
   cachedResult = null;
+  cachedAccountId = null;
   cacheUntil = 0;
 }
 
@@ -197,41 +189,52 @@ export function isDeviceKeyRateLimited(): boolean {
 }
 
 /**
- * Attempt silent device-key login. Falls back to interactive SSO when unavailable.
+ * Attempt silent device-key login for a specific Accounts identity.
  *
- * Concurrent callers share one in-flight request, and a failed attempt is cached
- * briefly so the cold-start double-attempt (remint + LoginPage) and quick retries
- * don't re-hit `options` + `login`. `force` (a user-initiated retry) bypasses the
- * generic-error cache but still honours an active rate-limit backoff.
+ * Concurrent callers for the same account share one in-flight request, and a
+ * failed attempt is cached briefly so the cold-start double-attempt (remint +
+ * LoginPage) and quick retries don't re-hit `options` + `login`. `force` (a
+ * user-initiated retry) bypasses the generic-error cache but still honours an
+ * active rate-limit backoff.
  */
 export async function tryDeviceKeyLogin(
+  accountId: string,
   options?: { force?: boolean },
 ): Promise<DeviceKeyLoginResult> {
-  if (!isTauri()) return { kind: "unavailable" };
+  if (!isTauri() || !accountId) return { kind: "unavailable" };
 
-  if (cachedResult && Date.now() < cacheUntil) {
+  if (
+    cachedResult &&
+    cachedAccountId === accountId &&
+    Date.now() < cacheUntil
+  ) {
     if (cachedResult.kind === "rate_limited" || !options?.force) {
       return cachedResult;
     }
   }
 
-  if (inFlight) return inFlight;
+  if (inFlight && inFlightAccountId === accountId) return inFlight;
 
-  inFlight = performDeviceKeyLogin();
+  inFlightAccountId = accountId;
+  inFlight = performDeviceKeyLogin(accountId);
   try {
     const result = await inFlight;
     if (result.kind === "rate_limited") {
       cachedResult = result;
+      cachedAccountId = accountId;
       cacheUntil = Date.now() + (result.retryAfterMs || NEGATIVE_CACHE_MS);
     } else if (result.kind === "error") {
       cachedResult = result;
+      cachedAccountId = accountId;
       cacheUntil = Date.now() + NEGATIVE_CACHE_MS;
     } else {
       cachedResult = null;
+      cachedAccountId = null;
       cacheUntil = 0;
     }
     return result;
   } finally {
     inFlight = null;
+    inFlightAccountId = null;
   }
 }

@@ -18,10 +18,39 @@ export type AuthSession = {
   expiresAt: number;
 };
 
-/** What we actually persist: non-secret account info + expiry (no token). */
+/** One signed-in identity slot (no token on disk). */
+export type PersistedAccountSlot = {
+  account: TendencysAccount;
+  expiresAt: number;
+};
+
+/** Multi-email shell auth persisted shape. */
+export type PersistedShellAuth = {
+  activeAccountId: string;
+  accounts: PersistedAccountSlot[];
+};
+
+/** @deprecated singleton shape — migrated on load */
 export type PersistedSession = Omit<AuthSession, "token">;
 
-type StoredSession = PersistedSession;
+type StoredSession = PersistedSession | PersistedShellAuth;
+
+function isShellAuth(value: StoredSession): value is PersistedShellAuth {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "accounts" in value &&
+    Array.isArray((value as PersistedShellAuth).accounts) &&
+    typeof (value as PersistedShellAuth).activeAccountId === "string"
+  );
+}
+
+function singletonToShellAuth(session: PersistedSession): PersistedShellAuth {
+  return {
+    activeAccountId: session.account.id,
+    accounts: [{ account: session.account, expiresAt: session.expiresAt }],
+  };
+}
 
 async function getStore() {
   const { load } = await import("@tauri-apps/plugin-store");
@@ -44,65 +73,110 @@ async function clearLegacyStores(): Promise<void> {
   localStorage.removeItem(LEGACY_LOCAL_KEY);
 }
 
-export async function saveSession(session: AuthSession): Promise<void> {
+export async function saveShellAuth(auth: PersistedShellAuth): Promise<void> {
   await clearLegacyStores();
 
-  // Strip the secret `_atid` — only non-secret account info + expiry hit disk.
-  const persisted: PersistedSession = {
-    account: session.account,
-    expiresAt: session.expiresAt,
-  };
+  if (auth.accounts.length === 0) {
+    await clearShellAuth();
+    return;
+  }
 
   if (isTauri()) {
     const store = await getStore();
-    await store.set(STORE_KEY, persisted);
+    await store.set(STORE_KEY, auth);
     await store.save();
     return;
   }
 
-  // Browser-only fallback for `npm run dev` without Tauri.
-  localStorage.setItem(STORE_KEY, JSON.stringify(persisted));
+  localStorage.setItem(STORE_KEY, JSON.stringify(auth));
 }
 
-export async function loadSession(): Promise<PersistedSession | null> {
+/** Persist the active session into the multi-account list (upsert + set active). */
+export async function saveSession(session: AuthSession): Promise<void> {
+  const existing = await loadShellAuth();
+  const slot: PersistedAccountSlot = {
+    account: session.account,
+    expiresAt: session.expiresAt,
+  };
+  const others =
+    existing?.accounts.filter((a) => a.account.id !== session.account.id) ?? [];
+  await saveShellAuth({
+    activeAccountId: session.account.id,
+    accounts: [...others, slot],
+  });
+}
+
+export async function loadShellAuth(): Promise<PersistedShellAuth | null> {
+  let raw: StoredSession | null = null;
+
   if (isTauri()) {
     const store = await getStore();
-    const session = await store.get<StoredSession>(STORE_KEY);
-    if (session) return { account: session.account, expiresAt: session.expiresAt };
+    raw = (await store.get<StoredSession>(STORE_KEY)) ?? null;
 
-    // One-time migrate from legacy auth.json if present (drop any stored token).
-    try {
-      const { load } = await import("@tauri-apps/plugin-store");
-      const legacy = await load("auth.json", { autoSave: true, defaults: {} });
-      const legacySession = await legacy.get<StoredSession>(LEGACY_STORE_KEY);
-      if (legacySession) {
-        const migrated: PersistedSession = {
-          account: legacySession.account,
-          expiresAt: legacySession.expiresAt,
-        };
-        await saveSession({ ...migrated, token: "" });
-        await legacy.delete(LEGACY_STORE_KEY);
-        await legacy.save();
-        return migrated;
+    if (!raw) {
+      // One-time migrate from legacy auth.json if present (drop any stored token).
+      try {
+        const { load } = await import("@tauri-apps/plugin-store");
+        const legacy = await load("auth.json", { autoSave: true, defaults: {} });
+        const legacySession = await legacy.get<PersistedSession>(LEGACY_STORE_KEY);
+        if (legacySession?.account?.id) {
+          const migrated = singletonToShellAuth({
+            account: legacySession.account,
+            expiresAt: legacySession.expiresAt,
+          });
+          await saveShellAuth(migrated);
+          await legacy.delete(LEGACY_STORE_KEY);
+          await legacy.save();
+          return migrated;
+        }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore
     }
-    return null;
+  } else {
+    const local = localStorage.getItem(STORE_KEY);
+    if (local) {
+      try {
+        raw = JSON.parse(local) as StoredSession;
+      } catch {
+        return null;
+      }
+    }
   }
 
-  const raw = localStorage.getItem(STORE_KEY);
   if (!raw) return null;
 
-  try {
-    const parsed = JSON.parse(raw) as StoredSession;
-    return { account: parsed.account, expiresAt: parsed.expiresAt };
-  } catch {
-    return null;
+  if (isShellAuth(raw)) {
+    if (raw.accounts.length === 0) return null;
+    const active =
+      raw.accounts.find((a) => a.account.id === raw.activeAccountId) ??
+      raw.accounts[raw.accounts.length - 1];
+    return {
+      activeAccountId: active.account.id,
+      accounts: raw.accounts,
+    };
   }
+
+  // Migrate singleton PersistedSession → multi-account shape.
+  if (raw.account?.id) {
+    const migrated = singletonToShellAuth(raw);
+    await saveShellAuth(migrated);
+    return migrated;
+  }
+
+  return null;
 }
 
-export async function clearSession(): Promise<void> {
+/** Active account slot only (compat for callers that want a single session). */
+export async function loadSession(): Promise<PersistedSession | null> {
+  const auth = await loadShellAuth();
+  if (!auth) return null;
+  const active = auth.accounts.find((a) => a.account.id === auth.activeAccountId);
+  if (!active) return null;
+  return { account: active.account, expiresAt: active.expiresAt };
+}
+
+export async function clearShellAuth(): Promise<void> {
   await clearLegacyStores();
 
   if (isTauri()) {
@@ -113,6 +187,33 @@ export async function clearSession(): Promise<void> {
   }
 
   localStorage.removeItem(STORE_KEY);
+}
+
+/** Remove one account; returns remaining auth or null if empty. */
+export async function removeAccountSlot(
+  accountId: string,
+): Promise<PersistedShellAuth | null> {
+  const auth = await loadShellAuth();
+  if (!auth) return null;
+
+  const accounts = auth.accounts.filter((a) => a.account.id !== accountId);
+  if (accounts.length === 0) {
+    await clearShellAuth();
+    return null;
+  }
+
+  const activeAccountId =
+    auth.activeAccountId === accountId
+      ? accounts[accounts.length - 1].account.id
+      : auth.activeAccountId;
+
+  const next = { activeAccountId, accounts };
+  await saveShellAuth(next);
+  return next;
+}
+
+export async function clearSession(): Promise<void> {
+  await clearShellAuth();
 }
 
 export type Bookmark = {

@@ -61,7 +61,8 @@ export default function Authentication() {
     const run = async () => {
       if (!pendingAuth || pendingToken !== authorizationToken) {
         // Rust emit + JS deep-link may both arrive; first claimer validates.
-        if (!claimHandoffToken(authorizationToken)) {
+        const claimed = claimHandoffToken(authorizationToken);
+        if (!claimed) {
           const ok = await waitForSession();
           if (cancelled) return;
           setIsValidating(false);

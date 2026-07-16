@@ -92,7 +92,10 @@ export default function LoginPage() {
         setPhase((prev) => (prev === "checking" ? "welcome" : prev));
       }, CHECK_TIMEOUT_MS);
 
-      const deviceResult = await tryDeviceKeyLogin({ force });
+      const accountId = useAuthStore.getState().activeAccountId;
+      const deviceResult = accountId
+        ? await tryDeviceKeyLogin(accountId, { force })
+        : { kind: "unavailable" as const };
       clearCheckTimer();
       if (useAuthStore.getState().session) return;
 

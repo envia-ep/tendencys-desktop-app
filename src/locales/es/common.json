@@ -26,12 +26,98 @@
     "refresh": "Actualizar",
     "openInBrowser": "Abrir en navegador",
     "userMenu": "Menú de usuario",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "addAccount": "Agregar cuenta",
+    "switchAccount": "Cambiar a {{email}}",
+    "signedInAccounts": "Cuentas"
   },
   "serviceRail": {
     "label": "Servicios",
     "expand": "Expandir menú",
     "collapse": "Colapsar menú"
+  },
+  "home": {
+    "menuLabel": "Inicio",
+    "greeting": "Hola, {{name}}",
+    "greetingFallback": "Bienvenido de nuevo",
+    "tagline": "Mira cómo se conectan tus operaciones — envíos, fulfillment, pagos y banca en una sola red.",
+    "exploreHint": "Arrastra para mover, usa la rueda para acercar, haz clic en un edificio para explorar",
+    "detailHint": "Producto",
+    "vehicleHint": "En movimiento",
+    "closeDetail": "Cerrar",
+    "open": "Abrir {{service}}",
+    "sceneLabel": "Mundo logístico en vivo — camiones, aviones y paquetes moviéndose entre tus operaciones",
+    "controls": {
+      "play": "Reproducir",
+      "pause": "Pausar",
+      "speed": "Velocidad",
+      "mode": "Modo de datos",
+      "comingSoon": "Próximamente",
+      "modes": {
+        "sim": "Sim",
+        "live": "Vivo",
+        "replay": "Replay"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "Camión de entrega",
+        "pitch": "Los camiones mueven mercancía entre cargo, fulfillment y tus clientes en toda la red."
+      },
+      "plane": {
+        "label": "Carga aérea",
+        "pitch": "Los aviones llevan envíos exprés e internacionales entre los hubs."
+      },
+      "package": {
+        "label": "Flujo de paquetes",
+        "pitch": "Los paquetes fluyen por las bandas de fulfillment y los pipelines de pedidos por API."
+      },
+      "forklift": {
+        "label": "Montacargas",
+        "pitch": "Los montacargas mantienen el inventario en movimiento dentro del centro de fulfillment."
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "Tu empresa"
+      },
+      "envia-shipping": {
+        "label": "Envíos",
+        "pitch": "Envía con más de 100 paqueterías — cotiza, genera guías y rastrea en un solo lugar."
+      },
+      "envia-cargo": {
+        "label": "Cargo",
+        "pitch": "Reserva carga completa y consolidada (FTL y LTL) en una sola red."
+      },
+      "envia-fulfillment": {
+        "label": "Fulfillment",
+        "pitch": "Almacena, prepara y envía pedidos desde una sola red de fulfillment."
+      },
+      "envia-returns": {
+        "label": "Devoluciones",
+        "pitch": "Gestiona devoluciones en la misma red que envía tus pedidos."
+      },
+      "ecart-pay": {
+        "label": "Pagos",
+        "pitch": "Cobra de forma segura — checkout, enlaces de pago y suscripciones."
+      },
+      "ecart-banking": {
+        "label": "Banca",
+        "pitch": "Administra las finanzas de tu empresa — facturas entrantes y pagos a proveedores."
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "Conecta más de 40 tiendas y marketplaces con una sola API."
+      },
+      "parapaquetes": {
+        "label": "Insumos",
+        "pitch": "Empaque y suministros a precios de mayoreo."
+      },
+      "tendencys-partners": {
+        "label": "Partners",
+        "pitch": "Gana comisiones recurrentes al referir soluciones Tendencys."
+      }
+    }
   },
   "welcome": {
     "title": "Todas las herramientas que necesitas para impulsar tu negocio",

@@ -17,16 +17,34 @@ export const DEEP_LINK_SCHEME = "tendencys";
  * `tendencys://authentication` redirect so the system browser can complete
  * Cloudflare challenges and return via deep link.
  */
-export function buildShellAuthUrl(authPath: "login" | "signup" = "login"): string {
+export function buildShellAuthUrl(
+  authPath: "login" | "signup" = "login",
+  email?: string,
+): string {
   const redirect = encodeURIComponent(
     btoa(`${DEEP_LINK_SCHEME}://authentication`),
   );
+  const emailParam = email ? `&email=${encodeURIComponent(email)}` : "";
   return (
     `${TENDENCYS_BASE_URL}/${authPath}` +
     `?site_id=${SHELL_SITE_ID}` +
     `&redirect_url=${redirect}` +
-    `&google_login_mode=redirection&apple_login_mode=redirection`
+    `&google_login_mode=redirection&apple_login_mode=redirection` +
+    emailParam
   );
+}
+
+/**
+ * Accounts clears its browser-side session cookies (`_atid`, `_astfa`,
+ * `_atpv`) when the landing page mounts with `?logout=1`. Used before
+ * re-opening `/login` for a *different* account: without this, Accounts'
+ * axios client auto-attaches the still-valid `_atid` cookie to the login
+ * page's background calls and the backend just continues the existing
+ * session, silently ignoring the `email` hint and returning the wrong
+ * account.
+ */
+export function buildShellLogoutUrl(): string {
+  return `${TENDENCYS_BASE_URL}/?logout=1`;
 }
 
 /** Plain service URL (no shell token). Path defaults to `/`. */

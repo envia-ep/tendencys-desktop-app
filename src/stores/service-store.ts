@@ -22,6 +22,8 @@ function loadMenuCollapsed(): boolean {
   }
 }
 
+export type ShellView = "home" | "service";
+
 type ServiceState = {
   activeService: ServiceDefinition;
   bookmarks: Record<string, Bookmark[]>;
@@ -30,7 +32,11 @@ type ServiceState = {
   ssoInitiated: Record<string, boolean>;
   /** Single collapsible service menu: icon rail (collapsed) or icon+label list (expanded). */
   menuCollapsed: boolean;
+  /** Home hub vs native product webview. Defaults to home after sign-in. */
+  shellView: ShellView;
   setActiveService: (service: ServiceDefinition) => void;
+  showHome: () => void;
+  showService: () => void;
   toggleMenuCollapsed: () => void;
   loadServiceData: (serviceId: string) => Promise<void>;
   addBookmark: (serviceId: string, bookmark: Bookmark) => Promise<void>;
@@ -49,9 +55,18 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
   lastPaths: {},
   ssoInitiated: {},
   menuCollapsed: loadMenuCollapsed(),
+  shellView: "home",
 
   setActiveService: (service) => {
-    set({ activeService: service });
+    set({ activeService: service, shellView: "service" });
+  },
+
+  showHome: () => {
+    set({ shellView: "home" });
+  },
+
+  showService: () => {
+    set({ shellView: "service" });
   },
 
   toggleMenuCollapsed: () => {

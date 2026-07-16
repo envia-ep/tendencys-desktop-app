@@ -24,18 +24,26 @@ type AccountsAuthorizationResponse = {
   };
 };
 
-/** Decode JWT payload without verifying signature (Accounts already verified the token). */
-export function extractAudience(token: string): string | null {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     if (parts.length < 2) return null;
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return typeof payload.aud === "string" ? payload.aud : null;
+    return JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
   } catch {
     return null;
   }
+}
+
+/** Decode JWT payload without verifying signature (Accounts already verified the token). */
+export function extractAudience(token: string): string | null {
+  const payload = decodeJwtPayload(token);
+  return typeof payload?.aud === "string" ? (payload.aud as string) : null;
+}
+
+/** The Accounts session JWT's `id` claim is the account id (see createToken). */
+export function extractAccountId(token: string): string | null {
+  const payload = decodeJwtPayload(token);
+  return typeof payload?.id === "string" ? (payload.id as string) : null;
 }
 
 function parseAuthorizationResponse(

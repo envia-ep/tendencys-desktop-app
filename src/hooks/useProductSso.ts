@@ -6,6 +6,7 @@ import {
   listenAuthRequired,
   listenServiceLoaded,
   listenServiceNavigated,
+  listenVerificationRequired,
   navigateService,
   prewarmService,
   reloadService,
@@ -52,6 +53,9 @@ export function useProductSso() {
   const consumeJustAuthenticated = useAuthStore((s) => s.consumeJustAuthenticated);
   const activeService = useServiceStore((s) => s.activeService);
   const setActiveService = useServiceStore((s) => s.setActiveService);
+  const shellView = useServiceStore((s) => s.shellView);
+  const showHome = useServiceStore((s) => s.showHome);
+  const showService = useServiceStore((s) => s.showService);
   const loadServiceData = useServiceStore((s) => s.loadServiceData);
   const menuCollapsed = useServiceStore((s) => s.menuCollapsed);
   const setLastPath = useServiceStore((s) => s.setLastPath);
@@ -122,6 +126,15 @@ export function useProductSso() {
   const nativeMountedRef = useRef<Set<string>>(new Set());
   const ssoFailedRef = useRef<Set<string>>(new Set());
   const ssoReseedTriedRef = useRef<Set<string>>(new Set());
+  /**
+   * service_ids currently parked on an Accounts step-up page (2FA `/verify`,
+   * terms, phone/device verification) via their own `/login-sites` handoff.
+   * Completing the step in one service satisfies it account-wide, so once any
+   * of these navigates away from Accounts, every *other* pending id gets its
+   * SSO handoff retried automatically instead of making the user repeat the
+   * same verification once per open product.
+   */
+  const pendingVerificationRef = useRef<Set<string>>(new Set());
   const seedLastAtRef = useRef<Record<string, number>>({});
   const lastUrlRef = useRef<Record<string, string>>({});
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,13 +179,29 @@ export function useProductSso() {
   useEffect(() => {
     if (!isAuthenticated || !sessionReady) return;
     if (!justAuthenticated) return;
+    // Fresh login or multi-email switch: drop prior product mount/SSO state so
+    // webviews re-run /login-sites under the new `_atid` (jar already wiped).
+    nativeMountedRef.current.clear();
+    ssoFailedRef.current.clear();
+    ssoReseedTriedRef.current.clear();
+    pendingVerificationRef.current.clear();
+    seedLastAtRef.current = {};
+    lastUrlRef.current = {};
+    shellHistoryRef.current.clear();
+    knownUrlsRef.current = {};
+    syncHistoryButtons();
+    selectInFlightRef.current = null;
     consumeJustAuthenticated();
     setPrewarmToken((n) => n + 1);
+    showHome();
+    void setServiceVisible(false);
   }, [
     isAuthenticated,
     justAuthenticated,
     sessionReady,
     consumeJustAuthenticated,
+    syncHistoryButtons,
+    showHome,
   ]);
 
   const beginLoad = useCallback((serviceId: string) => {
@@ -205,6 +234,11 @@ export function useProductSso() {
 
   useEffect(() => {
     if (!isAuthenticated || !sessionReady) return;
+    if (shellView !== "service") {
+      void setServiceVisible(false);
+      return;
+    }
+
     const service = activeService;
 
     if (selectInFlightRef.current === service.id) return;
@@ -231,7 +265,7 @@ export function useProductSso() {
     beginLoad(service.id);
     void selectService(service.id, url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeService.id, isAuthenticated, sessionReady, beginLoad]);
+  }, [activeService.id, isAuthenticated, sessionReady, shellView, beginLoad]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -250,9 +284,37 @@ export function useProductSso() {
     };
   }, []);
 
+  /**
+   * A service navigating off Accounts after being parked on a step-up page
+   * means the account-wide requirement (2FA/terms/phone) is now satisfied —
+   * retry every other still-pending service's `/login-sites` handoff so the
+   * user isn't asked to repeat the same step once per open product.
+   */
+  const retryOtherPendingVerifications = useCallback(
+    (resolvedServiceId: string) => {
+      pendingVerificationRef.current.delete(resolvedServiceId);
+      if (pendingVerificationRef.current.size === 0) return;
+      const others = Array.from(pendingVerificationRef.current);
+      pendingVerificationRef.current.clear();
+      for (const serviceId of others) {
+        const service = getServiceById(serviceId);
+        const sso = service && buildServiceSsoUrl(service);
+        if (!sso) continue;
+        ssoLog(`service=${serviceId} verification-required resolved elsewhere -> retry login-sites`);
+        lastUrlRef.current[serviceId] = sso;
+        if (serviceId === activeService.id) beginLoad(serviceId);
+        void navigateService(serviceId, sso);
+      }
+    },
+    [activeService.id, beginLoad],
+  );
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void listenServiceNavigated((event) => {
+      if (pendingVerificationRef.current.has(event.serviceId)) {
+        retryOtherPendingVerifications(event.serviceId);
+      }
       recordNavigation(event.serviceId, event.url, event.replace);
     }).then((fn) => {
       unlisten = fn;
@@ -260,7 +322,31 @@ export function useProductSso() {
     return () => {
       unlisten?.();
     };
-  }, [recordNavigation]);
+  }, [recordNavigation, retryOtherPendingVerifications]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listenVerificationRequired((serviceId) => {
+      ssoLog(`service=${serviceId} verification-required (Accounts step-up page)`);
+      pendingVerificationRef.current.add(serviceId);
+      if (serviceId !== activeService.id) return;
+      if (useServiceStore.getState().shellView !== "service") return;
+      // The native webview already shows the Accounts step-up page (2FA
+      // code entry, terms, phone/device verification) — clear any loading
+      // overlay so it isn't hidden behind a spinner, but do not touch
+      // nativeMountedRef/ssoFailedRef: this is not a failure to retry, it's
+      // waiting on the user.
+      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+      setLoadingServiceId((prev) => (prev === serviceId ? null : prev));
+      setErrorServiceId((prev) => (prev === serviceId ? null : prev));
+      void setServiceVisible(true);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [activeService.id]);
 
   useEffect(() => {
     if (!isAuthenticated || prewarmToken === 0) return;
@@ -330,8 +416,13 @@ export function useProductSso() {
                 let seedToken = token;
                 // Seed-first may leave a token that /login-sites still rejects —
                 // remint via device key once, then seed that session token.
-                if (await hasDeviceKey()) {
-                  const remint = await tryDeviceKeyLogin({ force: true });
+                const accountId =
+                  useAuthStore.getState().session?.account.id ??
+                  useAuthStore.getState().activeAccountId;
+                if (accountId && (await hasDeviceKey(accountId))) {
+                  const remint = await tryDeviceKeyLogin(accountId, {
+                    force: true,
+                  });
                   if (remint.kind === "handoff" && remint.sessionToken) {
                     seedToken = remint.sessionToken;
                     const current = useAuthStore.getState().session;
@@ -365,6 +456,7 @@ export function useProductSso() {
       });
 
       if (serviceId !== activeService.id) return;
+      if (useServiceStore.getState().shellView !== "service") return;
       if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
       setLoadingServiceId((prev) => (prev === serviceId ? null : prev));
       setErrorServiceId((prev) => (prev === serviceId ? null : prev));
@@ -388,6 +480,10 @@ export function useProductSso() {
   );
 
   const handleUserMenuOpenChange = useCallback((open: boolean) => {
+    if (useServiceStore.getState().shellView !== "service") {
+      void setServiceVisible(false);
+      return;
+    }
     void setServiceVisible(!open);
   }, []);
 
@@ -433,29 +529,46 @@ export function useProductSso() {
   const handleSelectService = useCallback(
     (service: ServiceDefinition) => {
       const prev = useServiceStore.getState().activeService;
-      if (service.id === prev.id) return;
+      const wasHome = useServiceStore.getState().shellView === "home";
+
+      // Returning from Home to the same product must re-show the webview.
+      if (service.id === prev.id && !wasHome) return;
 
       if (selectInFlightRef.current !== service.id) {
         selectInFlightRef.current = null;
       }
 
-      const prevUrl =
-        knownUrlsRef.current[prev.id] ??
-        buildServiceViewUrl(prev, lastPaths[prev.id] ?? "/");
-      if (!shellHistoryRef.current.current()) {
-        shellHistoryRef.current.push({ serviceId: prev.id, url: prevUrl });
+      if (service.id !== prev.id) {
+        const prevUrl =
+          knownUrlsRef.current[prev.id] ??
+          buildServiceViewUrl(prev, lastPaths[prev.id] ?? "/");
+        if (!shellHistoryRef.current.current()) {
+          shellHistoryRef.current.push({ serviceId: prev.id, url: prevUrl });
+        }
+
+        const url =
+          knownUrlsRef.current[service.id] ??
+          buildServiceViewUrl(service, lastPaths[service.id] ?? "/");
+        shellHistoryRef.current.push({ serviceId: service.id, url });
+        syncHistoryButtons();
       }
 
-      const url =
-        knownUrlsRef.current[service.id] ??
-        buildServiceViewUrl(service, lastPaths[service.id] ?? "/");
-      shellHistoryRef.current.push({ serviceId: service.id, url });
-      syncHistoryButtons();
+      if (wasHome && service.id === prev.id) {
+        // Same service: force the select effect to re-run by clearing in-flight.
+        selectInFlightRef.current = null;
+        showService();
+        return;
+      }
 
       setActiveService(service);
     },
-    [lastPaths, setActiveService, syncHistoryButtons],
+    [lastPaths, setActiveService, showService, syncHistoryButtons],
   );
+
+  const handleShowHome = useCallback(() => {
+    showHome();
+    void setServiceVisible(false);
+  }, [showHome]);
 
   useEffect(() => {
     const width = menuCollapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
@@ -493,11 +606,13 @@ export function useProductSso() {
 
   return {
     activeService,
+    shellView,
     canGoBack,
     canGoForward,
     loadingServiceId,
     errorServiceId,
     handleSelectService,
+    handleShowHome,
     handleNavigateBack,
     handleNavigateForward,
     handleRefresh,

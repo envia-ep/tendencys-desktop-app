@@ -1,15 +1,18 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
-use keyring::Entry;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const KEYRING_SERVICE: &str = "tendencys-desktop";
-const KEYRING_USER: &str = "device-key";
-const META_FILE: &str = "device-key-meta.json";
+/// Device keys are stored as local files (not the OS Keychain/Credential
+/// Manager). The OS Keychain requires a per-item "Always Allow" consent
+/// dialog on first access — unacceptable UX for a silent "remember me"
+/// convenience token. Protection instead comes from OS file permissions
+/// (0600 on Unix; already user-scoped %APPDATA% on Windows), the same model
+/// used by tools like `gh`, `docker`, and `npm` for local auth tokens.
+const META_DIR: &str = "device-keys";
 
 /// Only these hosts may receive session tokens / device-key auth traffic.
 const ALLOWED_ACCOUNTS_HOSTS: &[&str] = &[
@@ -57,14 +60,123 @@ fn resolve_accounts_base(accounts_base_url: &str) -> Result<String, String> {
     Ok(base.as_str().trim_end_matches('/').to_string())
 }
 
-fn meta_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+/// Accounts' Cloudflare zone challenges `reqwest`'s TLS/HTTP2 fingerprint on
+/// `/api/device-keys/*` (curl is never challenged, even with identical
+/// headers), so this shells out to the system `curl` binary for that one
+/// call so device-key registration can complete. Headers/body go through a
+/// `-K` config file (mode 0600, deleted immediately after) so the session
+/// token and public key never appear in `ps` output.
+fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value) -> Result<(u16, String), String> {
+    use std::io::Write;
+
+    let body_path = std::env::temp_dir().join(format!("tdk-body-{}.json", Uuid::new_v4()));
+    fs::write(&body_path, body.to_string()).map_err(|e| format!("curl body write: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&body_path, fs::Permissions::from_mode(0o600));
+    }
+
+    let mut cfg = String::new();
+    cfg.push_str("request = \"POST\"\n");
+    cfg.push_str(&format!("url = \"{}\"\n", url.replace('"', "\\\"")));
+    cfg.push_str("header = \"Content-Type: application/json\"\n");
+    for (k, v) in headers {
+        cfg.push_str(&format!(
+            "header = \"{}: {}\"\n",
+            k,
+            v.replace('"', "\\\"")
+        ));
+    }
+    cfg.push_str(&format!(
+        "data-binary = \"@{}\"\n",
+        body_path.display()
+    ));
+    cfg.push_str("silent\nshow-error\n");
+    cfg.push_str("write-out = \"\\n%{http_code}\"\n");
+
+    let cfg_path = std::env::temp_dir().join(format!("tdk-curl-{}.cfg", Uuid::new_v4()));
+    {
+        let mut f = fs::File::create(&cfg_path).map_err(|e| format!("curl cfg write: {e}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = f.set_permissions(fs::Permissions::from_mode(0o600));
+        }
+        f.write_all(cfg.as_bytes())
+            .map_err(|e| format!("curl cfg write: {e}"))?;
+    }
+
+    let output = std::process::Command::new("curl")
+        .arg("-K")
+        .arg(&cfg_path)
+        .output();
+
+    let _ = fs::remove_file(&cfg_path);
+    let _ = fs::remove_file(&body_path);
+
+    let output = output.map_err(|e| format!("curl exec: {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut lines: Vec<&str> = stdout.lines().collect();
+    let status_line = lines.pop().unwrap_or("0");
+    let status: u16 = status_line.trim().parse().unwrap_or(0);
+    let body_text = lines.join("\n");
+    Ok((status, body_text))
+}
+
+fn require_account_id(account_id: &str) -> Result<&str, String> {
+    let trimmed = account_id.trim();
+    if trimmed.is_empty() {
+        return Err("account_id required".into());
+    }
+    // Prevent path traversal in meta filenames.
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return Err("invalid account_id".into());
+    }
+    Ok(trimmed)
+}
+
+fn meta_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     use tauri::Manager;
     let dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| format!("app data dir: {e}"))?;
-    fs::create_dir_all(&dir).map_err(|e| format!("create app data dir: {e}"))?;
-    Ok(dir.join(META_FILE))
+        .map_err(|e| format!("app data dir: {e}"))?
+        .join(META_DIR);
+    fs::create_dir_all(&dir).map_err(|e| format!("create device-keys dir: {e}"))?;
+    Ok(dir)
+}
+
+fn meta_path(app: &tauri::AppHandle, account_id: &str) -> Result<PathBuf, String> {
+    let id = require_account_id(account_id)?;
+    Ok(meta_dir(app)?.join(format!("{id}.json")))
+}
+
+fn key_path(app: &tauri::AppHandle, account_id: &str) -> Result<PathBuf, String> {
+    let id = require_account_id(account_id)?;
+    Ok(meta_dir(app)?.join(format!("{id}.key")))
+}
+
+/// Write the base64-encoded private key to a local file with owner-only
+/// permissions. On Unix this sets mode 0600 explicitly; on Windows the
+/// per-user app-data directory is already ACL-restricted to the current user.
+fn write_key_file(path: &PathBuf, secret_b64: &str) -> Result<(), String> {
+    fs::write(path, secret_b64).map_err(|e| format!("write device key: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("chmod device key: {e}"))?;
+    }
+    Ok(())
+}
+
+fn read_key_file(path: &PathBuf) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path).map_err(|e| format!("read device key: {e}"))?;
+    Ok(Some(raw.trim().to_string()))
 }
 
 fn platform_name() -> String {
@@ -83,15 +195,15 @@ fn device_label() -> String {
         .unwrap_or_else(|| "Tendencys Desktop".into())
 }
 
-fn keyring_entry() -> Result<Entry, String> {
-    Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| format!("keyring: {e}"))
-}
-
-fn load_signing_key() -> Result<SigningKey, String> {
-    let entry = keyring_entry()?;
-    let secret_b64 = entry
-        .get_password()
-        .map_err(|e| format!("keyring read: {e}"))?;
+/// Pre-multi-account (and pre-file-storage) legacy device key can only have
+/// lived in the OS Keychain. There is no supported migration path off of it
+/// anymore (the feature never shipped to real users) — a stale legacy meta
+/// file with no matching key file is simply treated as "no device key" and
+/// the caller falls back to interactive login, which re-registers a fresh
+/// file-backed key.
+fn load_signing_key(app: &tauri::AppHandle, account_id: &str) -> Result<SigningKey, String> {
+    let path = key_path(app, account_id)?;
+    let secret_b64 = read_key_file(&path)?.ok_or_else(|| "no device key file".to_string())?;
     let secret_bytes = B64
         .decode(secret_b64.trim())
         .map_err(|e| format!("decode private key: {e}"))?;
@@ -101,8 +213,8 @@ fn load_signing_key() -> Result<SigningKey, String> {
     Ok(SigningKey::from_bytes(&secret_array))
 }
 
-fn read_meta(app: &tauri::AppHandle) -> Result<Option<DeviceKeyMeta>, String> {
-    let path = meta_path(app)?;
+fn read_meta(app: &tauri::AppHandle, account_id: &str) -> Result<Option<DeviceKeyMeta>, String> {
+    let path = meta_path(app, account_id)?;
     if !path.exists() {
         return Ok(None);
     }
@@ -112,14 +224,18 @@ fn read_meta(app: &tauri::AppHandle) -> Result<Option<DeviceKeyMeta>, String> {
     Ok(Some(meta))
 }
 
-fn write_meta(app: &tauri::AppHandle, meta: &DeviceKeyMeta) -> Result<(), String> {
-    let path = meta_path(app)?;
+fn write_meta(app: &tauri::AppHandle, account_id: &str, meta: &DeviceKeyMeta) -> Result<(), String> {
+    let path = meta_path(app, account_id)?;
     let raw = serde_json::to_string_pretty(meta).map_err(|e| format!("serialize meta: {e}"))?;
     fs::write(&path, raw).map_err(|e| format!("write meta: {e}"))
 }
 
-fn sign_challenge_bytes(challenge: &str) -> Result<String, String> {
-    let signing_key = load_signing_key()?;
+fn sign_challenge_bytes(
+    app: &tauri::AppHandle,
+    account_id: &str,
+    challenge: &str,
+) -> Result<String, String> {
+    let signing_key = load_signing_key(app, account_id)?;
     let signature = signing_key.sign(challenge.as_bytes());
     Ok(B64.encode(signature.to_bytes()))
 }
@@ -144,27 +260,32 @@ fn log_register_token_shape(token: &str) {
 }
 
 #[tauri::command]
-pub fn has_device_key(app: tauri::AppHandle) -> Result<bool, String> {
-    if read_meta(&app)?.is_none() {
+pub fn has_device_key(app: tauri::AppHandle, account_id: String) -> Result<bool, String> {
+    if read_meta(&app, &account_id)?.is_none() {
         return Ok(false);
     }
-    Ok(keyring_entry()
-        .and_then(|e| e.get_password().map(|_| true).map_err(|err| err.to_string()))
-        .unwrap_or(false))
+    let path = key_path(&app, &account_id)?;
+    let result = read_key_file(&path).map(|opt| opt.is_some());
+    Ok(result.unwrap_or(false))
 }
 
 #[tauri::command]
-pub fn get_device_key_meta(app: tauri::AppHandle) -> Result<Option<DeviceKeyMeta>, String> {
-    read_meta(&app)
+pub fn get_device_key_meta(
+    app: tauri::AppHandle,
+    account_id: String,
+) -> Result<Option<DeviceKeyMeta>, String> {
+    read_meta(&app, &account_id)
 }
 
 #[tauri::command]
-pub fn generate_device_keypair(app: tauri::AppHandle) -> Result<DeviceKeyMeta, String> {
-    if let Some(existing) = read_meta(&app)? {
-        if keyring_entry()
-            .and_then(|e| e.get_password().map_err(|err| err.to_string()))
-            .is_ok()
-        {
+pub fn generate_device_keypair(
+    app: tauri::AppHandle,
+    account_id: String,
+) -> Result<DeviceKeyMeta, String> {
+    let id = require_account_id(&account_id)?.to_string();
+    let key_file = key_path(&app, &id)?;
+    if let Some(existing) = read_meta(&app, &id)? {
+        if read_key_file(&key_file)?.is_some() {
             return Ok(existing);
         }
     }
@@ -174,9 +295,7 @@ pub fn generate_device_keypair(app: tauri::AppHandle) -> Result<DeviceKeyMeta, S
     let public_key = B64.encode(verifying_key.as_bytes());
     let private_b64 = B64.encode(signing_key.to_bytes());
 
-    keyring_entry()?
-        .set_password(&private_b64)
-        .map_err(|e| format!("keyring write: {e}"))?;
+    write_key_file(&key_file, &private_b64)?;
 
     let meta = DeviceKeyMeta {
         device_id: Uuid::new_v4().to_string(),
@@ -185,23 +304,30 @@ pub fn generate_device_keypair(app: tauri::AppHandle) -> Result<DeviceKeyMeta, S
         device_label: device_label(),
         method_id: None,
     };
-    write_meta(&app, &meta)?;
+    write_meta(&app, &id, &meta)?;
     Ok(meta)
 }
 
 #[tauri::command]
-pub fn set_device_key_method_id(app: tauri::AppHandle, method_id: String) -> Result<(), String> {
-    let mut meta = read_meta(&app)?.ok_or_else(|| "device key meta missing".to_string())?;
+pub fn set_device_key_method_id(
+    app: tauri::AppHandle,
+    account_id: String,
+    method_id: String,
+) -> Result<(), String> {
+    let id = require_account_id(&account_id)?.to_string();
+    let mut meta = read_meta(&app, &id)?.ok_or_else(|| "device key meta missing".to_string())?;
     meta.method_id = Some(method_id);
-    write_meta(&app, &meta)
+    write_meta(&app, &id, &meta)
 }
 
 #[tauri::command]
-pub fn delete_device_key(app: tauri::AppHandle) -> Result<(), String> {
-    if let Ok(entry) = keyring_entry() {
-        let _ = entry.delete_credential();
+pub fn delete_device_key(app: tauri::AppHandle, account_id: String) -> Result<(), String> {
+    let id = require_account_id(&account_id)?.to_string();
+    let key_file = key_path(&app, &id)?;
+    if key_file.exists() {
+        let _ = fs::remove_file(&key_file);
     }
-    let path = meta_path(&app)?;
+    let path = meta_path(&app, &id)?;
     if path.exists() {
         fs::remove_file(&path).map_err(|e| format!("remove meta: {e}"))?;
     }
@@ -236,12 +362,14 @@ struct LoginBody<'a> {
 #[tauri::command]
 pub async fn login_with_device_key(
     app: tauri::AppHandle,
+    account_id: String,
     accounts_base_url: String,
     site_id: String,
     redirect_url_b64: String,
 ) -> Result<serde_json::Value, String> {
+    let id = require_account_id(&account_id)?.to_string();
     let base = resolve_accounts_base(&accounts_base_url)?;
-    let meta = read_meta(&app)?.ok_or_else(|| "no device key".to_string())?;
+    let meta = read_meta(&app, &id)?.ok_or_else(|| "no device key".to_string())?;
     let client = reqwest::Client::new();
 
     let options_url = format!(
@@ -254,21 +382,19 @@ pub async fn login_with_device_key(
         .send()
         .await
         .map_err(|e| format!("options request: {e}"))?;
-    if !options_res.status().is_success() {
-        let status = options_res.status();
-        let headers = options_res.headers().clone();
-        let body = options_res.text().await.unwrap_or_default();
-        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(rate_limited_err(&headers, &body));
+    let options_status = options_res.status();
+    let options_headers = options_res.headers().clone();
+    let options_body_text = options_res.text().await.unwrap_or_default();
+    if !options_status.is_success() {
+        if options_status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(rate_limited_err(&options_headers, &options_body_text));
         }
-        return Err(format!("options failed ({status}): {body}"));
+        return Err(format!("options failed ({options_status}): {options_body_text}"));
     }
-    let options: OptionsResponse = options_res
-        .json()
-        .await
+    let options: OptionsResponse = serde_json::from_str(&options_body_text)
         .map_err(|e| format!("options parse: {e}"))?;
 
-    let signature = sign_challenge_bytes(&options.challenge)?;
+    let signature = sign_challenge_bytes(&app, &id, &options.challenge)?;
 
     let referer = format!(
         "{}/login?site_id={}&redirect_url={}",
@@ -312,13 +438,14 @@ pub async fn login_with_device_key(
 #[tauri::command]
 pub async fn register_device_key(
     app: tauri::AppHandle,
+    account_id: String,
     accounts_base_url: String,
     session_token: String,
     referer: String,
 ) -> Result<DeviceKeyMeta, String> {
+    let id = require_account_id(&account_id)?.to_string();
     let base = resolve_accounts_base(&accounts_base_url)?;
-    let meta = generate_device_keypair(app.clone())?;
-    let client = reqwest::Client::new();
+    let meta = generate_device_keypair(app.clone(), id.clone())?;
     let url = format!("{}/api/device-keys/register", base);
 
     // Diagnostics: `/api/device-keys/register` needs a token with a valid `id`
@@ -328,32 +455,74 @@ pub async fn register_device_key(
     // Accounts' jsonwebtoken middleware rejects the session token unless the
     // Referer echoes its `aud` (= HOSTNAME). The caller passes the token's
     // decoded audience so this matches regardless of HOSTNAME formatting.
-    let res = client
-        .post(&url)
-        .header("Authorization", &session_token)
-        .header("Content-Type", "application/json")
-        .header("Referer", &referer)
-        .json(&serde_json::json!({
-            "device_id": meta.device_id,
-            "public_key": meta.public_key,
-            "algorithm": "ed25519",
-            "platform": meta.platform,
-            "client": "desktop",
-            "app_id": "tendencys-desktop",
-            "device_label": meta.device_label,
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("register request: {e}"))?;
-
-    let status = res.status();
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("register parse: {e}"))?;
+    let register_body = serde_json::json!({
+        "device_id": meta.device_id,
+        "public_key": meta.public_key,
+        "algorithm": "ed25519",
+        "platform": meta.platform,
+        "client": "desktop",
+        "app_id": "tendencys-desktop",
+        "device_label": meta.device_label,
+    });
+    let (status_u16, body_text) = curl_json_post(
+        &url,
+        &[
+            ("Authorization", &session_token),
+            ("Referer", &referer),
+        ],
+        &register_body,
+    )?;
+    let status = reqwest::StatusCode::from_u16(status_u16)
+        .map_err(|e| format!("register: bad status {status_u16}: {e}"))?;
+    let body: serde_json::Value = serde_json::from_str(&body_text)
+        .map_err(|e| format!("register parse: {e} (status={status}, body={body_text})"))?;
     log::info!("[sso] register status={status} ok={}", status.is_success());
     if !status.is_success() {
         log::info!("[sso] register error body={}", body);
+        // Per-account keys: if this device_id is already registered for another
+        // reason, rotate only this account's local key and retry once.
+        let body_str = body.to_string();
+        if body_str.to_lowercase().contains("already registered") {
+            delete_device_key(app.clone(), id.clone())?;
+            let meta = generate_device_keypair(app.clone(), id.clone())?;
+            let retry_body = serde_json::json!({
+                "device_id": meta.device_id,
+                "public_key": meta.public_key,
+                "algorithm": "ed25519",
+                "platform": meta.platform,
+                "client": "desktop",
+                "app_id": "tendencys-desktop",
+                "device_label": meta.device_label,
+            });
+            let (retry_status_u16, retry_body_text) = curl_json_post(
+                &url,
+                &[
+                    ("Authorization", &session_token),
+                    ("Referer", &referer),
+                ],
+                &retry_body,
+            )?;
+            let status = reqwest::StatusCode::from_u16(retry_status_u16)
+                .map_err(|e| format!("register retry: bad status {retry_status_u16}: {e}"))?;
+            let body: serde_json::Value = serde_json::from_str(&retry_body_text)
+                .map_err(|e| format!("register retry parse: {e}"))?;
+            if !status.is_success() {
+                return Err(format!(
+                    "register failed ({status}): {}",
+                    body.to_string()
+                ));
+            }
+            let method_id = body
+                .get("doc")
+                .and_then(|d| d.get("_id").or_else(|| d.get("id")))
+                .map(|v| v.as_str().unwrap_or(&v.to_string()).to_string());
+            let mut updated = meta;
+            if let Some(mid) = method_id {
+                updated.method_id = Some(mid.clone());
+                set_device_key_method_id(app, id, mid)?;
+            }
+            return Ok(updated);
+        }
         return Err(format!(
             "register failed ({status}): {}",
             body.to_string()
@@ -366,9 +535,9 @@ pub async fn register_device_key(
         .map(|v| v.as_str().unwrap_or(&v.to_string()).to_string());
 
     let mut updated = meta;
-    if let Some(id) = method_id {
-        updated.method_id = Some(id.clone());
-        set_device_key_method_id(app, id)?;
+    if let Some(mid) = method_id {
+        updated.method_id = Some(mid.clone());
+        set_device_key_method_id(app, id, mid)?;
     }
     Ok(updated)
 }

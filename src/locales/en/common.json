@@ -26,12 +26,98 @@
     "refresh": "Refresh",
     "openInBrowser": "Open in browser",
     "userMenu": "User menu",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "addAccount": "Add account",
+    "switchAccount": "Switch to {{email}}",
+    "signedInAccounts": "Accounts"
   },
   "serviceRail": {
     "label": "Services",
     "expand": "Expand menu",
     "collapse": "Collapse menu"
+  },
+  "home": {
+    "menuLabel": "Home",
+    "greeting": "Hi, {{name}}",
+    "greetingFallback": "Welcome back",
+    "tagline": "See how your operations connect — shipping, fulfillment, payments, and banking in one network.",
+    "exploreHint": "Drag to pan, scroll to zoom, click a building to explore",
+    "detailHint": "Product",
+    "vehicleHint": "In motion",
+    "closeDetail": "Close",
+    "open": "Open {{service}}",
+    "sceneLabel": "Live logistics world — trucks, planes and packages moving between your operations",
+    "controls": {
+      "play": "Play",
+      "pause": "Pause",
+      "speed": "Speed",
+      "mode": "Data mode",
+      "comingSoon": "Coming soon",
+      "modes": {
+        "sim": "Sim",
+        "live": "Live",
+        "replay": "Replay"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "Delivery truck",
+        "pitch": "Trucks move goods between cargo, fulfillment, and your customers across the network."
+      },
+      "plane": {
+        "label": "Air freight",
+        "pitch": "Planes carry express and international shipments between hubs."
+      },
+      "package": {
+        "label": "Package flow",
+        "pitch": "Packages stream through fulfillment conveyors and API-driven order pipelines."
+      },
+      "forklift": {
+        "label": "Warehouse forklift",
+        "pitch": "Forklifts keep inventory moving inside the fulfillment center."
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "Your company"
+      },
+      "envia-shipping": {
+        "label": "Shipping",
+        "pitch": "Ship with 100+ carriers — quotes, labels, and tracking in one place."
+      },
+      "envia-cargo": {
+        "label": "Cargo",
+        "pitch": "Book FTL and LTL freight across one merchant–carrier network."
+      },
+      "envia-fulfillment": {
+        "label": "Fulfillment",
+        "pitch": "Warehouse, pick-and-pack, and ship orders from one fulfillment network."
+      },
+      "envia-returns": {
+        "label": "Returns",
+        "pitch": "Handle returns on the same network that ships your orders."
+      },
+      "ecart-pay": {
+        "label": "Payments",
+        "pitch": "Accept payments securely — checkout, links, and subscriptions."
+      },
+      "ecart-banking": {
+        "label": "Banking",
+        "pitch": "Manage company finances — invoices in, provider payments out."
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "Connect 40+ stores and marketplaces through one API."
+      },
+      "parapaquetes": {
+        "label": "Supplies",
+        "pitch": "Packaging and supplies at wholesale pricing."
+      },
+      "tendencys-partners": {
+        "label": "Partners",
+        "pitch": "Earn recurring commissions by referring Tendencys solutions."
+      }
+    }
   },
   "welcome": {
     "title": "Every tool you need to power your business",
