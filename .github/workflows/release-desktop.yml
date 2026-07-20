@@ -131,8 +131,8 @@ jobs:
 
       # Wire Windows code signing via Azure Trusted Signing. Installs the signer
       # and injects bundle.windows.signCommand so Tauri signs both the inner
-      # .exe and the installer in one pass. Skipped automatically if the Trusted
-      # Signing config secrets are absent (Windows builds stay unsigned instead
+      # .exe and the installer in one pass. Skipped unless AZURE_SIGNING_ENABLED
+      # is true and AZURE_SIGNING_ENDPOINT is set (Windows ships unsigned instead
       # of failing the whole release).
       - name: Setup Windows code signing (Azure Trusted Signing)
         if: matrix.platform == 'windows-latest' && env.WINDOWS_SIGNING_ENABLED == 'true'
@@ -142,8 +142,27 @@ jobs:
           AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
         run: |
+          set -euo pipefail
           cargo install trusted-signing-cli
-          SIGN_CMD="trusted-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Tendencys %1"
+          # Absolute path avoids Tauri spawn failures when cargo bin is not on PATH
+          # for the Windows build step (v0.4.0 failed with opaque "failed to run").
+          CLI="$(command -v trusted-signing-cli)"
+          if [ -z "$CLI" ]; then
+            CLI="${CARGO_HOME:-$HOME/.cargo}/bin/trusted-signing-cli"
+          fi
+          if [ ! -x "$CLI" ] && [ ! -f "${CLI}.exe" ]; then
+            echo "::error::trusted-signing-cli not found after cargo install (tried $CLI)"
+            exit 1
+          fi
+          # Prefer .exe on Windows runners when present.
+          if [ -f "${CLI}.exe" ]; then
+            CLI="${CLI}.exe"
+          fi
+          CLI_WIN="$(cygpath -w "$CLI")"
+          echo "Using trusted-signing-cli at: $CLI_WIN"
+          "$CLI" --help >/dev/null
+          SIGN_CMD="$CLI_WIN -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Tendencys %1"
+          echo "Injected signCommand: $CLI_WIN -e <endpoint> -a <account> -c <profile> -d Tendencys %1"
           jq --arg cmd "$SIGN_CMD" '.bundle.windows += {"signCommand": $cmd}' src-tauri/tauri.conf.json > src-tauri/tauri.conf.tmp.json
           mv src-tauri/tauri.conf.tmp.json src-tauri/tauri.conf.json
 
