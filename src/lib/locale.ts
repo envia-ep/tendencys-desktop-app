@@ -1,7 +1,55 @@
 /** Languages the app ships UI copy for. First entry is the fallback. */
-export const SUPPORTED_LANGUAGES = ["en", "es"] as const;
+export const SUPPORTED_LANGUAGES = [
+  "en",
+  "es",
+  "pt",
+  "hi",
+  "it",
+  "fr",
+  "zh",
+] as const;
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
+/**
+ * Endonyms for the language selector — never translate these via `t()`.
+ * Users must always find their language by its own name.
+ */
+export const LANGUAGE_LABELS: Record<SupportedLanguage, string> = {
+  en: "English",
+  es: "Español",
+  pt: "Português",
+  hi: "हिन्दी",
+  it: "Italiano",
+  fr: "Français",
+  zh: "中文",
+};
+
+/** BCP-47 tags for `toLocaleString` / number formatting. */
+export const NUMBER_LOCALES: Record<SupportedLanguage, string> = {
+  en: "en-US",
+  es: "es-MX",
+  pt: "pt-BR",
+  hi: "hi-IN",
+  it: "it-IT",
+  fr: "fr-FR",
+  zh: "zh-CN",
+};
+
+export function isSupportedLanguage(value: unknown): value is SupportedLanguage {
+  return (
+    typeof value === "string" &&
+    (SUPPORTED_LANGUAGES as readonly string[]).includes(value)
+  );
+}
+
+export function numberLocaleFor(language: string): string {
+  const base = language.toLowerCase().split("-")[0] ?? "";
+  if (isSupportedLanguage(base)) {
+    return NUMBER_LOCALES[base];
+  }
+  return NUMBER_LOCALES.en;
+}
 
 /**
  * Pick the best supported language from an ordered list of BCP-47 tags

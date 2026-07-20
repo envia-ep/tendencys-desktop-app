@@ -200,6 +200,7 @@
     "badge": "Escritorio",
     "title": "Ajustes del escritorio",
     "subtitle": "Elige cómo cada producto imprime y guarda etiquetas dentro de Tendencys Desktop.",
+    "version": "Versión {{version}}",
     "products": "Productos",
     "loading": "Cargando preferencias…",
     "productHint": "Estas opciones solo aplican dentro de la app de escritorio — no en el navegador.",
@@ -227,7 +228,9 @@
     "printersError": "No se pudieron listar las impresoras de esta computadora.",
     "testPrint": "Impresión de prueba",
     "testPrintSuccess": "Página de prueba enviada.",
-    "testPrintError": "Falló la impresión de prueba."
+    "testPrintError": "Falló la impresión de prueba.",
+    "language": "Idioma",
+    "languageHelp": "Elige el idioma de la interfaz de Tendencys Desktop."
   },
   "webView": {
     "launcherTitle": "Abrir {{service}}",

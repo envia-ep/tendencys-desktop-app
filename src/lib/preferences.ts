@@ -1,3 +1,4 @@
+import { isSupportedLanguage, type SupportedLanguage } from "./locale";
 import { isTauri } from "./tauri";
 
 export type LabelPrintMode = "instant" | "system" | "save";
@@ -15,6 +16,7 @@ export const DEFAULT_SERVICE_PREFERENCES: ServicePreferences = {
 
 const PREFERENCES_FILE = "preferences.json";
 const SERVICE_PREFS_KEY = "servicePrefs";
+const LANGUAGE_KEY = "language";
 
 async function getPreferencesStore() {
   const { load } = await import("@tauri-apps/plugin-store");
@@ -90,4 +92,37 @@ export function prefsForService(
   return all[serviceId]
     ? normalizePrefs(all[serviceId])
     : { ...DEFAULT_SERVICE_PREFERENCES };
+}
+
+/** Saved shell UI language, or null when unset / invalid. */
+export async function loadLanguagePreference(): Promise<SupportedLanguage | null> {
+  if (isTauri()) {
+    const store = await getPreferencesStore();
+    const raw = await store.get<unknown>(LANGUAGE_KEY);
+    return isSupportedLanguage(raw) ? raw : null;
+  }
+
+  try {
+    const raw = localStorage.getItem(LANGUAGE_KEY);
+    return isSupportedLanguage(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLanguagePreference(
+  language: SupportedLanguage,
+): Promise<void> {
+  if (!isSupportedLanguage(language)) {
+    return;
+  }
+
+  if (isTauri()) {
+    const store = await getPreferencesStore();
+    await store.set(LANGUAGE_KEY, language);
+    await store.save();
+    return;
+  }
+
+  localStorage.setItem(LANGUAGE_KEY, language);
 }

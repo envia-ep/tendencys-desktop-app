@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Loader2, Printer, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SERVICES } from "@/config/services";
 import { ServiceIcon } from "@/components/ServiceIcon";
 import { Button } from "@/components/ui/button";
 import { listPrinters, type PrinterInfo } from "@/lib/desktop-print";
+import {
+  LANGUAGE_LABELS,
+  SUPPORTED_LANGUAGES,
+  type SupportedLanguage,
+} from "@/lib/locale";
 import {
   DEFAULT_SERVICE_PREFERENCES,
   type LabelPrintMode,
@@ -16,6 +22,7 @@ const PRINT_MODES: LabelPrintMode[] = ["instant", "system", "save"];
 
 export function DesktopSettings() {
   const { t } = useTranslation();
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState(SERVICES[0]?.id ?? "");
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [printersLoading, setPrintersLoading] = useState(true);
@@ -24,7 +31,9 @@ export function DesktopSettings() {
   const [testMessage, setTestMessage] = useState<string | null>(null);
 
   const loaded = usePreferencesStore((s) => s.loaded);
+  const language = usePreferencesStore((s) => s.language);
   const loadPreferences = usePreferencesStore((s) => s.loadPreferences);
+  const setLanguage = usePreferencesStore((s) => s.setLanguage);
   const setLabelPrintMode = usePreferencesStore((s) => s.setLabelPrintMode);
   const setLabelPrinter = usePreferencesStore((s) => s.setLabelPrinter);
   const storedPrefs = usePreferencesStore(
@@ -35,6 +44,24 @@ export function DesktopSettings() {
   useEffect(() => {
     void loadPreferences();
   }, [loadPreferences]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getVersion()
+      .then((version) => {
+        if (!cancelled) {
+          setAppVersion(version);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppVersion(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +129,38 @@ export function DesktopSettings() {
           <p className="mt-2 text-sm text-muted-foreground">
             {t("settings.subtitle")}
           </p>
+          {appVersion && (
+            <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+              {t("settings.version", { version: appVersion })}
+            </p>
+          )}
+
+          <div className="mt-5 max-w-sm space-y-2">
+            <label
+              htmlFor="app-language"
+              className="text-sm font-medium text-foreground"
+            >
+              {t("settings.language")}
+            </label>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.languageHelp")}
+            </p>
+            <select
+              id="app-language"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={language}
+              disabled={!loaded}
+              onChange={(e) => {
+                void setLanguage(e.target.value as SupportedLanguage);
+              }}
+            >
+              {SUPPORTED_LANGUAGES.map((code) => (
+                <option key={code} value={code}>
+                  {LANGUAGE_LABELS[code]}
+                </option>
+              ))}
+            </select>
+          </div>
         </header>
 
         <div className="flex min-h-0 flex-1 gap-6 overflow-hidden">

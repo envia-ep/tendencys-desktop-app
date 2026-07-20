@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plane, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { numberLocaleFor } from "@/lib/locale";
 
 type Metric = {
   key: string;
@@ -30,7 +31,7 @@ function prefersReducedMotion(): boolean {
 /** Lightweight floating KPI ticker (scripted) — the "command center" pulse. */
 export function HudStats() {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language === "es" ? "es-MX" : "en-US";
+  const locale = numberLocaleFor(i18n.language);
   const [values, setValues] = useState<number[]>(METRICS.map((m) => m.base));
 
   useEffect(() => {

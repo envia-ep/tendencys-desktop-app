@@ -1,0 +1,252 @@
+{
+  "login": {
+    "signingIn": "正在登录…",
+    "browserTitle": "请在浏览器中继续",
+    "browserDescription": "我们已在浏览器中打开 Accounts 以完成安全验证。请在那里登录 — 返回后本应用会自动继续。",
+    "timeoutTitle": "登录超时",
+    "timeoutDescription": "Accounts 未能完成登录。请再次在浏览器中打开 Accounts，或尝试静默登录。",
+    "openInBrowser": "在浏览器中打开",
+    "backToWelcome": "返回"
+  },
+  "auth": {
+    "validating": "正在验证您的会话…",
+    "failedTitle": "身份验证失败",
+    "failedDescription": "无法验证您的会话。请重新登录。",
+    "tryAgain": "重试"
+  },
+  "updater": {
+    "installed": "已安装版本 {{version}}。请重启以完成更新。",
+    "restart": "立即重启",
+    "restarting": "正在重启…",
+    "dismiss": "稍后"
+  },
+  "topBar": {
+    "back": "后退",
+    "forward": "前进",
+    "refresh": "刷新",
+    "openInBrowser": "在浏览器中打开",
+    "userMenu": "用户菜单",
+    "signOut": "退出登录",
+    "addAccount": "添加账户",
+    "switchAccount": "切换到 {{email}}",
+    "signedInAccounts": "账户"
+  },
+  "serviceRail": {
+    "label": "服务",
+    "expand": "展开菜单",
+    "collapse": "收起菜单"
+  },
+  "home": {
+    "menuLabel": "首页",
+    "greeting": "你好，{{name}}",
+    "greetingFallback": "欢迎回来",
+    "tagline": "查看您的业务如何互联 — 物流、履约、支付与银行服务尽在同一网络。",
+    "chipTagline": "您的运营网络，实时呈现",
+    "stats": {
+      "inTransit": "运输中",
+      "packed": "已打包订单",
+      "settled": "已结算付款"
+    },
+    "exploreHint": "拖动平移，点击建筑进行探索",
+    "detailHint": "产品",
+    "vehicleHint": "移动中",
+    "closeDetail": "关闭",
+    "open": "打开 {{service}}",
+    "sceneLabel": "实时物流世界 — 卡车、飞机与包裹在您的业务节点之间流转",
+    "controls": {
+      "play": "播放",
+      "pause": "暂停",
+      "speed": "速度",
+      "mode": "数据模式",
+      "comingSoon": "即将推出",
+      "modes": {
+        "sim": "模拟",
+        "live": "实时",
+        "replay": "回放"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "配送卡车",
+        "pitch": "卡车在货运、履约中心与客户之间运送货物。"
+      },
+      "plane": {
+        "label": "航空货运",
+        "pitch": "飞机在枢纽之间运送快递与国际货件。"
+      },
+      "package": {
+        "label": "包裹流转",
+        "pitch": "包裹经履约传送带与 API 订单流水线流转。"
+      },
+      "forklift": {
+        "label": "仓库叉车",
+        "pitch": "叉车在履约中心内保持库存流动。"
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "您的公司"
+      },
+      "envia-shipping": {
+        "label": "物流",
+        "pitch": "对比 100+ 承运商运费，一键打印面单，并在同一仪表板追踪本地、国内与国际包裹。"
+      },
+      "envia-cargo": {
+        "label": "货运",
+        "pitch": "在美国、墨西哥与加拿大即时获取整车报价与专用设备 — 含 GPS 追踪与跨境合规。"
+      },
+      "envia-fulfillment": {
+        "label": "履约",
+        "pitch": "我们在安全履约网络中存储、拣货、打包并发货 — 同步 30+ 电商平台与实时库存。"
+      },
+      "envia-returns": {
+        "label": "退货",
+        "pitch": "把退货变成忠诚体验 — 自助 RMA、店铺集成与降低成本的逆向物流。"
+      },
+      "ecart-pay": {
+        "label": "支付",
+        "pitch": "在同一注册平台接受银行卡、支付链接、订阅、分期与直接借记 — 线上结账与门店终端。"
+      },
+      "ecart-banking": {
+        "label": "银行",
+        "pitch": "从 SAT 拉取供应商 CFDI，审批应付款并以 SPEI 结算 — 公司钱包、批量付款与完整审计轨迹。"
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "覆盖 40+ 购物车与市场的统一商务 API — 无需逐平台开发即可同步商品、订单、库存与客户。"
+      },
+      "parapaquetes": {
+        "label": "耗材",
+        "pitch": "批发纸箱、快递袋、胶带与包装材料 — 批量定价并覆盖墨西哥全国配送。"
+      },
+      "tendencys-partners": {
+        "label": "合作伙伴",
+        "pitch": "在一个门户销售八款 Tendencys 产品 — 首次推荐即享经常性佣金、现成材料与月度奖项。"
+      }
+    }
+  },
+  "developers": {
+    "menuLabel": "开发者",
+    "title": "开发者与 API",
+    "subtitle": "Tendencys 产品的文档与 API 访问。可用入口会在浏览器打开文档，或进入产品管理密钥。",
+    "documentation": "文档",
+    "manageKeys": "API 密钥",
+    "openDashboard": "打开控制台",
+    "comingSoon": "即将推出",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "Envia Shipping API",
+        "blurb": "面向 100+ 承运商的报价、面单、追踪与 webhook。"
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "通过统一商务 API 连接店铺与市场。"
+      },
+      "envia-cargo": {
+        "name": "Envia Cargo API",
+        "blurb": "以 API 预订货运并管理运单。"
+      },
+      "envia-fulfillment": {
+        "name": "Envia Fulfillment API",
+        "blurb": "通过 API 管理库存、订单与仓内作业。"
+      },
+      "envia-returns": {
+        "name": "Envia Returns API",
+        "blurb": "自动化退货面单与逆向物流。"
+      },
+      "ecart-pay": {
+        "name": "Ecart Pay API",
+        "blurb": "结账所需的支付、链接与订阅。"
+      },
+      "ecart-banking": {
+        "name": "Ecart Banking API",
+        "blurb": "公司财务、付款与发票自动化。"
+      }
+    }
+  },
+  "welcome": {
+    "title": "驱动业务所需的一切工具",
+    "subtitle": "物流、履约、支付与银行服务 — 已获 10+ 个国家 20,000+ 家公司信赖。",
+    "signIn": "登录",
+    "createAccount": "创建账户",
+    "secureNote": "登录会在浏览器中打开以完成安全验证，然后返回 Tendencys。",
+    "showcaseHeading": "一切尽在一处",
+    "showcaseTagline": "一次登录。经营业务所需的全部工具。",
+    "featuredLabel": "精选",
+    "stats": {
+      "companies": "20,000+",
+      "companiesLabel": "公司",
+      "countries": "10+",
+      "countriesLabel": "国家/地区",
+      "requests": "130 万+",
+      "requestsLabel": "API 请求",
+      "carriers": "100+",
+      "carriersLabel": "承运商"
+    },
+    "showcase": {
+      "envia-shipping": "100+ 承运商，本地与国际运输",
+      "envia-cargo": "同一网络上的整车与零担货运",
+      "envia-fulfillment": "订单在 24 小时内处理并发货",
+      "envia-returns": "在同一履约网络处理退货",
+      "ecart-pay": "随时随地收款的最安全方式",
+      "ecart-banking": "在一处管理企业财务",
+      "ecart-api": "130 万+ 请求，40+ 集成",
+      "parapaquetes": "批发价包装与耗材",
+      "tendencys-partners": "推荐我们的解决方案赚取佣金"
+    }
+  },
+  "settings": {
+    "menuLabel": "设置",
+    "badge": "桌面",
+    "title": "桌面设置",
+    "subtitle": "选择每个产品在 Tendencys Desktop 中如何打印和保存标签。",
+    "version": "版本 {{version}}",
+    "language": "语言",
+    "languageHelp": "选择 Tendencys Desktop 界面语言。",
+    "products": "产品",
+    "loading": "正在加载偏好设置…",
+    "productHint": "这些选项仅适用于桌面应用 — 不适用于浏览器。",
+    "labelPrintMode": "标签打印模式",
+    "labelPrintModeHelp": "当产品请求打印标签 PDF 时使用。",
+    "modes": {
+      "instant": {
+        "label": "即时打印",
+        "description": "直接发送到下方打印机 — 无系统对话框。"
+      },
+      "system": {
+        "label": "系统查看器",
+        "description": "在默认查看器中打开 PDF，以便从那里打印。"
+      },
+      "save": {
+        "label": "仅保存",
+        "description": "始终下载到“下载”文件夹，而不打印。"
+      }
+    },
+    "labelPrinter": "默认标签打印机",
+    "labelPrinterHelp": "用于即时打印。保留系统默认可使用操作系统默认打印机。",
+    "systemDefaultPrinter": "系统默认",
+    "defaultBadge": "默认",
+    "loadingPrinters": "正在加载打印机…",
+    "printersError": "无法列出此电脑上的打印机。",
+    "testPrint": "测试打印",
+    "testPrintSuccess": "测试页已发送。",
+    "testPrintError": "测试打印失败。"
+  },
+  "webView": {
+    "launcherTitle": "打开 {{service}}",
+    "launcherDescription": "登录 Cookie 保存在系统浏览器中。请登录此服务，然后使用“在浏览器中打开”获得完整访问。",
+    "launcherOpenedDescription": "已在浏览器中打开 — 会话保留在那里。可随时再次在浏览器中打开，或显示可选的应用内预览。",
+    "previewBanner": "仅预览 — 产品会话位于浏览器中。",
+    "previewBlockedHint": "此服务阻止了应用内嵌入。请继续使用浏览器。",
+    "showPreview": "显示预览",
+    "hidePreview": "隐藏预览",
+    "blockedTitle": "无法嵌入 {{service}}",
+    "blockedDescription": "由于安全限制，此服务无法在应用内显示。请通过浏览器中的 Accounts 登录，然后在那里打开服务。",
+    "openInBrowser": "在浏览器中打开",
+    "signInToService": "登录服务",
+    "loading": "正在加载 {{service}}…",
+    "loadErrorTitle": "无法加载 {{service}}",
+    "loadErrorDescription": "服务未响应。请重试，或在浏览器中打开。",
+    "retry": "重试"
+  }
+}

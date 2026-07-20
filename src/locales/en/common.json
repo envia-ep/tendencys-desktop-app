@@ -200,6 +200,7 @@
     "badge": "Desktop",
     "title": "Desktop settings",
     "subtitle": "Choose how each product prints and saves labels inside Tendencys Desktop.",
+    "version": "Version {{version}}",
     "products": "Products",
     "loading": "Loading preferences…",
     "productHint": "These options apply only inside the desktop app — not in the browser.",
@@ -227,7 +228,9 @@
     "printersError": "Could not list printers on this computer.",
     "testPrint": "Test print",
     "testPrintSuccess": "Test page sent.",
-    "testPrintError": "Test print failed."
+    "testPrintError": "Test print failed.",
+    "language": "Language",
+    "languageHelp": "Choose the language for the Tendencys Desktop interface."
   },
   "webView": {
     "launcherTitle": "Open {{service}}",

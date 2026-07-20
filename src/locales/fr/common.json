@@ -1,0 +1,252 @@
+{
+  "login": {
+    "signingIn": "Connexion…",
+    "browserTitle": "Continuez dans votre navigateur",
+    "browserDescription": "Nous avons ouvert Accounts dans votre navigateur pour les contrôles de sécurité. Connectez-vous là-bas — l’app reprendra automatiquement à votre retour.",
+    "timeoutTitle": "Connexion expirée",
+    "timeoutDescription": "Accounts n’a pas terminé la connexion. Rouvrez Accounts dans le navigateur, ou réessayez la connexion silencieuse.",
+    "openInBrowser": "Ouvrir dans le navigateur",
+    "backToWelcome": "Retour"
+  },
+  "auth": {
+    "validating": "Validation de votre session…",
+    "failedTitle": "Échec de l’authentification",
+    "failedDescription": "Impossible de valider votre session. Veuillez vous reconnecter.",
+    "tryAgain": "Réessayer"
+  },
+  "updater": {
+    "installed": "Version {{version}} installée. Redémarrez pour terminer la mise à jour.",
+    "restart": "Redémarrer maintenant",
+    "restarting": "Redémarrage…",
+    "dismiss": "Plus tard"
+  },
+  "topBar": {
+    "back": "Retour",
+    "forward": "Avancer",
+    "refresh": "Actualiser",
+    "openInBrowser": "Ouvrir dans le navigateur",
+    "userMenu": "Menu utilisateur",
+    "signOut": "Se déconnecter",
+    "addAccount": "Ajouter un compte",
+    "switchAccount": "Passer à {{email}}",
+    "signedInAccounts": "Comptes"
+  },
+  "serviceRail": {
+    "label": "Services",
+    "expand": "Développer le menu",
+    "collapse": "Réduire le menu"
+  },
+  "home": {
+    "menuLabel": "Accueil",
+    "greeting": "Bonjour, {{name}}",
+    "greetingFallback": "Bon retour",
+    "tagline": "Voyez comment vos opérations se connectent — expédition, fulfillment, paiements et banking dans un réseau.",
+    "chipTagline": "Votre réseau d’opérations, en direct",
+    "stats": {
+      "inTransit": "En transit",
+      "packed": "Commandes emballées",
+      "settled": "Paiements réglés"
+    },
+    "exploreHint": "Faites glisser pour déplacer, cliquez sur un bâtiment pour explorer",
+    "detailHint": "Produit",
+    "vehicleHint": "En mouvement",
+    "closeDetail": "Fermer",
+    "open": "Ouvrir {{service}}",
+    "sceneLabel": "Monde logistique en direct — camions, avions et colis entre vos opérations",
+    "controls": {
+      "play": "Lecture",
+      "pause": "Pause",
+      "speed": "Vitesse",
+      "mode": "Mode données",
+      "comingSoon": "Bientôt",
+      "modes": {
+        "sim": "Sim",
+        "live": "Live",
+        "replay": "Replay"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "Camion de livraison",
+        "pitch": "Les camions déplacent les marchandises entre cargo, fulfillment et vos clients."
+      },
+      "plane": {
+        "label": "Fret aérien",
+        "pitch": "Les avions transportent les envois express et internationaux entre hubs."
+      },
+      "package": {
+        "label": "Flux de colis",
+        "pitch": "Les colis circulent via les convoyeurs fulfillment et les pipelines de commandes API."
+      },
+      "forklift": {
+        "label": "Chariot élévateur",
+        "pitch": "Les chariots maintiennent le stock en mouvement dans le centre fulfillment."
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "Votre entreprise"
+      },
+      "envia-shipping": {
+        "label": "Expédition",
+        "pitch": "Comparez les tarifs de plus de 100 transporteurs, imprimez des étiquettes en un clic et suivez les colis locaux, nationaux et internationaux depuis un seul tableau de bord."
+      },
+      "envia-cargo": {
+        "label": "Cargo",
+        "pitch": "Devis instantanés de camion complet avec équipement dédié aux États-Unis, au Mexique et au Canada — suivi GPS et conformité transfrontalière inclus."
+      },
+      "envia-fulfillment": {
+        "label": "Fulfillment",
+        "pitch": "Nous stockons, préparons, emballons et expédions vos commandes depuis un réseau sécurisé — synchronisé avec plus de 30 plateformes e-commerce et inventaire en temps réel."
+      },
+      "envia-returns": {
+        "label": "Retours",
+        "pitch": "Transformez les retours en fidélité — RMA en libre-service, intégrations boutique et logistique inverse pour réduire les coûts."
+      },
+      "ecart-pay": {
+        "label": "Paiements",
+        "pitch": "Acceptez cartes, liens de paiement, abonnements, MSI et prélèvement sur une plateforme enregistrée — checkout en ligne et terminaux en magasin."
+      },
+      "ecart-banking": {
+        "label": "Banking",
+        "pitch": "Récupérez les CFDI fournisseurs du SAT, approuvez les dettes et réglez par SPEI — portefeuilles, lots de paiement et piste d’audit."
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "Une API commerce unifiée pour plus de 40 boutiques et marketplaces — synchronisez produits, commandes, stock et clients."
+      },
+      "parapaquetes": {
+        "label": "Fournitures",
+        "pitch": "Cartons, enveloppes, ruban et matériaux d’emballage en gros — tarifs volume et livraison partout au Mexique."
+      },
+      "tendencys-partners": {
+        "label": "Partenaires",
+        "pitch": "Vendez huit produits Tendencys depuis un portail — commissions récurrentes dès la première recommandation, supports prêts à l’emploi et prix mensuels."
+      }
+    }
+  },
+  "developers": {
+    "menuLabel": "Développeurs",
+    "title": "Développeurs et API",
+    "subtitle": "Documentation et accès API des produits Tendencys. Les surfaces actives ouvrent la doc dans le navigateur ou le produit pour gérer les clés.",
+    "documentation": "Documentation",
+    "manageKeys": "Clés API",
+    "openDashboard": "Ouvrir le tableau de bord",
+    "comingSoon": "Bientôt",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "Envia Shipping API",
+        "blurb": "Devis, étiquettes, suivi et webhooks pour plus de 100 transporteurs."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Connectez boutiques et marketplaces via une API commerce."
+      },
+      "envia-cargo": {
+        "name": "Envia Cargo API",
+        "blurb": "Réservation de fret et gestion des charges par API."
+      },
+      "envia-fulfillment": {
+        "name": "Envia Fulfillment API",
+        "blurb": "Stock, commandes et opérations d’entrepôt via API."
+      },
+      "envia-returns": {
+        "name": "Envia Returns API",
+        "blurb": "Automatisez les étiquettes de retour et la logistique inverse."
+      },
+      "ecart-pay": {
+        "name": "Ecart Pay API",
+        "blurb": "Paiements, liens et abonnements pour votre checkout."
+      },
+      "ecart-banking": {
+        "name": "Ecart Banking API",
+        "blurb": "Finances d’entreprise, paiements et automatisation des factures."
+      }
+    }
+  },
+  "welcome": {
+    "title": "Tous les outils pour propulser votre entreprise",
+    "subtitle": "Expédition, fulfillment, paiements et banking — utilisés par plus de 20 000 entreprises dans plus de 10 pays.",
+    "signIn": "Se connecter",
+    "createAccount": "Créer un compte",
+    "secureNote": "La connexion s’ouvre dans le navigateur pour les contrôles de sécurité, puis vous ramène à Tendencys.",
+    "showcaseHeading": "Tout au même endroit",
+    "showcaseTagline": "Une connexion. Tous les outils pour gérer votre activité.",
+    "featuredLabel": "À la une",
+    "stats": {
+      "companies": "20 000+",
+      "companiesLabel": "Entreprises",
+      "countries": "10+",
+      "countriesLabel": "Pays",
+      "requests": "1,3 M+",
+      "requestsLabel": "Requêtes API",
+      "carriers": "100+",
+      "carriersLabel": "Transporteurs"
+    },
+    "showcase": {
+      "envia-shipping": "Plus de 100 transporteurs, envois locaux et internationaux",
+      "envia-cargo": "Camion complet et LTL sur un seul réseau",
+      "envia-fulfillment": "Commandes traitées et expédiées en moins de 24 h",
+      "envia-returns": "Retours gérés sur le même réseau fulfillment",
+      "ecart-pay": "Le moyen le plus sûr d’être payé, partout",
+      "ecart-banking": "Gérez les finances de votre entreprise en un seul endroit",
+      "ecart-api": "Plus de 1,3 M de requêtes, plus de 40 intégrations",
+      "parapaquetes": "Emballages et fournitures au prix de gros",
+      "tendencys-partners": "Gagnez des commissions en recommandant nos solutions"
+    }
+  },
+  "settings": {
+    "menuLabel": "Paramètres",
+    "badge": "Bureau",
+    "title": "Paramètres du bureau",
+    "subtitle": "Choisissez comment chaque produit imprime et enregistre les étiquettes dans Tendencys Desktop.",
+    "version": "Version {{version}}",
+    "language": "Langue",
+    "languageHelp": "Choisissez la langue de l’interface Tendencys Desktop.",
+    "products": "Produits",
+    "loading": "Chargement des préférences…",
+    "productHint": "Ces options s’appliquent uniquement dans l’app bureau — pas dans le navigateur.",
+    "labelPrintMode": "Mode d’impression des étiquettes",
+    "labelPrintModeHelp": "Utilisé lorsqu’un produit demande d’imprimer un PDF d’étiquette.",
+    "modes": {
+      "instant": {
+        "label": "Impression instantanée",
+        "description": "Envoie directement à l’imprimante ci-dessous — sans boîte de dialogue système."
+      },
+      "system": {
+        "label": "Visionneuse système",
+        "description": "Ouvre le PDF dans votre visionneuse par défaut pour imprimer depuis là."
+      },
+      "save": {
+        "label": "Enregistrer seulement",
+        "description": "Télécharge toujours le fichier dans Téléchargements au lieu d’imprimer."
+      }
+    },
+    "labelPrinter": "Imprimante d’étiquettes par défaut",
+    "labelPrinterHelp": "Utilisée pour l’impression instantanée. Laissez la valeur système pour l’imprimante par défaut de l’OS.",
+    "systemDefaultPrinter": "Par défaut du système",
+    "defaultBadge": "par défaut",
+    "loadingPrinters": "Chargement des imprimantes…",
+    "printersError": "Impossible de lister les imprimantes de cet ordinateur.",
+    "testPrint": "Impression test",
+    "testPrintSuccess": "Page test envoyée.",
+    "testPrintError": "Échec de l’impression test."
+  },
+  "webView": {
+    "launcherTitle": "Ouvrir {{service}}",
+    "launcherDescription": "Les cookies de session sont dans votre navigateur. Connectez-vous à ce service, puis utilisez Ouvrir dans le navigateur pour un accès complet.",
+    "launcherOpenedDescription": "Ouvert dans le navigateur — la session y vit. Rouvrez dans le navigateur quand vous voulez, ou affichez un aperçu optionnel dans l’app.",
+    "previewBanner": "Aperçu seulement — les sessions produit vivent dans le navigateur.",
+    "previewBlockedHint": "Ce service bloque l’intégration dans l’app. Continuez dans le navigateur.",
+    "showPreview": "Afficher l’aperçu",
+    "hidePreview": "Masquer l’aperçu",
+    "blockedTitle": "Impossible d’intégrer {{service}}",
+    "blockedDescription": "Ce service ne peut pas s’afficher dans l’app pour des raisons de sécurité. Connectez-vous via Accounts dans le navigateur, puis ouvrez le service là-bas.",
+    "openInBrowser": "Ouvrir dans le navigateur",
+    "signInToService": "Se connecter au service",
+    "loading": "Chargement de {{service}}…",
+    "loadErrorTitle": "Impossible de charger {{service}}",
+    "loadErrorDescription": "Le service n’a pas répondu. Réessayez, ou ouvrez-le dans le navigateur.",
+    "retry": "Réessayer"
+  }
+}

@@ -1,0 +1,252 @@
+{
+  "login": {
+    "signingIn": "Iniciando sessão...",
+    "browserTitle": "Continue no navegador",
+    "browserDescription": "Abrimos o Accounts no seu navegador para concluir as verificações de segurança. Entre lá — este app continua automaticamente quando você voltar.",
+    "timeoutTitle": "Login expirou",
+    "timeoutDescription": "O Accounts não concluiu o login. Abra o Accounts no navegador novamente ou tente o login silencioso.",
+    "openInBrowser": "Abrir no navegador",
+    "backToWelcome": "Voltar"
+  },
+  "auth": {
+    "validating": "Validando sua sessão...",
+    "failedTitle": "Falha na autenticação",
+    "failedDescription": "Não foi possível validar sua sessão. Tente entrar novamente.",
+    "tryAgain": "Tentar de novo"
+  },
+  "updater": {
+    "installed": "Versão {{version}} instalada. Reinicie para concluir a atualização.",
+    "restart": "Reiniciar agora",
+    "restarting": "Reiniciando...",
+    "dismiss": "Depois"
+  },
+  "topBar": {
+    "back": "Voltar",
+    "forward": "Avançar",
+    "refresh": "Atualizar",
+    "openInBrowser": "Abrir no navegador",
+    "userMenu": "Menu do usuário",
+    "signOut": "Sair",
+    "addAccount": "Adicionar conta",
+    "switchAccount": "Trocar para {{email}}",
+    "signedInAccounts": "Contas"
+  },
+  "serviceRail": {
+    "label": "Serviços",
+    "expand": "Expandir menu",
+    "collapse": "Recolher menu"
+  },
+  "home": {
+    "menuLabel": "Início",
+    "greeting": "Olá, {{name}}",
+    "greetingFallback": "Bem-vindo de volta",
+    "tagline": "Veja como suas operações se conectam — envios, fulfillment, pagamentos e banking em uma rede.",
+    "chipTagline": "Sua rede de operações, ao vivo",
+    "stats": {
+      "inTransit": "Em trânsito",
+      "packed": "Pedidos embalados",
+      "settled": "Pagamentos liquidados"
+    },
+    "exploreHint": "Arraste para mover, clique em um prédio para explorar",
+    "detailHint": "Produto",
+    "vehicleHint": "Em movimento",
+    "closeDetail": "Fechar",
+    "open": "Abrir {{service}}",
+    "sceneLabel": "Mundo logístico ao vivo — caminhões, aviões e pacotes entre suas operações",
+    "controls": {
+      "play": "Reproduzir",
+      "pause": "Pausar",
+      "speed": "Velocidade",
+      "mode": "Modo de dados",
+      "comingSoon": "Em breve",
+      "modes": {
+        "sim": "Sim",
+        "live": "Ao vivo",
+        "replay": "Replay"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "Caminhão de entrega",
+        "pitch": "Caminhões movem mercadorias entre carga, fulfillment e seus clientes na rede."
+      },
+      "plane": {
+        "label": "Carga aérea",
+        "pitch": "Aviões transportam envios expressos e internacionais entre hubs."
+      },
+      "package": {
+        "label": "Fluxo de pacotes",
+        "pitch": "Pacotes fluem por esteiras de fulfillment e pipelines de pedidos via API."
+      },
+      "forklift": {
+        "label": "Empilhadeira",
+        "pitch": "Empilhadeiras mantêm o estoque em movimento no centro de fulfillment."
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "Sua empresa"
+      },
+      "envia-shipping": {
+        "label": "Envios",
+        "pitch": "Compare tarifas com mais de 100 transportadoras, imprima etiquetas em um clique e rastreie pacotes locais, nacionais e internacionais em um só painel."
+      },
+      "envia-cargo": {
+        "label": "Cargo",
+        "pitch": "Cotação instantânea de carga completa com equipamento dedicado nos EUA, México e Canadá — rastreamento GPS e compliance transfronteiriço incluídos."
+      },
+      "envia-fulfillment": {
+        "label": "Fulfillment",
+        "pitch": "Armazenamos, separamos, embalamos e enviamos seus pedidos em uma rede segura — sincronizada com mais de 30 plataformas de e-commerce e estoque em tempo real."
+      },
+      "envia-returns": {
+        "label": "Devoluções",
+        "pitch": "Transforme devoluções em fidelidade — RMA self-service, integrações com a loja e logística reversa que reduz custos e centraliza cada caso."
+      },
+      "ecart-pay": {
+        "label": "Pagamentos",
+        "pitch": "Aceite cartões, links de pagamento, assinaturas, MSI e débito direto em uma plataforma registrada — checkout online e terminais presenciais."
+      },
+      "ecart-banking": {
+        "label": "Banking",
+        "pitch": "Importe CFDIs de fornecedores do SAT, aprove contas a pagar e liquide via SPEI — carteiras da empresa, lotes de pagamento e auditoria completa."
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "Uma API de comércio unificada para mais de 40 lojas e marketplaces — sincronize produtos, pedidos, estoque e clientes sem integrar cada plataforma."
+      },
+      "parapaquetes": {
+        "label": "Insumos",
+        "pitch": "Caixas, envelopes, fitas e materiais de embalagem no atacado — preços por volume e envio em todo o México."
+      },
+      "tendencys-partners": {
+        "label": "Parceiros",
+        "pitch": "Venda oito produtos Tendencys em um portal — comissões recorrentes desde a primeira indicação, materiais prontos e prêmios mensais."
+      }
+    }
+  },
+  "developers": {
+    "menuLabel": "Desenvolvedores",
+    "title": "Desenvolvedores e APIs",
+    "subtitle": "Documentação e acesso à API dos produtos Tendencys. Superfícies ativas abrem a documentação no navegador ou o produto para gerenciar chaves.",
+    "documentation": "Documentação",
+    "manageKeys": "Chaves de API",
+    "openDashboard": "Abrir painel",
+    "comingSoon": "Em breve",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "Envia Shipping API",
+        "blurb": "Cotações, etiquetas, rastreamento e webhooks para mais de 100 transportadoras."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Conecte lojas e marketplaces por uma API de comércio."
+      },
+      "envia-cargo": {
+        "name": "Envia Cargo API",
+        "blurb": "Reserva de frete e gestão de cargas por API."
+      },
+      "envia-fulfillment": {
+        "name": "Envia Fulfillment API",
+        "blurb": "Estoque, pedidos e operações de armazém via API."
+      },
+      "envia-returns": {
+        "name": "Envia Returns API",
+        "blurb": "Automatize etiquetas de devolução e logística reversa."
+      },
+      "ecart-pay": {
+        "name": "Ecart Pay API",
+        "blurb": "Pagamentos, links e assinaturas para seu checkout."
+      },
+      "ecart-banking": {
+        "name": "Ecart Banking API",
+        "blurb": "Finanças da empresa, pagamentos e automação de faturas."
+      }
+    }
+  },
+  "welcome": {
+    "title": "Tudo o que você precisa para impulsionar seu negócio",
+    "subtitle": "Envios, fulfillment, pagamentos e banking — confiados por mais de 20.000 empresas em mais de 10 países.",
+    "signIn": "Entrar",
+    "createAccount": "Criar uma conta",
+    "secureNote": "O login abre no navegador para concluir as verificações de segurança e depois retorna ao Tendencys.",
+    "showcaseHeading": "Tudo em um só lugar",
+    "showcaseTagline": "Um login. Todas as ferramentas para o seu negócio.",
+    "featuredLabel": "Destaque",
+    "stats": {
+      "companies": "20.000+",
+      "companiesLabel": "Empresas",
+      "countries": "10+",
+      "countriesLabel": "Países",
+      "requests": "1,3M+",
+      "requestsLabel": "Requisições de API",
+      "carriers": "100+",
+      "carriersLabel": "Transportadoras"
+    },
+    "showcase": {
+      "envia-shipping": "Mais de 100 transportadoras, envios locais e internacionais",
+      "envia-cargo": "Carga completa e LTL em uma única rede",
+      "envia-fulfillment": "Pedidos processados e enviados em menos de 24h",
+      "envia-returns": "Devoluções na mesma rede de fulfillment",
+      "ecart-pay": "A forma mais segura de receber, em qualquer lugar",
+      "ecart-banking": "Gerencie as finanças do negócio em um só lugar",
+      "ecart-api": "Mais de 1,3M de requisições, mais de 40 integrações",
+      "parapaquetes": "Embalagens e insumos com preço de atacado",
+      "tendencys-partners": "Ganhe comissões indicando nossas soluções"
+    }
+  },
+  "settings": {
+    "menuLabel": "Configurações",
+    "badge": "Desktop",
+    "title": "Configurações do desktop",
+    "subtitle": "Escolha como cada produto imprime e salva etiquetas no Tendencys Desktop.",
+    "version": "Versão {{version}}",
+    "language": "Idioma",
+    "languageHelp": "Escolha o idioma da interface do Tendencys Desktop.",
+    "products": "Produtos",
+    "loading": "Carregando preferências…",
+    "productHint": "Essas opções valem só no app desktop — não no navegador.",
+    "labelPrintMode": "Modo de impressão de etiquetas",
+    "labelPrintModeHelp": "Usado quando um produto pede para imprimir um PDF de etiqueta.",
+    "modes": {
+      "instant": {
+        "label": "Impressão instantânea",
+        "description": "Envia direto para a impressora abaixo — sem diálogo do sistema."
+      },
+      "system": {
+        "label": "Visualizador do sistema",
+        "description": "Abre o PDF no visualizador padrão para você imprimir de lá."
+      },
+      "save": {
+        "label": "Somente salvar",
+        "description": "Sempre baixa o arquivo em Downloads em vez de imprimir."
+      }
+    },
+    "labelPrinter": "Impressora de etiquetas padrão",
+    "labelPrinterHelp": "Usada na impressão instantânea. Deixe o padrão do sistema para usar a impressora do SO.",
+    "systemDefaultPrinter": "Padrão do sistema",
+    "defaultBadge": "padrão",
+    "loadingPrinters": "Carregando impressoras…",
+    "printersError": "Não foi possível listar as impressoras deste computador.",
+    "testPrint": "Impressão de teste",
+    "testPrintSuccess": "Página de teste enviada.",
+    "testPrintError": "Falha na impressão de teste."
+  },
+  "webView": {
+    "launcherTitle": "Abrir {{service}}",
+    "launcherDescription": "Os cookies de sessão ficam no navegador. Entre neste serviço e use Abrir no navegador para acesso completo.",
+    "launcherOpenedDescription": "Aberto no navegador — a sessão fica lá. Use Abrir no navegador de novo quando quiser, ou mostre uma prévia opcional no app.",
+    "previewBanner": "Somente prévia — as sessões do produto ficam no navegador.",
+    "previewBlockedHint": "Este serviço bloqueou a incorporação no app. Continue pelo navegador.",
+    "showPreview": "Mostrar prévia",
+    "hidePreview": "Ocultar prévia",
+    "blockedTitle": "Não é possível incorporar {{service}}",
+    "blockedDescription": "Este serviço não pode ser exibido no app por restrições de segurança. Entre pelo Accounts no navegador e abra o serviço lá.",
+    "openInBrowser": "Abrir no navegador",
+    "signInToService": "Entrar no serviço",
+    "loading": "Carregando {{service}}...",
+    "loadErrorTitle": "Não foi possível carregar {{service}}",
+    "loadErrorDescription": "O serviço não respondeu. Tente de novo ou abra no navegador.",
+    "retry": "Tentar de novo"
+  }
+}

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { useAuthStore } from "@/stores/auth-store";
+import { usePreferencesStore } from "@/stores/preferences-store";
 import { useTauriDeepLink } from "@/hooks/useTauriDeepLink";
 import { listenShellAuthToken } from "@/lib/native-webviews";
 import { claimHandoffToken } from "@/lib/auth-handoff";
@@ -17,10 +18,16 @@ function AppRoutes() {
   const navigate = useNavigate();
   const initialize = useAuthStore((s) => s.initialize);
   const isInitialized = useAuthStore((s) => s.isInitialized);
+  const loadPreferences = usePreferencesStore((s) => s.loadPreferences);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Apply saved shell language early (before Settings is opened).
+  useEffect(() => {
+    void loadPreferences();
+  }, [loadPreferences]);
 
   // Dev-only console helper: `window.__ssoDiagnose()` prints the live jar `_atid`
   // claim shape + expiry (never the token value) to confirm silent-SSO health.

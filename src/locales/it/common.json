@@ -1,0 +1,252 @@
+{
+  "login": {
+    "signingIn": "Accesso in corso...",
+    "browserTitle": "Continua nel browser",
+    "browserDescription": "Abbiamo aperto Accounts nel browser per i controlli di sicurezza. Accedi lì — l’app continuerà automaticamente al tuo ritorno.",
+    "timeoutTitle": "Accesso scaduto",
+    "timeoutDescription": "Accounts non ha completato l’accesso. Riapri Accounts nel browser o riprova l’accesso silenzioso.",
+    "openInBrowser": "Apri nel browser",
+    "backToWelcome": "Indietro"
+  },
+  "auth": {
+    "validating": "Validazione della sessione...",
+    "failedTitle": "Autenticazione non riuscita",
+    "failedDescription": "Non è stato possibile convalidare la sessione. Prova ad accedere di nuovo.",
+    "tryAgain": "Riprova"
+  },
+  "updater": {
+    "installed": "Versione {{version}} installata. Riavvia per completare l’aggiornamento.",
+    "restart": "Riavvia ora",
+    "restarting": "Riavvio...",
+    "dismiss": "Più tardi"
+  },
+  "topBar": {
+    "back": "Indietro",
+    "forward": "Avanti",
+    "refresh": "Aggiorna",
+    "openInBrowser": "Apri nel browser",
+    "userMenu": "Menu utente",
+    "signOut": "Esci",
+    "addAccount": "Aggiungi account",
+    "switchAccount": "Passa a {{email}}",
+    "signedInAccounts": "Account"
+  },
+  "serviceRail": {
+    "label": "Servizi",
+    "expand": "Espandi menu",
+    "collapse": "Comprimi menu"
+  },
+  "home": {
+    "menuLabel": "Home",
+    "greeting": "Ciao, {{name}}",
+    "greetingFallback": "Bentornato",
+    "tagline": "Vedi come si collegano le tue operazioni — spedizioni, fulfillment, pagamenti e banking in una rete.",
+    "chipTagline": "La tua rete operativa, in tempo reale",
+    "stats": {
+      "inTransit": "In transito",
+      "packed": "Ordini imballati",
+      "settled": "Pagamenti liquidati"
+    },
+    "exploreHint": "Trascina per spostarti, clicca un edificio per esplorare",
+    "detailHint": "Prodotto",
+    "vehicleHint": "In movimento",
+    "closeDetail": "Chiudi",
+    "open": "Apri {{service}}",
+    "sceneLabel": "Mondo logistico in tempo reale — camion, aerei e pacchi tra le tue operazioni",
+    "controls": {
+      "play": "Play",
+      "pause": "Pausa",
+      "speed": "Velocità",
+      "mode": "Modalità dati",
+      "comingSoon": "Prossimamente",
+      "modes": {
+        "sim": "Sim",
+        "live": "Live",
+        "replay": "Replay"
+      }
+    },
+    "vehicles": {
+      "truck": {
+        "label": "Camion di consegna",
+        "pitch": "I camion spostano merce tra cargo, fulfillment e i tuoi clienti nella rete."
+      },
+      "plane": {
+        "label": "Trasporto aereo",
+        "pitch": "Gli aerei trasportano spedizioni express e internazionali tra hub."
+      },
+      "package": {
+        "label": "Flusso pacchi",
+        "pitch": "I pacchi scorrono su nastri fulfillment e pipeline ordini via API."
+      },
+      "forklift": {
+        "label": "Carrello elevatore",
+        "pitch": "I carrelli tengono in movimento le scorte nel centro fulfillment."
+      }
+    },
+    "nodes": {
+      "company": {
+        "label": "La tua azienda"
+      },
+      "envia-shipping": {
+        "label": "Spedizioni",
+        "pitch": "Confronta tariffe tra oltre 100 corrieri, stampa etichette con un clic e traccia pacchi locali, nazionali e internazionali da un’unica dashboard."
+      },
+      "envia-cargo": {
+        "label": "Cargo",
+        "pitch": "Preventivi istantanei per carico completo con mezzi dedicati tra USA, Messico e Canada — tracking GPS e conformità cross-border inclusi."
+      },
+      "envia-fulfillment": {
+        "label": "Fulfillment",
+        "pitch": "Conserviamo, preleviamo, imballiamo e spediamo i tuoi ordini da una rete sicura — sincronizzata con oltre 30 piattaforme ecommerce e inventario in tempo reale."
+      },
+      "envia-returns": {
+        "label": "Resi",
+        "pitch": "Trasforma i resi in fedeltà — RMA self-service, integrazioni store e logistica inversa che riduce i costi."
+      },
+      "ecart-pay": {
+        "label": "Pagamenti",
+        "pitch": "Accetta carte, link di pagamento, abbonamenti, MSI e addebito diretto su una piattaforma registrata — checkout online e terminali in negozio."
+      },
+      "ecart-banking": {
+        "label": "Banking",
+        "pitch": "Importa CFDI fornitori dal SAT, approva i debiti e liquida via SPEI — wallet aziendali, lotti di pagamento e traccia di audit."
+      },
+      "ecart-api": {
+        "label": "API",
+        "pitch": "Un’API commerce unificata per oltre 40 store e marketplace — sincronizza prodotti, ordini, inventario e clienti."
+      },
+      "parapaquetes": {
+        "label": "Forniture",
+        "pitch": "Scatole, buste, nastro e materiali da imballaggio all’ingrosso — prezzi a volume e spedizione in tutto il Messico."
+      },
+      "tendencys-partners": {
+        "label": "Partner",
+        "pitch": "Vendi otto prodotti Tendencys da un portale — commissioni ricorrenti dalla prima segnalazione, materiali pronti e premi mensili."
+      }
+    }
+  },
+  "developers": {
+    "menuLabel": "Sviluppatori",
+    "title": "Sviluppatori e API",
+    "subtitle": "Documentazione e accesso API ai prodotti Tendencys. Le superfici attive aprono la documentazione nel browser o il prodotto per gestire le chiavi.",
+    "documentation": "Documentazione",
+    "manageKeys": "Chiavi API",
+    "openDashboard": "Apri dashboard",
+    "comingSoon": "Prossimamente",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "Envia Shipping API",
+        "blurb": "Preventivi, etichette, tracking e webhook per oltre 100 corrieri."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Collega store e marketplace con un’unica API commerce."
+      },
+      "envia-cargo": {
+        "name": "Envia Cargo API",
+        "blurb": "Prenotazione freight e gestione carichi via API."
+      },
+      "envia-fulfillment": {
+        "name": "Envia Fulfillment API",
+        "blurb": "Inventario, ordini e operazioni di magazzino via API."
+      },
+      "envia-returns": {
+        "name": "Envia Returns API",
+        "blurb": "Automatizza etichette di reso e logistica inversa."
+      },
+      "ecart-pay": {
+        "name": "Ecart Pay API",
+        "blurb": "Pagamenti, link e abbonamenti per il tuo checkout."
+      },
+      "ecart-banking": {
+        "name": "Ecart Banking API",
+        "blurb": "Finanze aziendali, pagamenti e automazione fatture."
+      }
+    }
+  },
+  "welcome": {
+    "title": "Tutti gli strumenti per far crescere il tuo business",
+    "subtitle": "Spedizioni, fulfillment, pagamenti e banking — scelti da oltre 20.000 aziende in più di 10 paesi.",
+    "signIn": "Accedi",
+    "createAccount": "Crea un account",
+    "secureNote": "L’accesso si apre nel browser per i controlli di sicurezza, poi ti riporta a Tendencys.",
+    "showcaseHeading": "Tutto in un unico posto",
+    "showcaseTagline": "Un accesso. Ogni strumento per gestire il business.",
+    "featuredLabel": "In evidenza",
+    "stats": {
+      "companies": "20.000+",
+      "companiesLabel": "Aziende",
+      "countries": "10+",
+      "countriesLabel": "Paesi",
+      "requests": "1,3M+",
+      "requestsLabel": "Richieste API",
+      "carriers": "100+",
+      "carriersLabel": "Corrieri"
+    },
+    "showcase": {
+      "envia-shipping": "Oltre 100 corrieri, spedizioni locali e internazionali",
+      "envia-cargo": "Carico completo e LTL su un’unica rete",
+      "envia-fulfillment": "Ordini elaborati e spediti in meno di 24 ore",
+      "envia-returns": "Resi gestiti sulla stessa rete fulfillment",
+      "ecart-pay": "Il modo più sicuro per essere pagati, ovunque",
+      "ecart-banking": "Gestisci le finanze aziendali in un solo posto",
+      "ecart-api": "Oltre 1,3M di richieste, oltre 40 integrazioni",
+      "parapaquetes": "Imballaggi e forniture a prezzi all’ingrosso",
+      "tendencys-partners": "Guadagna commissioni segnalando le nostre soluzioni"
+    }
+  },
+  "settings": {
+    "menuLabel": "Impostazioni",
+    "badge": "Desktop",
+    "title": "Impostazioni desktop",
+    "subtitle": "Scegli come ogni prodotto stampa e salva le etichette in Tendencys Desktop.",
+    "version": "Versione {{version}}",
+    "language": "Lingua",
+    "languageHelp": "Scegli la lingua dell’interfaccia di Tendencys Desktop.",
+    "products": "Prodotti",
+    "loading": "Caricamento preferenze…",
+    "productHint": "Queste opzioni valgono solo nell’app desktop — non nel browser.",
+    "labelPrintMode": "Modalità stampa etichette",
+    "labelPrintModeHelp": "Usata quando un prodotto chiede di stampare un PDF etichetta.",
+    "modes": {
+      "instant": {
+        "label": "Stampa istantanea",
+        "description": "Invia direttamente alla stampante sotto — senza finestra di sistema."
+      },
+      "system": {
+        "label": "Visualizzatore di sistema",
+        "description": "Apre il PDF nel visualizzatore predefinito per stampare da lì."
+      },
+      "save": {
+        "label": "Solo salva",
+        "description": "Scarica sempre il file in Download invece di stampare."
+      }
+    },
+    "labelPrinter": "Stampante etichette predefinita",
+    "labelPrinterHelp": "Usata per la stampa istantanea. Lascia il valore di sistema per usare la stampante OS.",
+    "systemDefaultPrinter": "Predefinita di sistema",
+    "defaultBadge": "predefinita",
+    "loadingPrinters": "Caricamento stampanti…",
+    "printersError": "Impossibile elencare le stampanti di questo computer.",
+    "testPrint": "Stampa di prova",
+    "testPrintSuccess": "Pagina di prova inviata.",
+    "testPrintError": "Stampa di prova non riuscita."
+  },
+  "webView": {
+    "launcherTitle": "Apri {{service}}",
+    "launcherDescription": "I cookie di sessione restano nel browser. Accedi a questo servizio, poi usa Apri nel browser per l’accesso completo.",
+    "launcherOpenedDescription": "Aperto nel browser — la sessione resta lì. Usa di nuovo Apri nel browser quando vuoi, o mostra un’anteprima opzionale nell’app.",
+    "previewBanner": "Solo anteprima — le sessioni prodotto vivono nel browser.",
+    "previewBlockedHint": "Questo servizio blocca l’incorporamento nell’app. Continua nel browser.",
+    "showPreview": "Mostra anteprima",
+    "hidePreview": "Nascondi anteprima",
+    "blockedTitle": "Impossibile incorporare {{service}}",
+    "blockedDescription": "Questo servizio non può essere mostrato nell’app per restrizioni di sicurezza. Accedi tramite Accounts nel browser e apri il servizio lì.",
+    "openInBrowser": "Apri nel browser",
+    "signInToService": "Accedi al servizio",
+    "loading": "Caricamento di {{service}}...",
+    "loadErrorTitle": "Impossibile caricare {{service}}",
+    "loadErrorDescription": "Il servizio non ha risposto. Riprova o aprilo nel browser.",
+    "retry": "Riprova"
+  }
+}
