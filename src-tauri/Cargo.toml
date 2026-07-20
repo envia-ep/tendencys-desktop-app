@@ -1,6 +1,6 @@
 [package]
 name = "tendencys-desktop"
-version = "0.4.0"
+version = "0.4.1"
 description = "Tendencys Multi-Service Desktop App"
 authors = ["Tendencys"]
 edition = "2021"
