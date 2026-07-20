@@ -13,6 +13,7 @@ import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import {
   OPS_BUILDINGS,
   OPS_ROUTES,
+  OPS_SCENE_REVISION,
   OPS_VEHICLES,
   OPS_WORLD,
   getBuilding,
@@ -24,6 +25,7 @@ import { useOpsWorldStore } from "@/stores/ops-world-store";
 import {
   drawBuilding,
   drawGround,
+  drawIconPad,
   drawPulseDot,
   drawRoute,
   drawSpotlight,
@@ -133,14 +135,17 @@ export function OpsWorld() {
         }
       }
 
-      // Buildings
+      // Company hub (isometric building) + service icon pads
       const buildingSprites = new Map<OpsNodeId, Container>();
       for (const b of OPS_BUILDINGS) {
         const label =
           b.id === "company"
             ? t("home.nodes.company.label")
             : t(`home.nodes.${b.id}.label`);
-        const sprite = drawBuilding(b.accent, b.size, label);
+        const sprite =
+          b.id === "company"
+            ? drawBuilding(b.accent, b.size, label)
+            : drawIconPad(b.metaphor, b.accent, b.size, label);
         sprite.position.set(b.x, b.y);
         sprite.eventMode = "static";
         sprite.cursor = "pointer";
@@ -385,9 +390,9 @@ export function OpsWorld() {
       for (const fn of cleanups) fn();
       source?.stop();
     };
-    // Rebuild on language change so building labels re-render.
+    // Rebuild when language or scene revision changes (HMR / world geometry).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i18n.language]);
+  }, [i18n.language, OPS_SCENE_REVISION]);
 
   return (
     <div

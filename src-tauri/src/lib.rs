@@ -1,8 +1,10 @@
+mod desktop_files;
 mod device_key;
 mod webview_manager;
 
 use std::sync::Arc;
 
+use desktop_files::{desktop_deliver_file, list_printers, print_test_page, save_bytes};
 use device_key::{
     delete_device_key, generate_device_keypair, get_device_key_meta, has_device_key,
     login_with_device_key, register_device_key, set_device_key_method_id,
@@ -178,6 +180,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ServiceWebviews::default())
         .invoke_handler(tauri::generate_handler![
@@ -201,7 +204,11 @@ pub fn run() {
             seed_accounts_session,
             clear_accounts_session,
             clear_shared_web_data,
-            read_accounts_session
+            read_accounts_session,
+            list_printers,
+            save_bytes,
+            print_test_page,
+            desktop_deliver_file
         ])
         .setup(|app| {
             #[cfg(desktop)]

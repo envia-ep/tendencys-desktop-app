@@ -118,12 +118,24 @@ Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell sk
 
 ## Development
 
+Accounts shell login redirects to `tendencys://authentication` and macOS opens whichever app owns that URL scheme — the product bundle **Tendencys.app** (`productName: Tendencys` in `tauri.conf.json`), not the Cargo binary named `tendencys-desktop`.
+
+**For sign-in / deep-link testing (recommended):**
+
 ```bash
 npm install
+# Quit any other Tendencys.app (release or older debug) so this build owns tendencys://
+npm run tauri build -- --debug
+open src-tauri/target/debug/bundle/macos/Tendencys.app
+```
+
+**Hot-reload UI only** (no reliable Accounts deep-link handoff on macOS — `tauri:dev` runs the bare `target/debug/tendencys-desktop` binary, which does not register `tendencys://`):
+
+```bash
 npm run tauri:dev
 ```
 
-**Deep link / login:** quit any installed **Tendencys.app** (release build) before `tauri:dev`. Only one process should own the `tendencys://` scheme — otherwise Accounts "Open app" can hand the token to another binary. Prefer `npm run tauri build -- --debug` and run the generated `.app` when testing system-browser login; bare `target/debug` binaries are unreliable for custom schemes on macOS. Keep a single `tauri:dev` / debug app instance.
+Keep a single Tendencys instance. If Accounts "Open app" lands on the wrong build, quit every Tendencys process and reopen the debug `Tendencys.app` above.
 
 For frontend-only development (browser, no Tauri APIs — native webviews, device keys, and the updater are all no-ops outside Tauri):
 

@@ -34,9 +34,12 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
 use cookie::SameSite;
 use tauri::{
-    webview::{Cookie, PageLoadEvent, WebviewBuilder},
+    webview::{Cookie, DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder},
     AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl,
 };
+use tauri_plugin_opener::OpenerExt;
+
+use crate::desktop_files::unique_download_path;
 
 #[derive(Clone, Serialize)]
 struct ServiceNavigatedPayload {
@@ -124,6 +127,39 @@ const SPA_NAV_HOOK: &str = r#"
     return ret;
   };
   window.addEventListener('popstate', function () { ping(false); });
+})();
+"#;
+
+/// Product → native save/print bridge. Relies on Tauri remote IPC (see
+/// `capabilities/service-webviews.json`).
+const DESKTOP_BRIDGE_SCRIPT: &str = r#"
+(function () {
+  if (window.__TENDENCYS_DESKTOP__) return;
+  function invoke(cmd, args) {
+    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+      return window.__TAURI_INTERNALS__.invoke(cmd, args);
+    }
+    return Promise.reject(new Error('Tendencys desktop IPC unavailable'));
+  }
+  Object.defineProperty(window, '__TENDENCYS_DESKTOP__', {
+    value: Object.freeze({
+      isDesktop: true,
+      deliver: function (payload) {
+        payload = payload || {};
+        return invoke('desktop_deliver_file', {
+          request: {
+            intent: payload.intent || 'save',
+            fileName: payload.fileName || payload.file_name || 'label.pdf',
+            mime: payload.mime || null,
+            dataBase64: payload.dataBase64 || payload.data_base64 || null,
+            url: payload.url || null
+          }
+        });
+      }
+    }),
+    writable: false,
+    configurable: false
+  });
 })();
 "#;
 
@@ -370,11 +406,64 @@ fn build_service_webview(
 
     let mut builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
         .data_store_identifier(SHARED_DATA_STORE)
-        .initialization_script(SPA_NAV_HOOK);
+        .initialization_script(SPA_NAV_HOOK)
+        .initialization_script(DESKTOP_BRIDGE_SCRIPT);
     if let Some(script) = &atid_script {
         builder = builder.initialization_script(script);
     }
+    let app_for_new_window = app.clone();
     let builder = builder
+        .on_download(move |_webview, event| {
+            match event {
+                DownloadEvent::Requested { url, destination } => {
+                    // WebKit already fills `destination` with its suggested
+                    // filename (Content-Disposition). Prefer that over the URL
+                    // path, which is often empty for blob:/API downloads.
+                    let from_webkit = destination
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .filter(|s| {
+                            !s.is_empty()
+                                && !s.eq_ignore_ascii_case("unknown")
+                                && !s.eq_ignore_ascii_case("download.bin")
+                        })
+                        .map(|s| s.to_string());
+                    let from_url = url
+                        .path_segments()
+                        .and_then(|mut s| s.next_back())
+                        .filter(|s| !s.is_empty() && !s.contains('='))
+                        .map(|s| s.to_string());
+                    let suggested = from_webkit
+                        .or(from_url)
+                        .unwrap_or_else(|| "label.pdf".into());
+                    *destination = unique_download_path(&suggested);
+                    log::info!(
+                        "[desktop-files] download requested → {}",
+                        destination.display()
+                    );
+                    true
+                }
+                DownloadEvent::Finished { url, path, success } => {
+                    log::info!(
+                        "[desktop-files] download finished success={success} url={url} path={:?}",
+                        path.as_ref().map(|p| p.display().to_string())
+                    );
+                    true
+                }
+                _ => true,
+            }
+        })
+        .on_new_window(move |url, _features| {
+            if url.scheme() == "http" || url.scheme() == "https" {
+                if let Err(err) = app_for_new_window
+                    .opener()
+                    .open_url(url.as_str(), None::<&str>)
+                {
+                    log::warn!("[desktop-files] open_url failed for {url}: {err}");
+                }
+            }
+            NewWindowResponse::Deny
+        })
         .on_navigation(move |url| {
             // SPA hook: cancelled custom scheme carries push/replace + href.
             if url.scheme() == "tendencys-nav" {

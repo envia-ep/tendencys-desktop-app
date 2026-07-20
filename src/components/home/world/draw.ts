@@ -1,13 +1,14 @@
 /**
  * Programmatic Pixi sprite builders (Graphics only — no external art).
- * Buildings are stylized isometric blocks with lit windows; vehicles are drawn
- * facing +x so GSAP MotionPath `autoRotate` aligns them to the travel direction.
- * A separate emissive layer (routes pulses, auras, spotlight) is bloomed in
- * OpsWorld, so the glow helpers here stay plain additive shapes.
+ * Company hub is an isometric building; service nodes are icon pads with a
+ * unique metaphor silhouette. Vehicles face +x so GSAP MotionPath `autoRotate`
+ * aligns them to the travel direction. A separate emissive layer (route pulses,
+ * auras, spotlight) is bloomed in OpsWorld, so glow helpers stay plain shapes.
  */
 import { Container, Graphics, Text } from "pixi.js";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { OPS_WORLD, type OpsRoute, type OpsVehicleKind } from "@/config/ops-world";
+import type { OpsNodeMetaphor } from "@/config/ops-scene";
 import { routeCurviness } from "@/lib/ops-sim/scripted-source";
 
 export function hexToNum(hex: string): number {
@@ -69,9 +70,9 @@ const ROUTE_STYLE: Record<
   OpsRoute["kind"],
   { core: number; glow: number; center: number; width: number }
 > = {
-  road: { core: 0x2b6cb0, glow: 0x0074ff, center: 0xbfe0ff, width: 10 },
-  air: { core: 0x3aa0ff, glow: 0x0074ff, center: 0xd6ecff, width: 4 },
-  belt: { core: 0xdd6b20, glow: 0xf6ad55, center: 0xffe4c2, width: 14 },
+  road: { core: 0x2b6cb0, glow: 0x0074ff, center: 0xbfe0ff, width: 6 },
+  air: { core: 0x3aa0ff, glow: 0x0074ff, center: 0xd6ecff, width: 3 },
+  belt: { core: 0xdd6b20, glow: 0xf6ad55, center: 0xffe4c2, width: 12 },
 };
 
 export function rawPathFor(route: OpsRoute) {
@@ -218,7 +219,7 @@ export function drawBuilding(accent: string, size: number, label: string): Conta
   return c;
 }
 
-/** Bright ring placed under a selected building (emissive layer). */
+/** Bright ring placed under a selected building/pad (emissive layer). */
 export function drawSpotlight(accent: string, size: number): Graphics {
   const g = new Graphics();
   g.ellipse(0, size * 0.4, size * 1.5, size * 0.75).stroke({
@@ -228,6 +229,197 @@ export function drawSpotlight(accent: string, size: number): Graphics {
   });
   radialGlow(g, 0, size * 0.4, size * 1.6, hexToNum(accent), 5, 0.05);
   return g;
+}
+
+// --- Icon pads (service nodes) ------------------------------------------
+
+function nodeLabel(label: string, y: number, fontSize = 14): Text {
+  const text = new Text({
+    text: label,
+    style: {
+      fill: 0xdbeafe,
+      fontSize,
+      fontFamily: "Inter, system-ui, sans-serif",
+      fontWeight: "600",
+      dropShadow: {
+        color: 0x00060f,
+        blur: 4,
+        distance: 1,
+        alpha: 0.8,
+        angle: Math.PI / 2,
+      },
+    },
+  });
+  text.anchor.set(0.5, 0);
+  text.position.set(0, y);
+  return text;
+}
+
+/** Distinct silhouette per ops metaphor, centered at (0,0). Scale is ~pad radius. */
+export function drawMetaphorIcon(metaphor: OpsNodeMetaphor, accent: string, size: number): Container {
+  const c = new Container();
+  const g = new Graphics();
+  const col = hexToNum(accent);
+  const light = shade(accent, 0.45);
+  const dark = shade(accent, -0.3);
+  // Large glyphs so pads never read as “another building”.
+  const s = size * 0.72;
+
+  if (metaphor === "plane") {
+    g.poly([s * 0.95, 0, -s * 0.45, -s * 0.32, -s * 0.18, 0, -s * 0.45, s * 0.32]).fill({
+      color: col,
+    });
+    g.poly([s * 0.1, -s * 0.08, -s * 0.55, -s * 0.75, -s * 0.25, -s * 0.08]).fill({ color: light });
+    g.poly([s * 0.1, s * 0.08, -s * 0.55, s * 0.75, -s * 0.25, s * 0.08]).fill({ color: light });
+    g.poly([-s * 0.35, -s * 0.05, -s * 0.8, -s * 0.35, -s * 0.55, -s * 0.05]).fill({ color: dark });
+    g.circle(s * 0.45, 0, s * 0.1).fill({ color: 0xcbe6ff });
+  } else if (metaphor === "truck") {
+    g.roundRect(-s * 0.85, -s * 0.35, s * 1.0, s * 0.7, 3).fill({ color: dark });
+    g.roundRect(-s * 0.85, -s * 0.35, s * 1.0, s * 0.18, 3).fill({ color: light, alpha: 0.7 });
+    g.roundRect(s * 0.15, -s * 0.4, s * 0.65, s * 0.8, 3).fill({ color: col });
+    g.roundRect(s * 0.55, -s * 0.22, s * 0.2, s * 0.28, 1).fill({ color: 0xcbe6ff });
+    g.circle(-s * 0.45, s * 0.42, s * 0.16).fill({ color: 0x0b1220 });
+    g.circle(s * 0.45, s * 0.42, s * 0.16).fill({ color: 0x0b1220 });
+  } else if (metaphor === "warehouse") {
+    g.poly([
+      -s * 0.95,
+      s * 0.15,
+      -s * 0.95,
+      -s * 0.25,
+      0,
+      -s * 0.75,
+      s * 0.95,
+      -s * 0.25,
+      s * 0.95,
+      s * 0.15,
+    ]).fill({ color: col });
+    g.poly([-s * 0.95, -s * 0.25, 0, -s * 0.75, s * 0.95, -s * 0.25, 0, -s * 0.05]).fill({
+      color: light,
+    });
+    g.roundRect(-s * 0.35, -s * 0.05, s * 0.7, s * 0.55, 2).fill({ color: dark });
+    g.rect(-s * 0.2, s * 0.15, s * 0.4, s * 0.35).fill({ color: 0x0b1220, alpha: 0.55 });
+  } else if (metaphor === "returns") {
+    // U-turn arrow (no stroke arc — poly only for Pixi reliability)
+    g.roundRect(-s * 0.28, -s * 0.35, s * 0.56, s * 0.56, 3).fill({ color: dark });
+    g.rect(-s * 0.28, -s * 0.05, s * 0.56, s * 0.12).fill({ color: light, alpha: 0.9 });
+    g.rect(-s * 0.06, -s * 0.35, s * 0.12, s * 0.56).fill({ color: light, alpha: 0.9 });
+    g.poly([
+      s * 0.2,
+      -s * 0.7,
+      s * 0.75,
+      -s * 0.35,
+      s * 0.45,
+      -s * 0.35,
+      s * 0.45,
+      s * 0.15,
+      -s * 0.15,
+      s * 0.15,
+      -s * 0.15,
+      s * 0.4,
+      -s * 0.55,
+      s * 0.4,
+      -s * 0.55,
+      -s * 0.15,
+      s * 0.2,
+      -s * 0.15,
+    ]).fill({ color: col });
+    g.poly([s * 0.2, -s * 0.7, s * 0.75, -s * 0.35, s * 0.35, -s * 0.25]).fill({ color: light });
+  } else if (metaphor === "pay") {
+    g.roundRect(-s * 0.75, -s * 0.5, s * 1.5, s * 1.0, 5).fill({ color: col });
+    g.roundRect(-s * 0.75, -s * 0.2, s * 1.5, s * 0.28, 0).fill({ color: dark });
+    g.roundRect(-s * 0.55, s * 0.2, s * 0.45, s * 0.16, 2).fill({ color: light });
+    g.circle(s * 0.4, s * 0.28, s * 0.12).fill({ color: light, alpha: 0.85 });
+  } else if (metaphor === "bank") {
+    g.poly([-s * 0.9, -s * 0.15, 0, -s * 0.75, s * 0.9, -s * 0.15]).fill({ color: light });
+    g.rect(-s * 0.85, -s * 0.15, s * 1.7, s * 0.12).fill({ color: col });
+    for (const x of [-s * 0.55, -s * 0.15, s * 0.25]) {
+      g.rect(x, -s * 0.03, s * 0.22, s * 0.55).fill({ color: col });
+    }
+    g.rect(-s * 0.95, s * 0.5, s * 1.9, s * 0.18).fill({ color: dark });
+  } else if (metaphor === "api") {
+    g.circle(-s * 0.55, 0, s * 0.28).fill({ color: col });
+    g.circle(s * 0.55, -s * 0.35, s * 0.22).fill({ color: light });
+    g.circle(s * 0.45, s * 0.4, s * 0.22).fill({ color: light });
+    g.moveTo(-s * 0.3, -s * 0.1)
+      .lineTo(s * 0.35, -s * 0.3)
+      .stroke({ width: s * 0.12, color: dark, cap: "round" });
+    g.moveTo(-s * 0.3, s * 0.12)
+      .lineTo(s * 0.28, s * 0.32)
+      .stroke({ width: s * 0.12, color: dark, cap: "round" });
+    g.roundRect(-s * 0.2, -s * 0.55, s * 0.18, s * 0.18, 2).fill({ color: 0xcbe6ff, alpha: 0.9 });
+    g.roundRect(s * 0.02, -s * 0.55, s * 0.18, s * 0.18, 2).fill({ color: 0xcbe6ff, alpha: 0.9 });
+  } else if (metaphor === "supply") {
+    g.roundRect(-s * 0.7, s * 0.05, s * 0.7, s * 0.55, 2).fill({ color: dark });
+    g.roundRect(-s * 0.05, s * 0.05, s * 0.7, s * 0.55, 2).fill({ color: col });
+    g.roundRect(-s * 0.35, -s * 0.55, s * 0.7, s * 0.55, 2).fill({ color: light });
+    g.rect(-s * 0.35, -s * 0.3, s * 0.7, s * 0.1).fill({ color: col, alpha: 0.7 });
+    g.rect(-s * 0.7, s * 0.28, s * 0.7, s * 0.1).fill({ color: light, alpha: 0.6 });
+    g.rect(-s * 0.05, s * 0.28, s * 0.7, s * 0.1).fill({ color: light, alpha: 0.6 });
+  } else if (metaphor === "partners") {
+    g.circle(-s * 0.35, -s * 0.25, s * 0.28).fill({ color: col });
+    g.ellipse(-s * 0.35, s * 0.35, s * 0.42, s * 0.32).fill({ color: col });
+    g.circle(s * 0.35, -s * 0.25, s * 0.28).fill({ color: light });
+    g.ellipse(s * 0.35, s * 0.35, s * 0.42, s * 0.32).fill({ color: light });
+    g.circle(0, s * 0.05, s * 0.18).fill({ color: dark });
+  } else {
+    // company / fallback: small diamond mark (company uses drawBuilding)
+    g.poly([0, -s * 0.7, s * 0.55, 0, 0, s * 0.7, -s * 0.55, 0]).fill({ color: col });
+  }
+
+  c.addChild(g);
+  return c;
+}
+
+/** Circular glowing pad + large metaphor icon + label — not a building. */
+export function drawIconPad(
+  metaphor: OpsNodeMetaphor,
+  accent: string,
+  size: number,
+  label: string,
+): Container {
+  const c = new Container();
+  const col = hexToNum(accent);
+  const r = size * 0.95;
+  const iconLift = -size * 0.55;
+
+  const shadow = new Graphics()
+    .ellipse(0, r * 0.55, r * 1.35, r * 0.55)
+    .fill({ color: 0x00060f, alpha: 0.45 });
+  c.addChild(shadow);
+
+  const glow = new Graphics();
+  radialGlow(glow, 0, iconLift * 0.2, r * 1.6, col, 6, 0.08);
+  c.addChild(glow);
+
+  // Ground disc
+  const pad = new Graphics()
+    .ellipse(0, r * 0.15, r * 1.2, r * 0.48)
+    .fill({ color: shade(accent, -0.5), alpha: 0.9 });
+  pad.ellipse(0, r * 0.15, r * 1.2, r * 0.48).stroke({
+    width: 3,
+    color: shade(accent, 0.4),
+    alpha: 0.9,
+  });
+  c.addChild(pad);
+
+  // Floating circular badge holding the icon
+  const badge = new Graphics()
+    .circle(0, iconLift, r * 0.85)
+    .fill({ color: shade(accent, -0.25), alpha: 0.95 });
+  badge.circle(0, iconLift, r * 0.85).stroke({
+    width: 3.5,
+    color: shade(accent, 0.55),
+    alpha: 1,
+  });
+  badge.circle(0, iconLift, r * 0.72).fill({ color: shade(accent, -0.05), alpha: 0.35 });
+  c.addChild(badge);
+
+  const icon = drawMetaphorIcon(metaphor, accent, size);
+  icon.position.set(0, iconLift);
+  c.addChild(icon);
+
+  c.addChild(nodeLabel(label, r * 0.75, 15));
+  return c;
 }
 
 // --- Vehicles -----------------------------------------------------------

@@ -125,6 +125,45 @@
       }
     }
   },
+  "developers": {
+    "menuLabel": "Developers",
+    "title": "Developers y APIs",
+    "subtitle": "Documentación y acceso a APIs de los productos Tendencys. Las superficies activas abren la documentación en el navegador o te llevan al producto para gestionar llaves.",
+    "documentation": "Documentación",
+    "manageKeys": "Llaves API",
+    "openDashboard": "Abrir panel",
+    "comingSoon": "Próximamente",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "API Envia Shipping",
+        "blurb": "Cotizaciones, guías, tracking y webhooks con más de 100 paqueterías."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Conecta tiendas y marketplaces con una sola API de comercio."
+      },
+      "envia-cargo": {
+        "name": "API Envia Cargo",
+        "blurb": "Reservas de carga y gestión de envíos por API."
+      },
+      "envia-fulfillment": {
+        "name": "API Envia Fulfillment",
+        "blurb": "Inventario, pedidos y operaciones de almacén por API."
+      },
+      "envia-returns": {
+        "name": "API Envia Returns",
+        "blurb": "Automatiza guías de devolución y logística inversa."
+      },
+      "ecart-pay": {
+        "name": "API Ecart Pay",
+        "blurb": "Pagos, links y suscripciones para tu checkout."
+      },
+      "ecart-banking": {
+        "name": "API Ecart Banking",
+        "blurb": "Finanzas de la empresa, pagos y automatización de facturas."
+      }
+    }
+  },
   "welcome": {
     "title": "Todas las herramientas que necesitas para impulsar tu negocio",
     "subtitle": "Envíos, fulfillment, pagos y banca — con la confianza de más de 20,000 empresas en más de 10 países.",
@@ -155,6 +194,40 @@
       "parapaquetes": "Empaque y suministros a precios de mayoreo",
       "tendencys-partners": "Gana comisiones al referir nuestras soluciones"
     }
+  },
+  "settings": {
+    "menuLabel": "Ajustes",
+    "badge": "Escritorio",
+    "title": "Ajustes del escritorio",
+    "subtitle": "Elige cómo cada producto imprime y guarda etiquetas dentro de Tendencys Desktop.",
+    "products": "Productos",
+    "loading": "Cargando preferencias…",
+    "productHint": "Estas opciones solo aplican dentro de la app de escritorio — no en el navegador.",
+    "labelPrintMode": "Modo de impresión de etiquetas",
+    "labelPrintModeHelp": "Se usa cuando un producto pide imprimir una etiqueta PDF.",
+    "modes": {
+      "instant": {
+        "label": "Impresión instantánea",
+        "description": "Envía directo a la impresora de abajo — sin diálogo del sistema."
+      },
+      "system": {
+        "label": "Visor del sistema",
+        "description": "Abre el PDF en el visor predeterminado para imprimir desde ahí."
+      },
+      "save": {
+        "label": "Solo guardar",
+        "description": "Siempre descarga el archivo a Descargas en lugar de imprimir."
+      }
+    },
+    "labelPrinter": "Impresora de etiquetas predeterminada",
+    "labelPrinterHelp": "Se usa en impresión instantánea. Deja el valor predeterminado del sistema para usar la impresora del SO.",
+    "systemDefaultPrinter": "Predeterminada del sistema",
+    "defaultBadge": "predeterminada",
+    "loadingPrinters": "Cargando impresoras…",
+    "printersError": "No se pudieron listar las impresoras de esta computadora.",
+    "testPrint": "Impresión de prueba",
+    "testPrintSuccess": "Página de prueba enviada.",
+    "testPrintError": "Falló la impresión de prueba."
   },
   "webView": {
     "launcherTitle": "Abrir {{service}}",

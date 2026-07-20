@@ -44,6 +44,45 @@
     "signInToService": "Iniciar sesión en el servicio",
     "wmsAuthHint": "WMS usa su propio inicio de sesión. Ábrelo en el navegador para autenticarte."
   },
+  "developers": {
+    "menuLabel": "Developers",
+    "title": "Developers y APIs",
+    "subtitle": "Documentación y acceso a APIs de los productos Tendencys. Las superficies activas abren la documentación en el navegador o te llevan al producto para gestionar llaves.",
+    "documentation": "Documentación",
+    "manageKeys": "Llaves API",
+    "openDashboard": "Abrir panel",
+    "comingSoon": "Próximamente",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "API Envia Shipping",
+        "blurb": "Cotizaciones, guías, tracking y webhooks con más de 100 paqueterías."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Conecta tiendas y marketplaces con una sola API de comercio."
+      },
+      "envia-cargo": {
+        "name": "API Envia Cargo",
+        "blurb": "Reservas de carga y gestión de envíos por API."
+      },
+      "envia-fulfillment": {
+        "name": "API Envia Fulfillment",
+        "blurb": "Inventario, pedidos y operaciones de almacén por API."
+      },
+      "envia-returns": {
+        "name": "API Envia Returns",
+        "blurb": "Automatiza guías de devolución y logística inversa."
+      },
+      "ecart-pay": {
+        "name": "API Ecart Pay",
+        "blurb": "Pagos, links y suscripciones para tu checkout."
+      },
+      "ecart-banking": {
+        "name": "API Ecart Banking",
+        "blurb": "Finanzas de la empresa, pagos y automatización de facturas."
+      }
+    }
+  },
   "webView": {
     "blockedTitle": "No se puede incrustar {{service}}",
     "blockedDescription": "Este servicio no puede mostrarse dentro de la app por restricciones de seguridad. Inicia sesión vía Accounts en el navegador y ábrelo allí.",

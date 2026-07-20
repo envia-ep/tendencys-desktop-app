@@ -5,11 +5,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Code2,
   ExternalLink,
   Home,
   LogOut,
   Plus,
   RotateCw,
+  Settings2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SERVICES, type ServiceDefinition } from "@/config/services";
@@ -33,6 +35,8 @@ type ServiceMenuProps = {
   collapsed: boolean;
   onSelectService: (service: ServiceDefinition) => void;
   onShowHome: () => void;
+  onShowDevelopers: () => void;
+  onShowSettings: () => void;
   onToggleCollapsed: () => void;
   onOpenInBrowser: () => void;
   onNavigateBack: () => void;
@@ -63,6 +67,8 @@ export function ServiceMenu({
   collapsed,
   onSelectService,
   onShowHome,
+  onShowDevelopers,
+  onShowSettings,
   onToggleCollapsed,
   onOpenInBrowser,
   onNavigateBack,
@@ -78,8 +84,11 @@ export function ServiceMenu({
   const logout = useAuthStore((s) => s.logout);
   const addAccount = useAuthStore((s) => s.addAccount);
   const switchAccount = useAuthStore((s) => s.switchAccount);
-  const width = collapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
   const onHome = shellView === "home";
+  const onDevelopers = shellView === "developers";
+  const onSettings = shellView === "settings";
+  const onService = shellView === "service";
+  const width = collapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
 
   const displayName = account
     ? accountDisplayName(account.firstName, account.lastName, account.email)
@@ -231,7 +240,13 @@ export function ServiceMenu({
               )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {onHome ? t("home.menuLabel") : activeService.name}
+                {onHome
+                  ? t("home.menuLabel")
+                  : onDevelopers
+                    ? t("developers.menuLabel")
+                    : onSettings
+                      ? t("settings.menuLabel")
+                      : activeService.name}
               </DropdownMenuLabel>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -246,7 +261,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onNavigateBack}
-            disabled={onHome || !canGoBack}
+            disabled={!onService || !canGoBack}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.back")}
             title={t("topBar.back")}
@@ -256,7 +271,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onNavigateForward}
-            disabled={onHome || !canGoForward}
+            disabled={!onService || !canGoForward}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.forward")}
             title={t("topBar.forward")}
@@ -266,7 +281,7 @@ export function ServiceMenu({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={onHome}
+            disabled={!onService}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition-colors enabled:hover:bg-white/10 enabled:hover:text-white enabled:active:bg-white/20 disabled:opacity-40"
             aria-label={t("topBar.refresh")}
             title={t("topBar.refresh")}
@@ -299,7 +314,7 @@ export function ServiceMenu({
           </button>
 
           {SERVICES.map((service) => {
-            const isActive = !onHome && service.id === activeService.id;
+            const isActive = onService && service.id === activeService.id;
             return (
               <button
                 key={service.id}
@@ -328,10 +343,54 @@ export function ServiceMenu({
         </div>
 
         <div className="mt-2 flex flex-col gap-1 px-2">
+          <button
+            type="button"
+            onClick={onShowDevelopers}
+            className={cn(
+              "flex items-center gap-2 rounded-lg transition-colors",
+              collapsed ? "h-9 w-9 justify-center" : "h-9 w-full px-2",
+              onDevelopers
+                ? "bg-white text-primary"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+            aria-label={t("developers.menuLabel")}
+            aria-current={onDevelopers ? "page" : undefined}
+            title={collapsed ? t("developers.menuLabel") : undefined}
+          >
+            <Code2 className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <span className="truncate text-sm font-medium">
+                {t("developers.menuLabel")}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onShowSettings}
+            className={cn(
+              "flex items-center gap-2 rounded-lg transition-colors",
+              collapsed ? "h-9 w-9 justify-center" : "h-9 w-full px-2",
+              onSettings
+                ? "bg-white text-primary"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+            aria-label={t("settings.menuLabel")}
+            aria-current={onSettings ? "page" : undefined}
+            title={collapsed ? t("settings.menuLabel") : undefined}
+          >
+            <Settings2 className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <span className="truncate text-sm font-medium">
+                {t("settings.menuLabel")}
+              </span>
+            )}
+          </button>
+
           {iconBtn({
             label: t("topBar.openInBrowser"),
             onClick: onOpenInBrowser,
-            disabled: onHome,
+            disabled: !onService,
             children: (
               <>
                 <ExternalLink className="h-4 w-4 shrink-0" />

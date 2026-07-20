@@ -1,0 +1,22 @@
+---
+description: How to run the desktop app locally when Accounts sign-in / tendencys:// deep links matter. Use when asked to run, launch, or test login locally.
+alwaysApply: false
+---
+
+# Local SSO / deep-link testing
+
+Accounts shell login redirects to `tendencys://authentication`. macOS opens the
+app that owns that scheme: the **Tendencys.app** bundle
+(`productName: Tendencys`), not the Cargo binary named `tendencys-desktop`.
+
+When the user needs sign-in or deep-link testing to work:
+
+```bash
+npm run tauri build -- --debug
+open src-tauri/target/debug/bundle/macos/Tendencys.app
+```
+
+Do **not** use `npm run tauri:dev` for Accounts login handoff — it runs
+`target/debug/tendencys-desktop`, which does not register `tendencys://` on
+macOS. Quit any other Tendencys.app first so only one instance owns the scheme.
+See `README.md` Development section.

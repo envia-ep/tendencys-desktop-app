@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-list-printers"
+description = "Allows listing OS printers for desktop Settings"
+commands.allow = ["list_printers"]
+
+[[permission]]
+identifier = "allow-save-bytes"
+description = "Allows saving a file via the native save dialog"
+commands.allow = ["save_bytes"]
+
+[[permission]]
+identifier = "allow-print-test-page"
+description = "Allows printing a test page for a service's configured printer"
+commands.allow = ["print_test_page"]
+
+[[permission]]
+identifier = "allow-desktop-deliver-file"
+description = "Allows product webviews to save or print label blobs via the native bridge"
+commands.allow = ["desktop_deliver_file"]

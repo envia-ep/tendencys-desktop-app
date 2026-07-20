@@ -125,6 +125,45 @@
       }
     }
   },
+  "developers": {
+    "menuLabel": "Developers",
+    "title": "Developers & APIs",
+    "subtitle": "Documentation and API access for Tendencys products. Live surfaces open docs in your browser or jump into the product to manage keys.",
+    "documentation": "Documentation",
+    "manageKeys": "API keys",
+    "openDashboard": "Open dashboard",
+    "comingSoon": "Coming soon",
+    "surfaces": {
+      "envia-shipping": {
+        "name": "Envia Shipping API",
+        "blurb": "Quotes, labels, tracking, and webhooks for 100+ carriers."
+      },
+      "ecart-api": {
+        "name": "Ecart API",
+        "blurb": "Connect stores and marketplaces through one commerce API."
+      },
+      "envia-cargo": {
+        "name": "Envia Cargo API",
+        "blurb": "Programmatic freight booking and load management."
+      },
+      "envia-fulfillment": {
+        "name": "Envia Fulfillment API",
+        "blurb": "Inventory, orders, and warehouse operations via API."
+      },
+      "envia-returns": {
+        "name": "Envia Returns API",
+        "blurb": "Automate return labels and reverse logistics."
+      },
+      "ecart-pay": {
+        "name": "Ecart Pay API",
+        "blurb": "Payments, links, and subscriptions for your checkout."
+      },
+      "ecart-banking": {
+        "name": "Ecart Banking API",
+        "blurb": "Company finances, payouts, and invoice automation."
+      }
+    }
+  },
   "welcome": {
     "title": "Every tool you need to power your business",
     "subtitle": "Shipping, fulfillment, payments and banking — trusted by 20,000+ companies in 10+ countries.",
@@ -155,6 +194,40 @@
       "parapaquetes": "Packaging and supplies at wholesale pricing",
       "tendencys-partners": "Earn commissions referring our solutions"
     }
+  },
+  "settings": {
+    "menuLabel": "Settings",
+    "badge": "Desktop",
+    "title": "Desktop settings",
+    "subtitle": "Choose how each product prints and saves labels inside Tendencys Desktop.",
+    "products": "Products",
+    "loading": "Loading preferences…",
+    "productHint": "These options apply only inside the desktop app — not in the browser.",
+    "labelPrintMode": "Label print mode",
+    "labelPrintModeHelp": "Used when a product asks to print a label PDF.",
+    "modes": {
+      "instant": {
+        "label": "Instant print",
+        "description": "Send straight to the printer below — no system dialog."
+      },
+      "system": {
+        "label": "System viewer",
+        "description": "Open the PDF in your default viewer so you can print from there."
+      },
+      "save": {
+        "label": "Save only",
+        "description": "Always download the file to Downloads instead of printing."
+      }
+    },
+    "labelPrinter": "Default label printer",
+    "labelPrinterHelp": "Used for Instant print. Leave as system default to use the OS default printer.",
+    "systemDefaultPrinter": "System default",
+    "defaultBadge": "default",
+    "loadingPrinters": "Loading printers…",
+    "printersError": "Could not list printers on this computer.",
+    "testPrint": "Test print",
+    "testPrintSuccess": "Test page sent.",
+    "testPrintError": "Test print failed."
   },
   "webView": {
     "launcherTitle": "Open {{service}}",

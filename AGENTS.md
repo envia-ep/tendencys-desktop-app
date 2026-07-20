@@ -9,6 +9,24 @@ Any AI config change must be mirrored: a `.cursor/rules/*.mdc` rule has an
 equivalent block here in `AGENTS.md`, and vice versa. Keep the two in sync when
 adding, editing, or removing agent guidance.
 
+## Local SSO / deep-link testing
+
+Accounts shell login redirects to `tendencys://authentication`. macOS opens the
+app that owns that scheme: the **Tendencys.app** bundle
+(`productName: Tendencys`), not the Cargo binary named `tendencys-desktop`.
+
+When the user needs sign-in or deep-link testing to work:
+
+```bash
+npm run tauri build -- --debug
+open src-tauri/target/debug/bundle/macos/Tendencys.app
+```
+
+Do **not** use `npm run tauri:dev` for Accounts login handoff — it runs
+`target/debug/tendencys-desktop`, which does not register `tendencys://` on
+macOS. Quit any other Tendencys.app first so only one instance owns the scheme.
+See `README.md` Development section.
+
 ## Releasing the desktop app
 
 Releases are automated by `.github/workflows/release-desktop.yml`. Pushing a `v*`

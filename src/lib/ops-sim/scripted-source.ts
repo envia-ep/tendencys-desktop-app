@@ -13,9 +13,9 @@ export function routeCurviness(kind: OpsRouteKind): number {
 }
 
 /**
- * Scripted logistics simulation: one looping MotionPath tween per vehicle,
- * parented to a master timeline so speed (`timeScale`) and pause propagate to
- * every vehicle at once.
+ * Scripted logistics simulation: one MotionPath tween per vehicle on an open
+ * arc (yoyo + repeat), parented to a master timeline so speed (`timeScale`) and
+ * pause propagate to every vehicle at once.
  */
 export function createScriptedSource(): OpsSource {
   const master = gsap.timeline({ paused: true });
@@ -44,6 +44,7 @@ export function createScriptedSource(): OpsSource {
       const tween = gsap.to(raw, {
         duration: v.duration,
         repeat: -1,
+        yoyo: true,
         ease: "none",
         motionPath: {
           path: route.points,
@@ -57,6 +58,7 @@ export function createScriptedSource(): OpsSource {
         },
       });
       // Offset each vehicle's start progress so they spread along the route.
+      // With yoyo, full cycle is 2× duration; offset maps onto the out-and-back.
       tween.progress(v.offset ?? 0);
       master.add(tween, 0);
     }

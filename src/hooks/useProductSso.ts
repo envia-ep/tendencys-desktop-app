@@ -55,6 +55,8 @@ export function useProductSso() {
   const setActiveService = useServiceStore((s) => s.setActiveService);
   const shellView = useServiceStore((s) => s.shellView);
   const showHome = useServiceStore((s) => s.showHome);
+  const showDevelopers = useServiceStore((s) => s.showDevelopers);
+  const showSettings = useServiceStore((s) => s.showSettings);
   const showService = useServiceStore((s) => s.showService);
   const loadServiceData = useServiceStore((s) => s.loadServiceData);
   const menuCollapsed = useServiceStore((s) => s.menuCollapsed);
@@ -135,6 +137,12 @@ export function useProductSso() {
    * same verification once per open product.
    */
   const pendingVerificationRef = useRef<Set<string>>(new Set());
+  /**
+   * Deep-link path requested from Developers (etc.). `select_service` ignores
+   * the URL when the webview already exists, and first-load SSO lands on the
+   * product home — so we navigate to this path after show / after SSO settles.
+   */
+  const pendingDeepLinkRef = useRef<Record<string, string>>({});
   const seedLastAtRef = useRef<Record<string, number>>({});
   const lastUrlRef = useRef<Record<string, string>>({});
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,6 +193,7 @@ export function useProductSso() {
     ssoFailedRef.current.clear();
     ssoReseedTriedRef.current.clear();
     pendingVerificationRef.current.clear();
+    pendingDeepLinkRef.current = {};
     seedLastAtRef.current = {};
     lastUrlRef.current = {};
     shellHistoryRef.current.clear();
@@ -213,6 +222,25 @@ export function useProductSso() {
       setErrorServiceId(serviceId);
     }, LOAD_TIMEOUT_MS);
   }, []);
+
+  const consumePendingDeepLink = useCallback(
+    (serviceId: string) => {
+      const path = pendingDeepLinkRef.current[serviceId];
+      if (!path) return;
+      const service = getServiceById(serviceId);
+      if (!service) return;
+      delete pendingDeepLinkRef.current[serviceId];
+      const targetUrl = buildServiceViewUrl(service, path);
+      knownUrlsRef.current[serviceId] = targetUrl;
+      lastUrlRef.current[serviceId] = targetUrl;
+      void setLastPath(serviceId, path);
+      if (serviceId === useServiceStore.getState().activeService.id) {
+        beginLoad(serviceId);
+      }
+      void navigateService(serviceId, targetUrl);
+    },
+    [beginLoad, setLastPath],
+  );
 
   const resolveServiceUrl = useCallback(
     (service: ServiceDefinition, useSso: boolean) => {
@@ -263,9 +291,21 @@ export function useProductSso() {
     nativeMountedRef.current.add(service.id);
     lastUrlRef.current[service.id] = url;
     beginLoad(service.id);
-    void selectService(service.id, url);
+    // Existing webviews ignore `url` in select_service — apply deep links after show.
+    void selectService(service.id, url).then(() => {
+      if (!useSso && pendingDeepLinkRef.current[service.id]) {
+        consumePendingDeepLink(service.id);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeService.id, isAuthenticated, sessionReady, shellView, beginLoad]);
+  }, [
+    activeService.id,
+    isAuthenticated,
+    sessionReady,
+    shellView,
+    beginLoad,
+    consumePendingDeepLink,
+  ]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -315,6 +355,28 @@ export function useProductSso() {
       if (pendingVerificationRef.current.has(event.serviceId)) {
         retryOtherPendingVerifications(event.serviceId);
       }
+
+      const pendingPath = pendingDeepLinkRef.current[event.serviceId];
+      if (pendingPath && !isAuthNoiseUrl(event.url)) {
+        const service = getServiceById(event.serviceId);
+        if (service) {
+          try {
+            const onProduct =
+              new URL(event.url).origin === new URL(service.url).origin;
+            const currentPath = pathFromServiceUrl(service.url, event.url);
+            if (onProduct && currentPath !== pendingPath) {
+              consumePendingDeepLink(event.serviceId);
+              return;
+            }
+            if (onProduct && currentPath === pendingPath) {
+              delete pendingDeepLinkRef.current[event.serviceId];
+            }
+          } catch {
+            // fall through to recordNavigation
+          }
+        }
+      }
+
       recordNavigation(event.serviceId, event.url, event.replace);
     }).then((fn) => {
       unlisten = fn;
@@ -322,7 +384,11 @@ export function useProductSso() {
     return () => {
       unlisten?.();
     };
-  }, [recordNavigation, retryOtherPendingVerifications]);
+  }, [
+    recordNavigation,
+    retryOtherPendingVerifications,
+    consumePendingDeepLink,
+  ]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -529,10 +595,11 @@ export function useProductSso() {
   const handleSelectService = useCallback(
     (service: ServiceDefinition) => {
       const prev = useServiceStore.getState().activeService;
-      const wasHome = useServiceStore.getState().shellView === "home";
+      const wasOnService =
+        useServiceStore.getState().shellView === "service";
 
-      // Returning from Home to the same product must re-show the webview.
-      if (service.id === prev.id && !wasHome) return;
+      // Already on this product webview — no-op.
+      if (service.id === prev.id && wasOnService) return;
 
       if (selectInFlightRef.current !== service.id) {
         selectInFlightRef.current = null;
@@ -553,8 +620,8 @@ export function useProductSso() {
         syncHistoryButtons();
       }
 
-      if (wasHome && service.id === prev.id) {
-        // Same service: force the select effect to re-run by clearing in-flight.
+      if (!wasOnService && service.id === prev.id) {
+        // Same service from Home/Developers: re-run select effect to show webview.
         selectInFlightRef.current = null;
         showService();
         return;
@@ -565,10 +632,78 @@ export function useProductSso() {
     [lastPaths, setActiveService, showService, syncHistoryButtons],
   );
 
+  const handleOpenServicePath = useCallback(
+    (service: ServiceDefinition, path: string) => {
+      const prev = useServiceStore.getState().activeService;
+      const currentView = useServiceStore.getState().shellView;
+      const targetUrl = buildServiceViewUrl(service, path);
+
+      pendingDeepLinkRef.current[service.id] = path;
+
+      // Optimistic so the select effect sees the path before async persist.
+      useServiceStore.setState((state) => ({
+        lastPaths: { ...state.lastPaths, [service.id]: path },
+      }));
+      void setLastPath(service.id, path);
+      delete knownUrlsRef.current[service.id];
+
+      if (selectInFlightRef.current !== service.id) {
+        selectInFlightRef.current = null;
+      }
+
+      if (service.id === prev.id && currentView === "service") {
+        shellHistoryRef.current.push({ serviceId: service.id, url: targetUrl });
+        syncHistoryButtons();
+        consumePendingDeepLink(service.id);
+        return;
+      }
+
+      if (service.id !== prev.id) {
+        const prevUrl =
+          knownUrlsRef.current[prev.id] ??
+          buildServiceViewUrl(prev, lastPaths[prev.id] ?? "/");
+        if (!shellHistoryRef.current.current()) {
+          shellHistoryRef.current.push({ serviceId: prev.id, url: prevUrl });
+        }
+        shellHistoryRef.current.push({
+          serviceId: service.id,
+          url: targetUrl,
+        });
+        syncHistoryButtons();
+      }
+
+      if (currentView !== "service" && service.id === prev.id) {
+        selectInFlightRef.current = null;
+        showService();
+        return;
+      }
+
+      setActiveService(service);
+    },
+    [
+      consumePendingDeepLink,
+      lastPaths,
+      setActiveService,
+      setLastPath,
+      showService,
+      syncHistoryButtons,
+    ],
+  );
+
   const handleShowHome = useCallback(() => {
     showHome();
     void setServiceVisible(false);
   }, [showHome]);
+
+  const handleShowDevelopers = useCallback(() => {
+    showDevelopers();
+    void setServiceVisible(false);
+  }, [showDevelopers]);
+
+  const handleShowSettings = useCallback(() => {
+    showSettings();
+    void setServiceVisible(false);
+  }, [showSettings]);
 
   useEffect(() => {
     const width = menuCollapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
@@ -612,7 +747,10 @@ export function useProductSso() {
     loadingServiceId,
     errorServiceId,
     handleSelectService,
+    handleOpenServicePath,
     handleShowHome,
+    handleShowDevelopers,
+    handleShowSettings,
     handleNavigateBack,
     handleNavigateForward,
     handleRefresh,

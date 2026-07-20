@@ -22,7 +22,7 @@ function loadMenuCollapsed(): boolean {
   }
 }
 
-export type ShellView = "home" | "service";
+export type ShellView = "home" | "service" | "developers" | "settings";
 
 type ServiceState = {
   activeService: ServiceDefinition;
@@ -32,10 +32,12 @@ type ServiceState = {
   ssoInitiated: Record<string, boolean>;
   /** Single collapsible service menu: icon rail (collapsed) or icon+label list (expanded). */
   menuCollapsed: boolean;
-  /** Home hub vs native product webview. Defaults to home after sign-in. */
+  /** Home hub, Developers hub, Settings, or native product webview. Defaults to home after sign-in. */
   shellView: ShellView;
   setActiveService: (service: ServiceDefinition) => void;
   showHome: () => void;
+  showDevelopers: () => void;
+  showSettings: () => void;
   showService: () => void;
   toggleMenuCollapsed: () => void;
   loadServiceData: (serviceId: string) => Promise<void>;
@@ -63,6 +65,14 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
 
   showHome: () => {
     set({ shellView: "home" });
+  },
+
+  showDevelopers: () => {
+    set({ shellView: "developers" });
+  },
+
+  showSettings: () => {
+    set({ shellView: "settings" });
   },
 
   showService: () => {

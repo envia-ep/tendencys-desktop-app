@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { ServiceMenu } from "./ServiceMenu";
 import { Button } from "@/components/ui/button";
 import { HomeHub } from "@/components/home/HomeHub";
+import { DevelopersHub } from "@/components/developers/DevelopersHub";
+import { DesktopSettings } from "@/components/settings/DesktopSettings";
 import { useServiceStore } from "@/stores/service-store";
 import { useProductSso } from "@/hooks/useProductSso";
+import { openInBrowser } from "@/lib/tendencys-auth";
 import type { ServiceDefinition } from "@/config/services";
 
 export function AppShell() {
@@ -18,7 +21,10 @@ export function AppShell() {
     loadingServiceId,
     errorServiceId,
     handleSelectService,
+    handleOpenServicePath,
     handleShowHome,
+    handleShowDevelopers,
+    handleShowSettings,
     handleNavigateBack,
     handleNavigateForward,
     handleRefresh,
@@ -26,8 +32,6 @@ export function AppShell() {
     handleUserMenuOpenChange,
     handleNativeRetry,
   } = useProductSso();
-
-  const onHome = shellView === "home";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -37,6 +41,8 @@ export function AppShell() {
         collapsed={menuCollapsed}
         onSelectService={handleSelectService}
         onShowHome={handleShowHome}
+        onShowDevelopers={handleShowDevelopers}
+        onShowSettings={handleShowSettings}
         onToggleCollapsed={toggleMenuCollapsed}
         onOpenInBrowser={handleOpenInBrowser}
         onNavigateBack={handleNavigateBack}
@@ -47,9 +53,19 @@ export function AppShell() {
         onUserMenuOpenChange={handleUserMenuOpenChange}
       />
 
-      {onHome ? (
+      {shellView === "home" && (
         <HomeHub onOpenService={handleSelectService} />
-      ) : (
+      )}
+      {shellView === "developers" && (
+        <DevelopersHub
+          onOpenServicePath={handleOpenServicePath}
+          onOpenDocs={(url) => {
+            void openInBrowser(url);
+          }}
+        />
+      )}
+      {shellView === "settings" && <DesktopSettings />}
+      {shellView === "service" && (
         <NativeServiceArea
           service={activeService}
           isLoading={loadingServiceId === activeService.id}

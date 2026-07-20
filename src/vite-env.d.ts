@@ -15,6 +15,13 @@ interface ImportMetaEnv {
   readonly VITE_ECART_PAY_SITE_ID: string;
   readonly VITE_ECART_BANKING_URL: string;
   readonly VITE_ECART_BANKING_SITE_ID: string;
+  readonly VITE_ECART_API_URL: string;
+  readonly VITE_ECART_API_SITE_ID: string;
+  readonly VITE_ENVIA_DOCS_URL: string;
+  readonly VITE_ECART_API_DOCS_URL: string;
+  readonly VITE_ENVIA_FULFILLMENT_DOCS_URL: string;
+  readonly VITE_ECART_PAY_DOCS_URL: string;
+  readonly VITE_ENVIA_CARGO_DOCS_URL: string;
 }
 
 interface ImportMeta {

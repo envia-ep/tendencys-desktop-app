@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "service-webviews",
+  "description": "Limited IPC for product child webviews (label save/print bridge)",
+  "windows": ["svc-*"],
+  "remote": {
+    "urls": [
+      "https://ship.envia.com/*",
+      "https://*.envia.com/*",
+      "https://*.ecart.com/*",
+      "https://*.ecartapi.com/*",
+      "https://*.ecartpay.com/*",
+      "https://parapaquetes.com/*",
+      "https://*.parapaquetes.com/*",
+      "https://partners.tendencys.com/*",
+      "https://*.tendencys.com/*",
+      "http://localhost:*/*",
+      "https://localhost:*/*"
+    ]
+  },
+  "permissions": ["allow-desktop-deliver-file"]
+}
