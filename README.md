@@ -219,9 +219,9 @@ Set under Settings → Secrets and variables → Actions. `GITHUB_TOKEN` is prov
 
 Windows installers are signed via **Azure Trusted Signing** so customers don't hit
 the SmartScreen "unknown publisher" wall. Signing is wired into the release
-workflow and turns on automatically once the six `AZURE_*` secrets above are set —
-if `AZURE_SIGNING_ENDPOINT` is empty, the Windows build simply ships unsigned
-instead of failing the release.
+workflow and turns on only when `AZURE_SIGNING_ENABLED=true` **and** the six
+`AZURE_*` credential secrets above are set — otherwise the Windows build ships
+unsigned instead of failing the release.
 
 One-time setup:
 
