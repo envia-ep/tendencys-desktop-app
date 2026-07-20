@@ -78,10 +78,12 @@ Three layers, all backed by Accounts:
 
 ## Navigation
 
-- A single shared **shell history stack** (`src/lib/shell-history.ts`) records every meaningful navigation across all products in the session — SPA route changes are captured via a `pushState`/`replaceState` hook injected into every product webview.
+- A single shared **shell history stack** (`src/lib/shell-history.ts`) records every meaningful navigation across all products in the session — SPA route changes are captured via a `pushState`/`replaceState` hook that reports over Tauri IPC (`desktop_report_nav`), not a custom-scheme navigation (WebView2-safe on Windows).
 - Auth "noise" (Accounts hosts, `/login`, `/login-sites`, the `?authorization=` handoff) is filtered out of history so back/forward never lands the user on an SSO redirect page.
 - Back/forward can jump between different products, not just pages within one product — switching the active service and restoring its URL happens together.
 - Each product's last-visited path is persisted per session (`useServiceStore`), so returning to a service you already visited resumes where you left off instead of the homepage.
+
+**Smoke check (especially Windows):** after shell login, open Envia Shipping, navigate Home → Shipments → Settings. The product must not flicker or reload in a loop; shell back/forward should still move between those routes. On failure, check logs for a burst of `[sso] … auth-required` / `reseed` during a normal open.
 
 ## Auto-Updater
 
@@ -217,11 +219,34 @@ Set under Settings → Secrets and variables → Actions. `GITHUB_TOKEN` is prov
 
 ### Windows code signing (Azure Trusted Signing)
 
-Windows installers are signed via **Azure Trusted Signing** so customers don't hit
-the SmartScreen "unknown publisher" wall. Signing is wired into the release
-workflow and turns on only when `AZURE_SIGNING_ENABLED=true` **and** the six
-`AZURE_*` credential secrets above are set — otherwise the Windows build ships
-unsigned instead of failing the release.
+Windows installers are signed via **Azure Trusted Signing** as publisher
+**TENDENCIES INNOVATIONS**. Signing is wired into the release workflow and turns
+on only when `AZURE_SIGNING_ENABLED=true` **and** the `AZURE_*` credential
+secrets above are set — otherwise the Windows build ships unsigned instead of
+failing the release.
+
+**Hard rules for customer builds:**
+
+- Keep `AZURE_SIGNING_ENABLED=true` for every production Windows release.
+- Keep the same Trusted Signing account / certificate profile / publisher
+  identity — switching CA or publisher **resets** SmartScreen reputation.
+- Never ship unsigned Windows installers to customers (local debug builds are fine).
+- The Windows Store is **not** required for signing or SmartScreen; stay on
+  GitHub Releases + this download page.
+
+**SmartScreen vs signature:** a valid signature shows the publisher under
+“More info”. Microsoft Defender SmartScreen may still warn that the app is
+*unrecognized* until download reputation builds (often weeks + many clean
+installs). That is expected for a new publisher — see
+[Microsoft’s SmartScreen reputation docs](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+Users should: **More info** → confirm **TENDENCIES INNOVATIONS** → **Run anyway**.
+The download page (`docs/index.html`) shows the same tip for Windows visitors.
+
+**If SmartScreen persists abnormally** (weeks of clean installs, or a malware-style
+flag rather than “unrecognized”), submit the installer as a software developer via
+[Microsoft Security Intelligence file submission](https://www.microsoft.com/en-us/wdsi/filesubmission)
+(`Software developer` → upload the `.exe`/`.msi` from the GitHub Release). That
+helps analysis; consumer reputation still mainly grows from download volume.
 
 One-time setup:
 
@@ -230,10 +255,11 @@ One-time setup:
    validation. Public Trust requires a legal entity with **3+ years** of
    verifiable existence.
 2. Create an **App Registration** (service principal) with a client secret and
-   grant it the **Trusted Signing Certificate Profile Signer** role on the
-   account.
-3. Set the six `AZURE_*` secrets (endpoint/account/profile + tenant/client
-   id/secret) from the table above.
+   grant it the **Trusted Signing Certificate Profile Signer** (a.k.a. Artifact
+   Signing Certificate Profile Signer) role on the account — assign the **app**,
+   not only your user.
+3. Set `AZURE_SIGNING_ENABLED=true` plus the six `AZURE_*` credential secrets
+   from the table above.
 
 On Windows builds, CI installs [`trusted-signing-cli`](https://github.com/Levminer/trusted-signing-cli)
 and injects `bundle.windows.signCommand` into `tauri.conf.json`, so Tauri signs

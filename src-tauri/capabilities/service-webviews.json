@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "service-webviews",
-  "description": "Limited IPC for product child webviews (label save/print bridge)",
+  "description": "Limited IPC for product child webviews (label save/print + SPA nav report)",
   "windows": ["svc-*"],
   "remote": {
     "urls": [
@@ -18,5 +18,8 @@
       "https://localhost:*/*"
     ]
   },
-  "permissions": ["allow-desktop-deliver-file"]
+  "permissions": [
+    "allow-desktop-deliver-file",
+    "allow-desktop-report-nav"
+  ]
 }

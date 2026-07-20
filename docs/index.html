@@ -125,6 +125,32 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .smartscreen {
+        display: none;
+        margin-top: 18px;
+        padding: 14px 16px;
+        text-align: left;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(47, 109, 246, 0.08);
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+      .smartscreen.visible {
+        display: block;
+      }
+      .smartscreen strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .smartscreen ol {
+        margin: 8px 0 0;
+        padding-left: 1.2em;
+      }
+      .smartscreen li {
+        margin: 4px 0;
+      }
     </style>
   </head>
   <body>
@@ -133,6 +159,18 @@
       <p class="sub">Every tool you need to power your business, in one app.</p>
       <div class="card" id="card">
         <div class="state" id="state">Loading the latest release…</div>
+      </div>
+      <div class="smartscreen" id="smartscreen" aria-live="polite">
+        <strong>Windows SmartScreen tip</strong>
+        Installers are code-signed by <strong>TENDENCIES INNOVATIONS</strong>.
+        On a first download Windows may still say the app is unrecognized until
+        Microsoft builds download reputation. If you see
+        “Windows protected your PC”:
+        <ol>
+          <li>Click <strong>More info</strong> / <strong>Más información</strong></li>
+          <li>Confirm the publisher is <strong>TENDENCIES INNOVATIONS</strong></li>
+          <li>Click <strong>Run anyway</strong> / <strong>Ejecutar de todas formas</strong></li>
+        </ol>
       </div>
       <p class="footer">
         The app updates itself automatically after install.
@@ -259,6 +297,13 @@
               : ""
           }
         `;
+
+        const tip = document.getElementById("smartscreen");
+        const showWindowsTip =
+          primary.key === "windows" ||
+          others.some((e) => e.key === "windows") ||
+          detected === "windows";
+        tip.classList.toggle("visible", showWindowsTip);
       }
 
       fetch(API, { headers: { Accept: "application/vnd.github+json" } })

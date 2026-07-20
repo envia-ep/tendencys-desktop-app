@@ -35,7 +35,8 @@ use serde::Serialize;
 use cookie::SameSite;
 use tauri::{
     webview::{Cookie, DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder},
-    AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl,
+    AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Runtime, Webview,
+    WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -99,9 +100,41 @@ fn extract_deep_link_authorization(raw: &str) -> Option<String> {
         .filter(|t| !t.is_empty())
 }
 
-/// SPA hook: patches history.* and pings the shell via a cancelled custom navigation.
-const SPA_NAV_HOOK: &str = r#"
+/// Product → shell bridge: save/print + SPA history ping via Tauri IPC.
+/// Relies on remote IPC (`capabilities/service-webviews.json`). SPA route
+/// changes must NOT use custom-scheme `location.assign` — WebView2 mishandles
+/// cancelled custom navigations and causes a constant reload loop on Windows.
+const DESKTOP_BRIDGE_SCRIPT: &str = r#"
 (function () {
+  function invoke(cmd, args) {
+    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+      return window.__TAURI_INTERNALS__.invoke(cmd, args);
+    }
+    return Promise.reject(new Error('Tendencys desktop IPC unavailable'));
+  }
+
+  if (!window.__TENDENCYS_DESKTOP__) {
+    Object.defineProperty(window, '__TENDENCYS_DESKTOP__', {
+      value: Object.freeze({
+        isDesktop: true,
+        deliver: function (payload) {
+          payload = payload || {};
+          return invoke('desktop_deliver_file', {
+            request: {
+              intent: payload.intent || 'save',
+              fileName: payload.fileName || payload.file_name || 'label.pdf',
+              mime: payload.mime || null,
+              dataBase64: payload.dataBase64 || payload.data_base64 || null,
+              url: payload.url || null
+            }
+          });
+        }
+      }),
+      writable: false,
+      configurable: false
+    });
+  }
+
   if (window.__tendencysShellNav) return;
   window.__tendencysShellNav = true;
   var last = location.href;
@@ -110,8 +143,7 @@ const SPA_NAV_HOOK: &str = r#"
       var href = location.href;
       if (!replace && href === last) return;
       last = href;
-      var kind = replace ? 'r' : 'p';
-      location.assign('tendencys-nav://' + kind + '?' + encodeURIComponent(href));
+      invoke('desktop_report_nav', { replace: !!replace, url: href }).catch(function () {});
     } catch (e) {}
   }
   var _push = history.pushState;
@@ -130,40 +162,12 @@ const SPA_NAV_HOOK: &str = r#"
 })();
 "#;
 
-/// Product → native save/print bridge. Relies on Tauri remote IPC (see
-/// `capabilities/service-webviews.json`).
-const DESKTOP_BRIDGE_SCRIPT: &str = r#"
-(function () {
-  if (window.__TENDENCYS_DESKTOP__) return;
-  function invoke(cmd, args) {
-    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
-      return window.__TAURI_INTERNALS__.invoke(cmd, args);
-    }
-    return Promise.reject(new Error('Tendencys desktop IPC unavailable'));
-  }
-  Object.defineProperty(window, '__TENDENCYS_DESKTOP__', {
-    value: Object.freeze({
-      isDesktop: true,
-      deliver: function (payload) {
-        payload = payload || {};
-        return invoke('desktop_deliver_file', {
-          request: {
-            intent: payload.intent || 'save',
-            fileName: payload.fileName || payload.file_name || 'label.pdf',
-            mime: payload.mime || null,
-            dataBase64: payload.dataBase64 || payload.data_base64 || null,
-            url: payload.url || null
-          }
-        });
-      }
-    }),
-    writable: false,
-    configurable: false
-  });
-})();
-"#;
-
-fn emit_service_navigated(app: &AppHandle, service_id: &str, url: &str, replace: bool) {
+fn emit_service_navigated<R: Runtime>(
+    app: &AppHandle<R>,
+    service_id: &str,
+    url: &str,
+    replace: bool,
+) {
     app.state::<ServiceWebviews>()
         .stuck_on_auth
         .lock()
@@ -178,6 +182,43 @@ fn emit_service_navigated(app: &AppHandle, service_id: &str, url: &str, replace:
             replace,
         },
     );
+}
+
+/// Product SPA → shell history ping. Invoked from the injected history hook
+/// (no navigation). Only accepted from `svc-*` webviews.
+#[tauri::command]
+pub async fn desktop_report_nav<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    replace: bool,
+    url: String,
+) -> Result<(), String> {
+    let label = webview.label().to_string();
+    let service_id = label
+        .strip_prefix(SVC_PREFIX)
+        .ok_or_else(|| format!("desktop_report_nav only from product webviews, got {label}"))?
+        .to_string();
+
+    // Same product-vs-Accounts filter as the former tendencys-nav path: Accounts
+    // SPA router jumps must not clear stuck auth or enter shell history.
+    let is_accounts_or_auth_asset = url
+        .parse::<tauri::Url>()
+        .map(|parsed| is_accounts_host(&parsed) || is_third_party_auth_asset(&parsed))
+        .unwrap_or(true);
+    if is_accounts_or_auth_asset {
+        return Ok(());
+    }
+    if let Ok(parsed) = url.parse::<tauri::Url>() {
+        if parsed.path() == "/login"
+            || parsed.path() == "/login-sites"
+            || parsed.path() == "/authentication"
+        {
+            return Ok(());
+        }
+    }
+
+    emit_service_navigated(&app, &service_id, &url, replace);
+    Ok(())
 }
 
 fn is_accounts_host(url: &tauri::Url) -> bool {
@@ -406,7 +447,6 @@ fn build_service_webview(
 
     let mut builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
         .data_store_identifier(SHARED_DATA_STORE)
-        .initialization_script(SPA_NAV_HOOK)
         .initialization_script(DESKTOP_BRIDGE_SCRIPT);
     if let Some(script) = &atid_script {
         builder = builder.initialization_script(script);
@@ -465,33 +505,6 @@ fn build_service_webview(
             NewWindowResponse::Deny
         })
         .on_navigation(move |url| {
-            // SPA hook: cancelled custom scheme carries push/replace + href.
-            if url.scheme() == "tendencys-nav" {
-                let replace = url.host_str() == Some("r");
-                if let Some(raw) = url.query() {
-                    if let Ok(href) = urlencoding::decode(raw) {
-                        // The hook fires for every client-side route change,
-                        // including Accounts' own internal SPA router jumps
-                        // (e.g. `/login-sites` -> `/login` via router.push, no
-                        // real page load). Apply the same product-vs-Accounts
-                        // filter as the native navigation/page-load paths so a
-                        // failed SSO handoff isn't misreported as "product
-                        // navigated", which would wrongly clear the stuck state.
-                        let is_accounts_or_auth_asset = href
-                            .parse::<tauri::Url>()
-                            .map(|parsed_href| {
-                                is_accounts_host(&parsed_href)
-                                    || is_third_party_auth_asset(&parsed_href)
-                            })
-                            .unwrap_or(false);
-                        if !is_accounts_or_auth_asset {
-                            emit_service_navigated(&app_for_nav, &id_for_nav, &href, replace);
-                        }
-                    }
-                }
-                return false;
-            }
-
             // login-sites falls back to the interactive form when the shared
             // `_atid` is missing/expired. Surface it so a hidden pre-warm webview
             // is revealed for one re-auth instead of silently stuck on a form.
@@ -508,11 +521,12 @@ fn build_service_webview(
                 return true;
             }
 
-            // Document navigations on product hosts (skip Accounts SSO hops
-            // and third-party auth widget assets like the reCAPTCHA iframe).
+            // Document navigations on product hosts (skip Accounts SSO hops,
+            // auth callbacks, and third-party auth widget assets like reCAPTCHA).
             if !is_accounts_host(url)
                 && !is_third_party_auth_asset(url)
                 && url.path() != "/login-sites"
+                && url.path() != "/authentication"
                 && (url.scheme() == "https" || url.scheme() == "http")
             {
                 emit_service_navigated(&app_for_nav, &id_for_nav, &url.to_string(), false);
@@ -535,10 +549,14 @@ fn build_service_webview(
             // fallback for "loaded" purposes so the reseed-retry guard isn't cleared
             // on this transient intermediate page.
             let is_sso_relay = is_accounts_host(loaded_url) && loaded_url.path() == "/login-sites";
+            // Shipping (and similar) land on `/authentication` before the
+            // temporal-token hop — not a finished product load.
+            let is_auth_callback = loaded_url.path() == "/authentication";
             if !is_accounts_host(loaded_url)
                 && !is_third_party_auth_asset(loaded_url)
                 && loaded_url.path() != "/login-sites"
                 && loaded_url.path() != "/login"
+                && !is_auth_callback
                 && (loaded_url.scheme() == "https" || loaded_url.scheme() == "http")
             {
                 emit_service_navigated(
@@ -558,11 +576,12 @@ fn build_service_webview(
                 let _ = webview.show();
             }
             // Do not report "loaded" for the auth-required fallback page, a
-            // pending verification step-up page, or the `/login-sites` relay
-            // spinner — otherwise any of these clears the reseed-retry guard
-            // (or, for step-up, gets mistaken for the product itself) as if
-            // the product had actually loaded.
-            if !auth_required && !verification_required && !is_sso_relay {
+            // pending verification step-up page, the `/login-sites` relay
+            // spinner, or product `/authentication` mid-handoff — otherwise
+            // any of these clears the reseed-retry guard (or, for step-up,
+            // gets mistaken for the product itself) as if the product had
+            // actually loaded.
+            if !auth_required && !verification_required && !is_sso_relay && !is_auth_callback {
                 let _ = app_for_load.emit_to(main_target(), "service-loaded", &id_for_load);
             }
         });

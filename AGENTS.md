@@ -82,6 +82,13 @@ auto-update silently from that release on next launch.
   (tenant/client id/secret, or endpoint/account/profile). It only runs when
   `AZURE_SIGNING_ENABLED=true` **and** `AZURE_SIGNING_ENDPOINT` is set —
   otherwise the Windows build ships unsigned rather than failing the release.
+- **Never ship unsigned Windows installers to customers.** Keep
+  `AZURE_SIGNING_ENABLED=true` and the same Trusted Signing publisher identity
+  (`TENDENCIES INNOVATIONS`) on every production release — changing identity
+  resets SmartScreen reputation. SmartScreen “unrecognized app” after a valid
+  signature is expected until reputation builds; do not chase the Windows Store
+  or a new CA for that. See `README.md` (Windows code signing) and
+  `docs/index.html`.
 - Fix the secret or code, commit, then cut a **new** version tag. Do not retry by
  re-pushing the same tag.
 

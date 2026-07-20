@@ -17,3 +17,8 @@ commands.allow = ["print_test_page"]
 identifier = "allow-desktop-deliver-file"
 description = "Allows product webviews to save or print label blobs via the native bridge"
 commands.allow = ["desktop_deliver_file"]
+
+[[permission]]
+identifier = "allow-desktop-report-nav"
+description = "Allows product webviews to report SPA history changes to the shell (no navigation)"
+commands.allow = ["desktop_report_nav"]
