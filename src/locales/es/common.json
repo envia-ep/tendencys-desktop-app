@@ -47,7 +47,7 @@
       "packed": "Pedidos preparados",
       "settled": "Pagos liquidados"
     },
-    "exploreHint": "Arrastra para mover, usa la rueda para acercar, haz clic en un edificio para explorar",
+    "exploreHint": "Arrastra para mover, haz clic en un edificio para explorar",
     "detailHint": "Producto",
     "vehicleHint": "En movimiento",
     "closeDetail": "Cerrar",
@@ -89,39 +89,39 @@
       },
       "envia-shipping": {
         "label": "Envíos",
-        "pitch": "Envía con más de 100 paqueterías — cotiza, genera guías y rastrea en un solo lugar."
+        "pitch": "Compara tarifas con más de 100 paqueterías, imprime guías en un clic y rastrea envíos locales, nacionales e internacionales desde un solo panel."
       },
       "envia-cargo": {
         "label": "Cargo",
-        "pitch": "Reserva carga completa y consolidada (FTL y LTL) en una sola red."
+        "pitch": "Cotiza carga completa (FTL) al instante con equipo dedicado en EE. UU., México y Canadá — tracking GPS y cumplimiento cross-border incluidos."
       },
       "envia-fulfillment": {
         "label": "Fulfillment",
-        "pitch": "Almacena, prepara y envía pedidos desde una sola red de fulfillment."
+        "pitch": "Almacenamos, preparamos y enviamos tus pedidos desde una red de centros seguros — sincronizados con más de 30 plataformas ecommerce e inventario en tiempo real."
       },
       "envia-returns": {
         "label": "Devoluciones",
-        "pitch": "Gestiona devoluciones en la misma red que envía tus pedidos."
+        "pitch": "Convierte las devoluciones en lealtad — RMA autoservicio, integraciones con tu tienda y logística inversa que reduce costos y centraliza cada caso."
       },
       "ecart-pay": {
         "label": "Pagos",
-        "pitch": "Cobra de forma segura — checkout, enlaces de pago y suscripciones."
+        "pitch": "Acepta tarjetas, links de pago, suscripciones, MSI y domiciliación en una sola plataforma registrada ante la CNBV — online y con terminales en tienda."
       },
       "ecart-banking": {
         "label": "Banca",
-        "pitch": "Administra las finanzas de tu empresa — facturas entrantes y pagos a proveedores."
+        "pitch": "Extrae CFDIs de proveedores del SAT, aprueba cuentas por pagar y liquida por SPEI — wallets por empresa, pagos en lote y auditoría completa."
       },
       "ecart-api": {
         "label": "API",
-        "pitch": "Conecta más de 40 tiendas y marketplaces con una sola API."
+        "pitch": "Una sola API de comercio para más de 40 carritos y marketplaces — sincroniza productos, pedidos, inventario y clientes sin integrar cada plataforma."
       },
       "parapaquetes": {
         "label": "Insumos",
-        "pitch": "Empaque y suministros a precios de mayoreo."
+        "pitch": "Cajas, sobres, cintas y material de embalaje a mayoreo aceptados por todas las paqueterías — precios por volumen y envío a todo México."
       },
       "tendencys-partners": {
         "label": "Partners",
-        "pitch": "Gana comisiones recurrentes al referir soluciones Tendencys."
+        "pitch": "Vende ocho productos Tendencys desde un solo portal — comisiones recurrentes desde tu primer referido, materiales listos para vender y premios mensuales."
       }
     }
   },

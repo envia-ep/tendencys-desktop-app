@@ -54,7 +54,10 @@ jobs:
     # Evaluated once per job; the `secrets` context is not allowed directly in
     # step `if:` conditions, so derive a plain boolean env from it here.
     env:
-      WINDOWS_SIGNING_ENABLED: ${{ secrets.AZURE_SIGNING_ENDPOINT != '' }}
+      # Opt-in: endpoint alone is not enough — broken AZURE_* creds fail the
+      # whole Windows job and block publish. Set AZURE_SIGNING_ENABLED=true
+      # only after Trusted Signing credentials are verified.
+      WINDOWS_SIGNING_ENABLED: ${{ secrets.AZURE_SIGNING_ENABLED == 'true' && secrets.AZURE_SIGNING_ENDPOINT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -172,6 +175,9 @@ jobs:
   publish-release:
     runs-on: ubuntu-latest
     needs: [create-release, build]
+    # Publish when any platform succeeded. Matrix fail-fast is false; one
+    # platform (e.g. Windows signing) must not leave a permanent draft.
+    if: ${{ always() && needs.create-release.result == 'success' && needs.build.result != 'cancelled' }}
     steps:
       - name: Publish release
         uses: actions/github-script@v7

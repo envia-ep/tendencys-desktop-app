@@ -204,7 +204,8 @@ Set under Settings → Secrets and variables → Actions. `GITHUB_TOKEN` is prov
 | `APPLE_ID` | Notarization account | Apple Developer email |
 | `APPLE_PASSWORD` | Notarization | App-specific password (appleid.apple.com → App-Specific Passwords) |
 | `APPLE_TEAM_ID` | Notarization | Apple Developer → Membership |
-| `AZURE_SIGNING_ENDPOINT` | Windows signing (region URL) | Trusted Signing account → e.g. `https://wus2.codesigning.azure.net` (its presence toggles Windows signing on) |
+| `AZURE_SIGNING_ENABLED` | Windows signing toggle | Set to `true` only after Trusted Signing credentials are verified (otherwise Windows ships unsigned) |
+| `AZURE_SIGNING_ENDPOINT` | Windows signing (region URL) | Trusted Signing account → e.g. `https://wus2.codesigning.azure.net` |
 | `AZURE_SIGNING_ACCOUNT` | Windows signing | Trusted Signing **account** name |
 | `AZURE_SIGNING_PROFILE` | Windows signing | Trusted Signing **certificate profile** name |
 | `AZURE_TENANT_ID` | Windows signing auth | App Registration → Directory (tenant) ID |

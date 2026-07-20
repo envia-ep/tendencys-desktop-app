@@ -11,7 +11,7 @@ import type { OpsNodeId, OpsNodeMetaphor } from "./ops-scene";
 export const OPS_WORLD = { width: 1600, height: 1000 } as const;
 
 /** Bump when world geometry/sprites change so OpsWorld remounts the Pixi scene. */
-export const OPS_SCENE_REVISION = 2;
+export const OPS_SCENE_REVISION = 3;
 
 export type OpsBuilding = {
   id: OpsNodeId;
@@ -114,6 +114,7 @@ export const OPS_ROUTES: OpsRoute[] = [
   { id: "spoke-company-ff", kind: "road", points: arc("company", "envia-fulfillment", 0.1) },
   { id: "spoke-company-api", kind: "air", points: arc("company", "ecart-api", 0.06) },
   { id: "spoke-company-pay", kind: "road", points: arc("company", "ecart-pay", 0.08) },
+  { id: "spoke-company-bank", kind: "road", points: arc("company", "ecart-banking", -0.1) },
   { id: "spoke-company-partners", kind: "air", points: arc("company", "tendencys-partners", 0.1) },
   // Domain satellites
   { id: "link-ff-returns", kind: "road", points: arc("envia-fulfillment", "envia-returns", 0.14) },
@@ -139,6 +140,7 @@ export const OPS_VEHICLES: OpsVehicle[] = [
   { id: "truck-ff-returns", kind: "truck", routeId: "link-ff-returns", duration: 12, offset: 0.4, accent: "#DD6B20" },
   { id: "truck-ff-supply", kind: "truck", routeId: "link-ff-supply", duration: 13, offset: 0.15, accent: "#805AD5" },
   { id: "truck-company-pay", kind: "truck", routeId: "spoke-company-pay", duration: 14, offset: 0.1, accent: "#38A169" },
+  { id: "truck-company-bank", kind: "truck", routeId: "spoke-company-bank", duration: 15, offset: 0.3, accent: "#1A202C" },
   { id: "truck-pay-bank", kind: "truck", routeId: "link-pay-bank", duration: 11, offset: 0.55, accent: "#1A202C" },
   { id: "plane-ff-shipping", kind: "plane", routeId: "link-ff-shipping", duration: 16, offset: 0, accent: "#0066CC" },
   { id: "plane-company-partners", kind: "plane", routeId: "spoke-company-partners", duration: 18, offset: 0.4, accent: "#6B46C1" },

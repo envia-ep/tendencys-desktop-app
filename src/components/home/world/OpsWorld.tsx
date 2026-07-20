@@ -35,9 +35,6 @@ import {
   routePulseColor,
 } from "./draw";
 
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 2.4;
-
 function prefersReducedMotion(): boolean {
   try {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -152,7 +149,7 @@ export function OpsWorld() {
         sprite.on("pointertap", (e: FederatedPointerEvent) => {
           e.stopPropagation();
           useOpsWorldStore.getState().select({ type: "building", nodeId: b.id });
-          focusOn(b.x, b.y, 1.6);
+          focusOn(b.x, b.y);
         });
         sprite.on("pointerover", () =>
           gsap.to(sprite.scale, { x: 1.06, y: 1.06, duration: 0.2 }),
@@ -216,11 +213,10 @@ export function OpsWorld() {
           (app.screen.height - OPS_WORLD.height * scale) / 2,
         );
       }
-      function focusOn(x: number, y: number, targetScale: number) {
+      function focusOn(x: number, y: number) {
         if (!app) return;
         userInteracted = true;
-        const scale = Math.min(Math.max(targetScale, MIN_SCALE), MAX_SCALE);
-        gsap.to(world.scale, { x: scale, y: scale, duration: 0.6, ease: "power2.out" });
+        const scale = world.scale.x;
         gsap.to(world.position, {
           x: app.screen.width / 2 - x * scale,
           y: app.screen.height / 2 - y * scale,
@@ -243,7 +239,7 @@ export function OpsWorld() {
           ease: "power2.out",
           onComplete: () => {
             if (userInteracted) return;
-            // Very slow ambient sway via pivot (independent of pan/zoom).
+            // Very slow ambient sway via pivot (independent of pan).
             idleTl = gsap.timeline({ repeat: -1, yoyo: true });
             idleTl.to(world.pivot, {
               x: 16,
@@ -347,24 +343,6 @@ export function OpsWorld() {
       app.stage.on("pointertap", () => {
         if (!moved) useOpsWorldStore.getState().clearSelection();
       });
-
-      // Camera: wheel zoom around cursor
-      const onWheel = (ev: WheelEvent) => {
-        if (!app) return;
-        ev.preventDefault();
-        userInteracted = true;
-        const rect = app.canvas.getBoundingClientRect();
-        const px = ev.clientX - rect.left;
-        const py = ev.clientY - rect.top;
-        const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
-        const next = Math.min(Math.max(world.scale.x * factor, MIN_SCALE), MAX_SCALE);
-        const applied = next / world.scale.x;
-        world.position.x = px - (px - world.position.x) * applied;
-        world.position.y = py - (py - world.position.y) * applied;
-        world.scale.set(next);
-      };
-      app.canvas.addEventListener("wheel", onWheel, { passive: false });
-      cleanups.push(() => app?.canvas.removeEventListener("wheel", onWheel));
 
       // Keep hit area in sync on resize; re-fit until the user takes control
       const onResize = () => {

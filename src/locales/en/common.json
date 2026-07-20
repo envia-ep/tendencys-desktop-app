@@ -47,7 +47,7 @@
       "packed": "Orders packed",
       "settled": "Payments settled"
     },
-    "exploreHint": "Drag to pan, scroll to zoom, click a building to explore",
+    "exploreHint": "Drag to pan, click a building to explore",
     "detailHint": "Product",
     "vehicleHint": "In motion",
     "closeDetail": "Close",
@@ -89,39 +89,39 @@
       },
       "envia-shipping": {
         "label": "Shipping",
-        "pitch": "Ship with 100+ carriers — quotes, labels, and tracking in one place."
+        "pitch": "Compare rates across 100+ carriers, print labels in one click, and track local, domestic, and international packages from a single dashboard."
       },
       "envia-cargo": {
         "label": "Cargo",
-        "pitch": "Book FTL and LTL freight across one merchant–carrier network."
+        "pitch": "Get instant full-truckload quotes with dedicated equipment across the US, Mexico, and Canada — GPS tracking and cross-border compliance included."
       },
       "envia-fulfillment": {
         "label": "Fulfillment",
-        "pitch": "Warehouse, pick-and-pack, and ship orders from one fulfillment network."
+        "pitch": "We store, pick, pack, and ship your orders from a secure fulfillment network — synced to 30+ ecommerce platforms with real-time inventory."
       },
       "envia-returns": {
         "label": "Returns",
-        "pitch": "Handle returns on the same network that ships your orders."
+        "pitch": "Turn returns into a loyalty moment — self-serve RMAs, store integrations, and reverse logistics that cut cost and keep every case in one place."
       },
       "ecart-pay": {
         "label": "Payments",
-        "pitch": "Accept payments securely — checkout, links, and subscriptions."
+        "pitch": "Accept cards, payment links, subscriptions, MSI, and direct debit on one CNBV-registered platform — online checkout and in-store terminals."
       },
       "ecart-banking": {
         "label": "Banking",
-        "pitch": "Manage company finances — invoices in, provider payments out."
+        "pitch": "Pull provider CFDIs from the SAT, approve payables, and settle by SPEI — company wallets, batch payouts, and a full audit trail."
       },
       "ecart-api": {
         "label": "API",
-        "pitch": "Connect 40+ stores and marketplaces through one API."
+        "pitch": "One unified commerce API for 40+ carts and marketplaces — sync products, orders, inventory, and customers without building each platform yourself."
       },
       "parapaquetes": {
         "label": "Supplies",
-        "pitch": "Packaging and supplies at wholesale pricing."
+        "pitch": "Wholesale boxes, mailers, tape, and packing materials that every carrier accepts — volume pricing and nationwide shipping across Mexico."
       },
       "tendencys-partners": {
         "label": "Partners",
-        "pitch": "Earn recurring commissions by referring Tendencys solutions."
+        "pitch": "Sell eight Tendencys products from one portal — recurring commissions from your first referral, ready-to-pitch materials, and monthly prizes."
       }
     }
   },
