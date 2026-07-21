@@ -247,11 +247,11 @@ fn is_third_party_auth_asset(url: &tauri::Url) -> bool {
 /// account still owes a periodic 2FA re-verification, phone verification, or
 /// terms acceptance (see `resolvePostLoginRedirect` in the Accounts backend).
 /// Every product webview runs its own `/login-sites` handoff independently
-/// (prewarm + `auth-required` reseed all fire per-service), so without this
-/// check each open product silently renders its own copy of the Accounts
-/// verification form and gets misreported as a successful "loaded" product —
-/// the user then has to complete the same 2FA/terms/phone step separately in
-/// every tab. See `emit_verification_required_if_stepup`.
+/// (on first open + `auth-required` reseed), so without this check each open
+/// product silently renders its own copy of the Accounts verification form and
+/// gets misreported as a successful "loaded" product — the user then has to
+/// complete the same 2FA/terms/phone step separately in every tab. See
+/// `emit_verification_required_if_stepup`.
 fn is_accounts_step_up(url: &tauri::Url) -> bool {
     is_accounts_host(url)
         && matches!(
@@ -416,7 +416,7 @@ pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
 
 /// Create a hidden product webview glued to the content area. The webview stays
 /// hidden until `on_page_load(Finished)` and only reveals itself when it is the
-/// active service, so background pre-warming never flashes a blank native rect.
+/// active service, so a mid-load webview never flashes a blank native rect.
 /// A fallback to the interactive Accounts `/login` form (expired shared session)
 /// emits `auth-required` so the caller can reveal a stuck hidden webview.
 fn build_service_webview(
@@ -506,8 +506,8 @@ fn build_service_webview(
         })
         .on_navigation(move |url| {
             // login-sites falls back to the interactive form when the shared
-            // `_atid` is missing/expired. Surface it so a hidden pre-warm webview
-            // is revealed for one re-auth instead of silently stuck on a form.
+            // `_atid` is missing/expired. Surface it so the webview can be
+            // revealed for one re-auth instead of silently stuck on a form.
             // Product `/login` (except Shipping's mid-handoff token relay) is the
             // same class of failure.
             if emit_auth_required_if_login(&app_for_nav, &id_for_nav, url) {
@@ -867,7 +867,7 @@ pub async fn select_service(
 
     if let Some(webview) = app.get_webview(&label) {
         // Re-apply left inset in case the menu width changed while this webview
-        // was hidden (pre-warm / background).
+        // was hidden in the background.
         let left_inset = *app.state::<ServiceWebviews>().left_inset.lock().unwrap();
         if let Ok((pos, size)) = content_rect(&window, left_inset) {
             let _ = webview.set_position(pos);
@@ -888,26 +888,6 @@ pub async fn select_service(
         }
         return Ok(());
     }
-
-    build_service_webview(&app, &window, &label, &service_id, &url)
-}
-
-/// Background-create a product webview (hidden) and run its SSO handoff so a later
-/// rail click is instant. Unlike `select_service`, this never changes the active
-/// service or shows the webview. No-op if the webview already exists.
-#[tauri::command]
-pub async fn prewarm_service(
-    app: AppHandle,
-    service_id: String,
-    url: String,
-) -> Result<(), String> {
-    let label = svc_label(&service_id);
-    if app.get_webview(&label).is_some() {
-        return Ok(());
-    }
-    let window = app
-        .get_window(MAIN_WINDOW)
-        .ok_or("main window not found")?;
 
     build_service_webview(&app, &window, &label, &service_id, &url)
 }

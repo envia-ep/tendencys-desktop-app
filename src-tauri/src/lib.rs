@@ -12,7 +12,7 @@ use device_key::{
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
     clear_accounts_session, clear_shared_web_data, desktop_report_nav, emit_deep_link_auth,
-    logout_webviews, navigate_service, prewarm_service, read_accounts_session, reload_service,
+    logout_webviews, navigate_service, read_accounts_session, reload_service,
     reposition_all, seed_accounts_session, select_service, service_history_back,
     service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
 };
@@ -193,7 +193,6 @@ pub fn run() {
             login_with_device_key,
             register_device_key,
             select_service,
-            prewarm_service,
             navigate_service,
             service_history_back,
             service_history_forward,

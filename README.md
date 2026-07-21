@@ -8,8 +8,8 @@ Inspired by the Slack desktop layout: a collapsible service rail on the left and
 
 1. **You sign in once** to the shell (Accounts login), either interactively or silently via a device key saved from a previous session.
 2. **Every product opens in its own native webview**, positioned to the right of the service rail. Switching services just shows/hides the right native webview — it doesn't reload the page.
-3. **All product webviews share one cookie jar** with the login webview, so once you're signed into the shell, every product silently signs you in too (Accounts `/login-sites` SSO) — no repeated logins.
-4. **Products pre-warm in the background** right after login, so clicking a service in the rail is instant instead of waiting for a fresh page load.
+3. **All product webviews share one cookie jar** with the login webview, so once you're signed into the shell, each product can silently sign you in via Accounts `/login-sites` when you open it — no repeated password logins.
+4. **Product SSO is on demand** — the first time you open a service, it runs its `/login-sites` handoff; other products stay idle until you click them (avoids rate-limiting Accounts after login).
 5. **Back/forward/refresh** in the top rail walk a single shared history across every product you've visited in the session — like browser tabs, but for the whole shell.
 6. **The app updates itself** — it checks a hosted manifest on launch and offers a one-click install + relaunch when a new version is available.
 
@@ -71,10 +71,10 @@ Three layers, all backed by Accounts:
 - If a product's silent SSO ever fails (missing/expired `_atid`, or the product's own session died), the webview bounces to a login form and the shell surfaces an `auth-required` event so the shell can re-seed once and retry, or the user can retry via the rail's "Sign in" action.
 - "Open in browser" is always available and uses the real system browser with the same `/login-sites` SSO handoff — useful when a product needs full browser features the embedded webview doesn't support.
 
-### Pre-warming
+### On-demand product SSO
 
-- ~2.5 seconds after a fresh login (once the shared cookie has settled), the shell walks every other configured product and creates its webview **hidden**, running its SSO handoff in the background (`prewarm_service`). By the time the user clicks a different service in the rail, it's usually already loaded.
-- Products marked `ssoReady: false` (their callback route doesn't exist yet) are skipped from pre-warm and from silent SSO entirely — they still work, just without automatic sign-in.
+- Product `/login-sites` handoffs run **only when the user opens that service** (lazy SSO). Eager background pre-warm of every product after login was removed — it burst Accounts with N handoffs from one IP and could trip the edge rate limit, leaving some sites stuck.
+- Products marked `ssoReady: false` (their callback route doesn't exist yet) are skipped from silent SSO entirely — they still work, just without automatic sign-in.
 
 ## Navigation
 
@@ -110,7 +110,7 @@ Configured in `src/config/services.ts`, override any URL/site ID via `.env.local
 - `login-sites` — Accounts `/login-sites` handoff using the shared session (current default for all products with a working callback route).
 - `unsupported` — no Accounts SSO integration yet; the shell just opens the product URL and lets it handle its own login.
 
-Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell skips pre-warm/silent SSO for it and only opens the plain URL.
+Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell skips silent SSO for it and only opens the plain URL.
 
 ## Prerequisites
 

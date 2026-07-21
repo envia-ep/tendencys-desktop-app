@@ -12,17 +12,6 @@ export async function selectService(
   await invoke("select_service", { serviceId, url });
 }
 
-/**
- * Background-create a hidden product webview and run its SSO handoff so a later
- * rail click is instant. Never changes the active/visible service.
- */
-export async function prewarmService(
-  serviceId: string,
-  url: string,
-): Promise<void> {
-  await invoke("prewarm_service", { serviceId, url });
-}
-
 export async function navigateService(
   serviceId: string,
   url: string,
@@ -138,8 +127,8 @@ export async function listenShellAuthToken(
 }
 
 /**
- * Fires (payload: service id) when a product/pre-warm webview falls back to
- * Accounts `/login` (missing `_atid`) or the product's own `/login` (dead session).
+ * Fires (payload: service id) when a product webview falls back to Accounts
+ * `/login` (missing `_atid`) or the product's own `/login` (dead session).
  */
 export async function listenAuthRequired(
   handler: (serviceId: string) => void,

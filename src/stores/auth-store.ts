@@ -95,7 +95,7 @@ type AuthState = {
   /**
    * Transient (not persisted): true only right after a fresh interactive login
    * or successful account switch, when the shared Accounts `_atid` is guaranteed
-   * present. Eager SSO pre-warm keys off this. Consumed once.
+   * present. Product SSO resets mount state from this. Consumed once.
    */
   justAuthenticated: boolean;
   /**

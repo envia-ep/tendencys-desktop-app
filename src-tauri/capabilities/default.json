@@ -37,7 +37,6 @@
     "allow-validate-accounts-token",
     "allow-device-key",
     "allow-select-service",
-    "allow-prewarm-service",
     "allow-navigate-service",
     "allow-service-history-back",
     "allow-service-history-forward",

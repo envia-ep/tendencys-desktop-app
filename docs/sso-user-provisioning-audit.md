@@ -64,7 +64,7 @@ The shell drives per-service SSO from `src/lib/tendencys-auth.ts` `buildServiceS
 {ACCOUNTS_URL}/login-sites?site_id=<siteId>&redirect_url=<base64(authCallbackUrl)>
 ```
 
-`AppShell.tsx` loads this on the first open of a service (and pre-warms the others), using the shared `_atid` cookie. Accounts then:
+`AppShell.tsx` / `useProductSso` loads this on the first open of a service (lazy SSO), using the shared `_atid` cookie. Accounts then:
 
 1. `POST /api/login/sites` → `middlewares.sites` → `functions.authorization.validateSite(site_id, redirect_url)` (`accounts/express/utils/authorization.util.js:111`).
 2. `controllers.main.login` mints the handoff and returns `redirect_url` with `?authorization=<JWT>` appended (`accounts/express/controllers/main.controller.js:136-172`).

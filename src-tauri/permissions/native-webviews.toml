@@ -4,11 +4,6 @@ description = "Allows showing/creating a product child webview"
 commands.allow = ["select_service"]
 
 [[permission]]
-identifier = "allow-prewarm-service"
-description = "Allows background-creating a hidden product child webview to pre-run SSO"
-commands.allow = ["prewarm_service"]
-
-[[permission]]
 identifier = "allow-navigate-service"
 description = "Allows navigating an existing product child webview"
 commands.allow = ["navigate_service"]

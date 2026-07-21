@@ -23,7 +23,7 @@ export type ServiceDefinition = {
   authCallbackPath: string;
   /**
    * Whether the product's `authCallbackPath` actually accepts the Accounts
-   * `?authorization=` handoff yet. When false the shell must not drive SSO/pre-warm
+   * `?authorization=` handoff yet. When false the shell must not drive SSO
    * (it would land on a missing route). Defaults to true.
    */
   ssoReady?: boolean;

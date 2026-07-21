@@ -8,7 +8,6 @@ import {
   listenServiceNavigated,
   listenVerificationRequired,
   navigateService,
-  prewarmService,
   reloadService,
   selectService,
   setContentLeftInset,
@@ -34,17 +33,9 @@ import { getServiceById, SERVICES, type ServiceDefinition } from "@/config/servi
 const LOAD_TIMEOUT_MS = 20000;
 /** Minimum gap between _atid reseeds for the same service — prevents auth-required loops. */
 const SEED_COOLDOWN_MS = 30_000;
-/** Wait for first service paint before pre-warm. */
-const PREWARM_DELAY_MS = 2500;
-/**
- * Gap between each service pre-warm. Without it, every product's `/login-sites`
- * handoff fires within a couple seconds of login — a burst from one IP that can
- * trip the Accounts edge rate limit.
- */
-const PREWARM_STAGGER_MS = 1200;
 
 /**
- * Product SSO + native webview orchestration (seed gate, select, prewarm,
+ * Product SSO + native webview orchestration (seed gate, select on demand,
  * auth-required reseed, shell history). AppShell stays layout-only.
  */
 export function useProductSso() {
@@ -72,8 +63,6 @@ export function useProductSso() {
   const [canGoForward, setCanGoForward] = useState(false);
   /** True once jar has `_atid` (or seeded from session.token). Gates product SSO. */
   const [sessionReady, setSessionReady] = useState(false);
-  /** Bumps once per fresh login to start pre-warm without canceling on flag consume. */
-  const [prewarmToken, setPrewarmToken] = useState(0);
 
   const currentPath = lastPaths[activeService.id] ?? "/";
   const shellHistoryRef = useRef(createShellHistory());
@@ -201,7 +190,6 @@ export function useProductSso() {
     syncHistoryButtons();
     selectInFlightRef.current = null;
     consumeJustAuthenticated();
-    setPrewarmToken((n) => n + 1);
     showHome();
     void setServiceVisible(false);
   }, [
@@ -413,46 +401,6 @@ export function useProductSso() {
       unlisten?.();
     };
   }, [activeService.id]);
-
-  useEffect(() => {
-    if (!isAuthenticated || prewarmToken === 0) return;
-
-    let cancelled = false;
-    const activeId = activeService.id;
-    const timer = setTimeout(async () => {
-      let warmed = 0;
-      for (const service of SERVICES) {
-        if (cancelled) return;
-        if (service.id === activeId) continue;
-        if (service.authMode === "unsupported" || service.ssoReady === false) {
-          continue;
-        }
-        if (nativeMountedRef.current.has(service.id)) continue;
-        const sso = buildServiceSsoUrl(service);
-        if (!sso) continue;
-        if (warmed > 0) {
-          await new Promise((resolve) => setTimeout(resolve, PREWARM_STAGGER_MS));
-          if (cancelled) return;
-        }
-        nativeMountedRef.current.add(service.id);
-        lastUrlRef.current[service.id] = sso;
-        markSsoInitiated(service.id);
-        warmed += 1;
-        try {
-          await prewarmService(service.id, sso);
-        } catch {
-          nativeMountedRef.current.delete(service.id);
-          clearSsoInitiatedFor(service.id);
-        }
-      }
-    }, PREWARM_DELAY_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, prewarmToken]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
