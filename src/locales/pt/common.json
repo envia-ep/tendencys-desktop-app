@@ -20,6 +20,11 @@
     "restarting": "Reiniciando...",
     "dismiss": "Depois"
   },
+  "dockTip": {
+    "title": "Manter o Tendencys no Dock",
+    "description": "Clique com o botão direito no ícone do Tendencys no Dock e escolha Opções → Manter no Dock para reabri-lo depois de sair.",
+    "gotIt": "Entendi"
+  },
   "topBar": {
     "back": "Voltar",
     "forward": "Avançar",

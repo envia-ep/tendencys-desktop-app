@@ -20,6 +20,11 @@
     "restarting": "Restarting...",
     "dismiss": "Later"
   },
+  "dockTip": {
+    "title": "Keep Tendencys in the Dock",
+    "description": "Right-click the Tendencys icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
+    "gotIt": "Got it"
+  },
   "topBar": {
     "back": "Go back",
     "forward": "Go forward",

@@ -2,6 +2,7 @@ mod desktop_files;
 mod device_key;
 mod webview_manager;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use desktop_files::{desktop_deliver_file, list_printers, print_test_page, save_bytes};
@@ -12,10 +13,20 @@ use device_key::{
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
     clear_accounts_session, clear_shared_web_data, desktop_report_nav, emit_deep_link,
-    logout_webviews, navigate_service, read_accounts_session, reload_service,
+    focus_main_window, logout_webviews, navigate_service, read_accounts_session, reload_service,
     reposition_all, seed_accounts_session, select_service, service_history_back,
     service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
 };
+
+/// When true, window CloseRequested may destroy the window. Red traffic-light / X
+/// leaves this false and only hides. Real Quit (menu / Cmd+Q / tray) sets it and
+/// calls `app.exit` — ExitRequested alone never fires if we always prevent_close.
+static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
+
+fn request_quit(app: &tauri::AppHandle) {
+    ALLOW_EXIT.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
 
 /// Substrings that mark a key or query param as carrying an auth secret we must
 /// never ship to Sentry. Mirrors the "never print the token" discipline in
@@ -162,12 +173,8 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            use tauri::Manager;
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            // Second launch / deep-link handoff into a running (possibly hidden) app.
+            focus_main_window(app);
             // Fallback: some platforms deliver the tendencys:// URL as a second-
             // instance launch arg rather than (or in addition to) the deep-link
             // plugin's on_open_url. emit_deep_link no-ops on non-matching
@@ -262,10 +269,22 @@ pub fn run() {
             }
 
             // Keep child webviews glued to the content area on resize / DPI change.
+            // Window X hides (Slack-style). Real quit goes through `request_quit`.
+            // Hide via `get_window` — at CloseRequested, `get_webview_window("main")`
+            // is None in this multiwebview setup, so hide would no-op while
+            // prevent_close still ran and trapped the window open.
             use tauri::Manager;
             if let Some(window) = app.get_window("main") {
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        if !ALLOW_EXIT.load(Ordering::SeqCst) {
+                            if let Some(w) = handle.get_window("main") {
+                                let _ = w.hide();
+                            }
+                            api.prevent_close();
+                        }
+                    }
                     tauri::WindowEvent::Resized(_)
                     | tauri::WindowEvent::ScaleFactorChanged { .. } => {
                         reposition_all(&handle);
@@ -273,10 +292,114 @@ pub fn run() {
                     _ => {}
                 });
             }
+
+            // macOS: own Quit + Cmd+Q via app.exit. The system terminate path
+            // (default Quit) only fires CloseRequested — prevent_close would
+            // cancel quit and leave the process stuck.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+
+                let quit_i =
+                    MenuItem::with_id(app, "quit", "Quit Tendencys", true, Some("CmdOrCtrl+Q"))?;
+                let app_submenu = Submenu::with_items(
+                    app,
+                    "Tendencys",
+                    true,
+                    &[
+                        &PredefinedMenuItem::about(
+                            app,
+                            Some("About Tendencys"),
+                            Some(AboutMetadata::default()),
+                        )?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::services(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::hide(app, None)?,
+                        &PredefinedMenuItem::hide_others(app, None)?,
+                        &PredefinedMenuItem::show_all(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &quit_i,
+                    ],
+                )?;
+                let edit_submenu = Submenu::with_items(
+                    app,
+                    "Edit",
+                    true,
+                    &[
+                        &PredefinedMenuItem::undo(app, None)?,
+                        &PredefinedMenuItem::redo(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::cut(app, None)?,
+                        &PredefinedMenuItem::copy(app, None)?,
+                        &PredefinedMenuItem::paste(app, None)?,
+                        &PredefinedMenuItem::select_all(app, None)?,
+                    ],
+                )?;
+                let menu = Menu::with_items(app, &[&app_submenu, &edit_submenu])?;
+                app.set_menu(menu)?;
+                app.on_menu_event(|app, event| {
+                    if event.id.as_ref() == "quit" {
+                        request_quit(app);
+                    }
+                });
+            }
+
+            // Windows/Linux: after X there is no Dock — tray Show/Quit is the
+            // Slack affordance. macOS uses Dock reopen + app menu Quit instead.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri::menu::{Menu, MenuItem};
+                use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+                let show_i = MenuItem::with_id(app, "show", "Show Tendencys", true, None::<&str>)?;
+                let quit_i = MenuItem::with_id(app, "quit", "Quit Tendencys", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+                let icon = app
+                    .default_window_icon()
+                    .cloned()
+                    .ok_or("missing default window icon for tray")?;
+                let tray = TrayIconBuilder::with_id("main-tray")
+                    .icon(icon)
+                    .menu(&menu)
+                    .tooltip("Tendencys")
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        "show" => focus_main_window(app),
+                        "quit" => request_quit(app),
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            focus_main_window(tray.app_handle());
+                        }
+                    })
+                    .build(app)?;
+                // Keep a managed ref — TrayIcon is removed when the last clone drops.
+                app.manage(tray);
+            }
+
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => {
+                ALLOW_EXIT.store(true, Ordering::SeqCst);
+            }
+            // macOS Dock click when no windows are visible.
+            tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => {
+                focus_main_window(app_handle);
+            }
+            _ => {}
+        });
 }
 
 /// Validate an Accounts handoff JWT server-side so we can set Referer=aud

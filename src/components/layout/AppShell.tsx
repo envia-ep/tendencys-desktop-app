@@ -2,6 +2,7 @@ import { AlertCircle, ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ServiceMenu } from "./ServiceMenu";
 import { Button } from "@/components/ui/button";
+import { DockTipBanner } from "@/components/DockTipBanner";
 import { HomeHub } from "@/components/home/HomeHub";
 import { DevelopersHub } from "@/components/developers/DevelopersHub";
 import { DesktopSettings } from "@/components/settings/DesktopSettings";
@@ -34,46 +35,49 @@ export function AppShell() {
   } = useProductSso();
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <ServiceMenu
-        activeService={activeService}
-        shellView={shellView}
-        collapsed={menuCollapsed}
-        onSelectService={handleSelectService}
-        onShowHome={handleShowHome}
-        onShowDevelopers={handleShowDevelopers}
-        onShowSettings={handleShowSettings}
-        onToggleCollapsed={toggleMenuCollapsed}
-        onOpenInBrowser={handleOpenInBrowser}
-        onNavigateBack={handleNavigateBack}
-        onNavigateForward={handleNavigateForward}
-        onRefresh={handleRefresh}
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        onUserMenuOpenChange={handleUserMenuOpenChange}
-      />
-
-      {shellView === "home" && (
-        <HomeHub onOpenService={handleSelectService} />
-      )}
-      {shellView === "developers" && (
-        <DevelopersHub
-          onOpenServicePath={handleOpenServicePath}
-          onOpenDocs={(url) => {
-            void openInBrowser(url);
-          }}
-        />
-      )}
-      {shellView === "settings" && <DesktopSettings />}
-      {shellView === "service" && (
-        <NativeServiceArea
-          service={activeService}
-          isLoading={loadingServiceId === activeService.id}
-          hasError={errorServiceId === activeService.id}
-          onRetry={() => handleNativeRetry(activeService)}
+    <div className="flex h-screen flex-col overflow-hidden">
+      <DockTipBanner />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <ServiceMenu
+          activeService={activeService}
+          shellView={shellView}
+          collapsed={menuCollapsed}
+          onSelectService={handleSelectService}
+          onShowHome={handleShowHome}
+          onShowDevelopers={handleShowDevelopers}
+          onShowSettings={handleShowSettings}
+          onToggleCollapsed={toggleMenuCollapsed}
           onOpenInBrowser={handleOpenInBrowser}
+          onNavigateBack={handleNavigateBack}
+          onNavigateForward={handleNavigateForward}
+          onRefresh={handleRefresh}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onUserMenuOpenChange={handleUserMenuOpenChange}
         />
-      )}
+
+        {shellView === "home" && (
+          <HomeHub onOpenService={handleSelectService} />
+        )}
+        {shellView === "developers" && (
+          <DevelopersHub
+            onOpenServicePath={handleOpenServicePath}
+            onOpenDocs={(url) => {
+              void openInBrowser(url);
+            }}
+          />
+        )}
+        {shellView === "settings" && <DesktopSettings />}
+        {shellView === "service" && (
+          <NativeServiceArea
+            service={activeService}
+            isLoading={loadingServiceId === activeService.id}
+            hasError={errorServiceId === activeService.id}
+            onRetry={() => handleNativeRetry(activeService)}
+            onOpenInBrowser={handleOpenInBrowser}
+          />
+        )}
+      </div>
     </div>
   );
 }

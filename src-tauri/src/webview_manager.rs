@@ -59,12 +59,21 @@ struct ShellAuthPayload {
     atid: Option<String>,
 }
 
-fn focus_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+/// Bring the shell window to the front (deep link, macOS Dock reopen,
+/// Windows/Linux tray Show, second-instance). Repositions product webviews
+/// after the window was hidden. Uses `get_window` — `get_webview_window("main")`
+/// is often None in this multiwebview setup (same as CloseRequested hide).
+pub fn focus_main_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.show();
+    }
+    if let Some(window) = app.get_window(MAIN_WINDOW) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
+    reposition_all(app);
 }
 
 /// Handle OS deep links: Accounts auth handoff or open a product/section.

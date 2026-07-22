@@ -20,6 +20,11 @@
     "restarting": "Redémarrage…",
     "dismiss": "Plus tard"
   },
+  "dockTip": {
+    "title": "Garder Tendencys dans le Dock",
+    "description": "Cliquez avec le bouton droit sur l’icône Tendencys dans le Dock, puis choisissez Options → Garder dans le Dock pour la rouvrir après avoir quitté.",
+    "gotIt": "Compris"
+  },
   "topBar": {
     "back": "Retour",
     "forward": "Avancer",

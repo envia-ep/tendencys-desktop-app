@@ -20,6 +20,11 @@
     "restarting": "रीस्टार्ट हो रहा है...",
     "dismiss": "बाद में"
   },
+  "dockTip": {
+    "title": "Tendencys को Dock में रखें",
+    "description": "Dock में Tendencys आइकन पर राइट‑क्लिक करें, फिर Options → Keep in Dock चुनें ताकि बंद करने के बाद भी आप इसे फिर खोल सकें।",
+    "gotIt": "समझ गया"
+  },
   "topBar": {
     "back": "पीछे जाएँ",
     "forward": "आगे जाएँ",

@@ -20,6 +20,11 @@
     "restarting": "Riavvio...",
     "dismiss": "Più tardi"
   },
+  "dockTip": {
+    "title": "Tieni Tendencys nel Dock",
+    "description": "Fai clic con il tasto destro sull’icona Tendencys nel Dock, poi scegli Opzioni → Tieni nel Dock per riaprirla dopo aver uscito.",
+    "gotIt": "Ho capito"
+  },
   "topBar": {
     "back": "Indietro",
     "forward": "Avanti",

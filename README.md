@@ -56,8 +56,9 @@ Three layers, all backed by Accounts:
 - The shell validates the handoff JWT via Accounts' authorization API, **seeds** the response session token as `_atid` into the shared WKWebView jar (browser cookies never reach the app), **awaits** device-key registration, and persists the **non-secret profile** only (`src/lib/token-store.ts`). The real `_atid` stays in memory / the jar — never on disk.
 - Product tabs then SSO via `/login-sites` using that seeded cookie. If a product still hits `auth-required`, the shell remints via device key once and retries.
 
-### 2. Device-key silent re-auth
+### 2. Close lifecycle and device-key silent re-auth
 
+- **Window close (X)** hides the main window and keeps the process running (in-memory session + product webviews stay warm). A real quit exits: macOS **Quit / Cmd+Q**, Windows/Linux **tray Quit**. Restore after hide: macOS **Dock click**, Windows/Linux **tray Show** (or left-click the tray icon). Deep links / second-instance launches also focus the window.
 - Right after a successful interactive login, the shell generates an **Ed25519 keypair** (`src-tauri/src/device_key.rs`), stores the private key in the OS keyring (Keychain / Credential Manager), and registers the public key with Accounts as a "device key" login method for that account.
 - On every later launch, the shell tries `login_with_device_key` first: it fetches a challenge from Accounts, signs it with the stored private key, and gets back a handoff JWT — **no login form, no browser** — before ever showing the interactive login screen.
 - If Accounts requires an extra step (terms acceptance, phone verification), the shell opens that step in the system browser and still receives the JWT back via the `tendencys://` deep link.

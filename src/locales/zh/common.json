@@ -20,6 +20,11 @@
     "restarting": "正在重启…",
     "dismiss": "稍后"
   },
+  "dockTip": {
+    "title": "将 Tendencys 保留在程序坞",
+    "description": "按住 Control 键并点按程序坞中的 Tendencys 图标，然后选择“选项”→“在程序坞中保留”，以便退出后仍可重新打开。",
+    "gotIt": "知道了"
+  },
   "topBar": {
     "back": "后退",
     "forward": "前进",
