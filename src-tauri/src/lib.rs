@@ -392,6 +392,8 @@ pub fn run() {
                 ALLOW_EXIT.store(true, Ordering::SeqCst);
             }
             // macOS Dock click when no windows are visible.
+            // `Reopen` exists only on macOS — unguarded match fails Windows/Linux CI.
+            #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen {
                 has_visible_windows: false,
                 ..
