@@ -6,6 +6,7 @@ import {
   listenAuthRequired,
   listenServiceLoaded,
   listenServiceNavigated,
+  listenShellOpen,
   listenVerificationRequired,
   navigateService,
   reloadService,
@@ -13,6 +14,12 @@ import {
   setContentLeftInset,
   setServiceVisible,
 } from "@/lib/native-webviews";
+import {
+  resolveOpenTargetId,
+  setPendingOpenTarget,
+  takePendingOpenTarget,
+  type OpenTarget,
+} from "@/lib/pending-open-target";
 import {
   buildServiceSsoUrl,
   buildServiceViewUrl,
@@ -652,6 +659,64 @@ export function useProductSso() {
     showSettings();
     void setServiceVisible(false);
   }, [showSettings]);
+
+  // OS deep link `tendencys://open/<target>` — product tab or shell section.
+  useEffect(() => {
+    const applyTarget = (target: OpenTarget) => {
+      if (!isAuthenticated) {
+        setPendingOpenTarget(target);
+        return;
+      }
+      if (target.kind === "service") {
+        const service = getServiceById(target.id);
+        if (!service) {
+          console.warn(`[shell] unknown open-service id: ${target.id}`);
+          return;
+        }
+        handleSelectService(service);
+        return;
+      }
+      if (target.id === "home") {
+        handleShowHome();
+        return;
+      }
+      if (target.id === "developers") {
+        handleShowDevelopers();
+        return;
+      }
+      if (target.id === "settings") {
+        handleShowSettings();
+      }
+    };
+
+    const openByTargetId = (targetId: string) => {
+      const target = resolveOpenTargetId(targetId);
+      if (!target) {
+        console.warn(`[shell] unknown open target: ${targetId}`);
+        return;
+      }
+      applyTarget(target);
+    };
+
+    if (isAuthenticated) {
+      const pending = takePendingOpenTarget();
+      if (pending) applyTarget(pending);
+    }
+
+    let unlisten: (() => void) | undefined;
+    void listenShellOpen(openByTargetId).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [
+    isAuthenticated,
+    handleSelectService,
+    handleShowHome,
+    handleShowDevelopers,
+    handleShowSettings,
+  ]);
 
   useEffect(() => {
     const width = menuCollapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;

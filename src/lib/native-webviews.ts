@@ -127,6 +127,17 @@ export async function listenShellAuthToken(
 }
 
 /**
+ * Fires (payload: target id) when the OS opens `tendencys://open/<target>`.
+ * Target is a product id (`envia-shipping`) or shell section (`home`, `settings`, …).
+ */
+export async function listenShellOpen(
+  handler: (targetId: string) => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<string>("shell-open", (event) => handler(event.payload));
+}
+
+/**
  * Fires (payload: service id) when a product webview falls back to Accounts
  * `/login` (missing `_atid`) or the product's own `/login` (dead session).
  */

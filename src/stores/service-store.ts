@@ -22,6 +22,11 @@ function loadMenuCollapsed(): boolean {
   }
 }
 
+/**
+ * Shell chrome views. Product webviews use `"service"`.
+ * New hub sections must also be added to `OPEN_SHELL_SECTION_IDS`
+ * (`src/lib/pending-open-target.ts`) and Rust `OPEN_TARGET_IDS`.
+ */
 export type ShellView = "home" | "service" | "developers" | "settings";
 
 type ServiceState = {

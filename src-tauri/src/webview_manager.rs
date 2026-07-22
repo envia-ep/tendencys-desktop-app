@@ -59,29 +59,45 @@ struct ShellAuthPayload {
     atid: Option<String>,
 }
 
-/// Focus the main window and emit `shell-auth-token` for a system-browser /
-/// OS deep-link URL (`tendencys://authentication?authorization=…`).
-pub fn emit_deep_link_auth(app: &AppHandle, urls: &[String]) {
-    for raw in urls {
-        let Some(token) = extract_deep_link_authorization(raw) else {
-            continue;
-        };
-        if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-            let _ = window.unminimize();
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
-        log::info!("[sso] deep-link shell-auth-token emitted");
-        let _ = app.emit_to(
-            main_target(),
-            "shell-auth-token",
-            ShellAuthPayload {
-                token,
-                atid: None,
-            },
-        );
-        return;
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
     }
+}
+
+/// Handle OS deep links: Accounts auth handoff or open a product/section.
+///
+/// - `tendencys://authentication?authorization=…` → `shell-auth-token`
+/// - `tendencys://open/<target>` (product id or shell section) → `shell-open`
+pub fn emit_deep_link(app: &AppHandle, urls: &[String]) {
+    for raw in urls {
+        if let Some(token) = extract_deep_link_authorization(raw) {
+            focus_main_window(app);
+            log::info!("[sso] deep-link shell-auth-token emitted");
+            let _ = app.emit_to(
+                main_target(),
+                "shell-auth-token",
+                ShellAuthPayload {
+                    token,
+                    atid: None,
+                },
+            );
+            return;
+        }
+        if let Some(target_id) = extract_deep_link_open_target(raw) {
+            focus_main_window(app);
+            log::info!("[shell] deep-link open target={target_id}");
+            let _ = app.emit_to(main_target(), "shell-open", target_id);
+            return;
+        }
+    }
+}
+
+/// Backward-compatible alias used by older call sites / docs.
+pub fn emit_deep_link_auth(app: &AppHandle, urls: &[String]) {
+    emit_deep_link(app, urls);
 }
 
 fn extract_deep_link_authorization(raw: &str) -> Option<String> {
@@ -98,6 +114,46 @@ fn extract_deep_link_authorization(raw: &str) -> Option<String> {
         .find(|(k, _)| k == "authorization")
         .map(|(_, v)| v.into_owned())
         .filter(|t| !t.is_empty())
+}
+
+/// Known open targets — keep in sync with `src/lib/pending-open-target.ts`
+/// (`OPEN_SERVICE_IDS` + `OPEN_SHELL_SECTION_IDS`).
+const OPEN_TARGET_IDS: &[&str] = &[
+    // Products
+    "envia-shipping",
+    "envia-cargo",
+    "envia-fulfillment",
+    "envia-returns",
+    "parapaquetes",
+    "ecart-pay",
+    "ecart-banking",
+    "ecart-api",
+    "tendencys-partners",
+    // Shell sections
+    "home",
+    "developers",
+    "settings",
+];
+
+/// `tendencys://open/envia-shipping` → `Some("envia-shipping")` when the id is known.
+fn extract_deep_link_open_target(raw: &str) -> Option<String> {
+    let url = tauri::Url::parse(raw).ok()?;
+    if url.scheme() != "tendencys" {
+        return None;
+    }
+    let host = url.host_str().unwrap_or("");
+    let path = url.path().trim_matches('/');
+    if host != "open" || path.is_empty() {
+        return None;
+    }
+    // Reject nested paths — targets are a single segment.
+    if path.contains('/') {
+        return None;
+    }
+    if !OPEN_TARGET_IDS.contains(&path) {
+        return None;
+    }
+    Some(path.to_string())
 }
 
 /// Product → shell bridge: save/print + SPA history ping via Tauri IPC.

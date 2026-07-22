@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { isTauri } from "@/lib/tauri";
 import { DEEP_LINK_SCHEME } from "@/lib/tendencys-auth";
+import {
+  extractOpenTarget,
+  setPendingOpenTarget,
+} from "@/lib/pending-open-target";
 
 function extractAuthorization(raw: string): string | null {
   try {
@@ -18,8 +22,8 @@ function extractAuthorization(raw: string): string | null {
 }
 
 /**
- * Backup deep-link path: navigate to Authentication when JS receives tendencys://.
- * Primary path is Rust `emit_deep_link_auth` → shell-auth-token → App.tsx.
+ * Backup deep-link path for auth + open targets (products / shell sections).
+ * Primary path is Rust `emit_deep_link` → `shell-auth-token` / `shell-open`.
  */
 export function useTauriDeepLink() {
   const navigate = useNavigate();
@@ -40,17 +44,21 @@ export function useTauriDeepLink() {
     const handleUrls = (urls: string[]) => {
       for (const raw of urls) {
         const authorization = extractAuthorization(raw);
-        if (!authorization) {
-          console.warn("[TauriDeepLink] No authorization in:", raw);
-          continue;
+        if (authorization) {
+          const search = new URLSearchParams();
+          search.set("authorization", authorization);
+          navigateRef.current(`/authentication?${search.toString()}`, {
+            replace: true,
+          });
+          return;
         }
 
-        const search = new URLSearchParams();
-        search.set("authorization", authorization);
-        navigateRef.current(`/authentication?${search.toString()}`, {
-          replace: true,
-        });
-        return;
+        const target = extractOpenTarget(raw, DEEP_LINK_SCHEME);
+        if (target) {
+          // useProductSso consumes this once authenticated / on event.
+          setPendingOpenTarget(target);
+          return;
+        }
       }
     };
 

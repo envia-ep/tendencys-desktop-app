@@ -214,3 +214,16 @@ export function getDefaultService(): ServiceDefinition {
     ) ?? SERVICES[0]
   );
 }
+
+/**
+ * OS deep link that focuses Tendencys Desktop and opens a product tab or shell section.
+ * Format: `tendencys://open/<target>` — see `OPEN_DEEP_LINKS` in `pending-open-target.ts`.
+ */
+export function buildOpenServiceDeepLink(serviceId: string): string {
+  return `tendencys://open/${serviceId}`;
+}
+
+/** Deep links for every shell product (keep in sync with product banners). */
+export const OPEN_SERVICE_DEEP_LINKS: Record<string, string> = Object.fromEntries(
+  SERVICES.map((service) => [service.id, buildOpenServiceDeepLink(service.id)]),
+);

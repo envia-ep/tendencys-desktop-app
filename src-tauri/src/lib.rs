@@ -11,7 +11,7 @@ use device_key::{
 };
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
-    clear_accounts_session, clear_shared_web_data, desktop_report_nav, emit_deep_link_auth,
+    clear_accounts_session, clear_shared_web_data, desktop_report_nav, emit_deep_link,
     logout_webviews, navigate_service, read_accounts_session, reload_service,
     reposition_all, seed_accounts_session, select_service, service_history_back,
     service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
@@ -170,9 +170,9 @@ pub fn run() {
             }
             // Fallback: some platforms deliver the tendencys:// URL as a second-
             // instance launch arg rather than (or in addition to) the deep-link
-            // plugin's on_open_url. emit_deep_link_auth no-ops on non-matching
+            // plugin's on_open_url. emit_deep_link no-ops on non-matching
             // argv entries, so this is safe to call unconditionally.
-            emit_deep_link_auth(app, &argv);
+            emit_deep_link(app, &argv);
         }));
     }
 
@@ -233,12 +233,12 @@ pub fn run() {
                 app.deep_link().on_open_url(move |event| {
                     let urls: Vec<String> =
                         event.urls().into_iter().map(|u| u.to_string()).collect();
-                    emit_deep_link_auth(&handle, &urls);
+                    emit_deep_link(&handle, &urls);
                 });
                 if let Ok(Some(start_urls)) = app.deep_link().get_current() {
                     let urls: Vec<String> =
                         start_urls.into_iter().map(|u| u.to_string()).collect();
-                    emit_deep_link_auth(app.handle(), &urls);
+                    emit_deep_link(app.handle(), &urls);
                 }
             }
 

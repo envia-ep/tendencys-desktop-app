@@ -293,6 +293,36 @@ Sandbox Desktop site (Accounts `sites` on sandbox):
 
 Production still needs the same Desktop site mirrored in `ecartdb.sites` before shipping against `accounts.envia.com`.
 
+## Deep links (products + shell sections)
+
+Open Tendencys Desktop to a product tab or shell hub with:
+
+`tendencys://open/<target>`
+
+### Products
+
+| Product | Deep link |
+|---------|-----------|
+| Envia Shipping | `tendencys://open/envia-shipping` |
+| Envia Cargo | `tendencys://open/envia-cargo` |
+| Envia Fulfillment | `tendencys://open/envia-fulfillment` |
+| Envia Returns | `tendencys://open/envia-returns` |
+| Parapaquetes | `tendencys://open/parapaquetes` |
+| Ecart Pay | `tendencys://open/ecart-pay` |
+| Ecart Banking | `tendencys://open/ecart-banking` |
+| Ecart API | `tendencys://open/ecart-api` |
+| Tendencys Partners | `tendencys://open/tendencys-partners` |
+
+### Shell sections
+
+| Section | Deep link |
+|---------|-----------|
+| Home | `tendencys://open/home` |
+| Developers | `tendencys://open/developers` |
+| Settings | `tendencys://open/settings` |
+
+Source of truth: `OPEN_DEEP_LINKS` in `src/lib/pending-open-target.ts` (also mirrored in Rust `OPEN_TARGET_IDS`). When adding a new shell section, update `ShellView`, `OPEN_SHELL_SECTION_IDS`, and the Rust whitelist.
+
 ## License
 
 Proprietary — Tendencys / Envia
