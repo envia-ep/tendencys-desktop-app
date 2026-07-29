@@ -25,12 +25,16 @@
     "description": "Right-click the Tendencys icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
     "gotIt": "Got it"
   },
+  "devModeBanner": {
+    "label": "Dev environment — not connected to production"
+  },
   "topBar": {
     "back": "Go back",
     "forward": "Go forward",
     "refresh": "Refresh",
     "openInBrowser": "Open in browser",
     "userMenu": "User menu",
+    "newWindow": "Open new window",
     "signOut": "Sign out",
     "addAccount": "Add account",
     "switchAccount": "Switch to {{email}}",
@@ -235,7 +239,59 @@
     "testPrintSuccess": "Test page sent.",
     "testPrintError": "Test print failed.",
     "language": "Language",
-    "languageHelp": "Choose the language for the Tendencys Desktop interface."
+    "languageHelp": "Choose the language for the Tendencys Desktop interface.",
+    "general": "General",
+    "appearance": {
+      "title": "Appearance",
+      "help": "These options apply to Tendencys Desktop chrome only — not product pages.",
+      "theme": "Theme",
+      "themeHelp": "Light, dark, or match your operating system.",
+      "themeModes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "density": "Density",
+      "densityHelp": "Comfortable or compact spacing in the left menu.",
+      "densities": {
+        "comfortable": "Comfortable",
+        "compact": "Compact"
+      },
+      "zoom": "Text size",
+      "zoomHelp": "Scale text in Tendencys Desktop. Layout stays full-window.",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "Environment",
+      "help": "Switch which backend Tendencys Desktop connects to. Switching signs you out and restarts the app.",
+      "modes": {
+        "production": "Production",
+        "dev": "Dev"
+      },
+      "confirmTitle": "Switch to {{mode}}?",
+      "confirmDescription": "Switching environments signs you out and restarts the app.",
+      "restartNow": "Restart now",
+      "cancel": "Cancel",
+      "error": "Could not switch environment. Please try again.",
+      "openDevTools": "Open DevTools",
+      "devToolsError": "Could not open DevTools."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Drag to reorder products in the left menu. Add your own URLs to open them inside the app.",
+      "dragHandle": "Drag to reorder",
+      "builtIn": "Built-in product",
+      "edit": "Edit",
+      "delete": "Remove",
+      "save": "Save",
+      "cancel": "Cancel",
+      "addTitle": "Add a URL",
+      "add": "Add to menu",
+      "nameLabel": "Name",
+      "namePlaceholder": "My site",
+      "urlLabel": "URL",
+      "invalidUrl": "Enter a name and a valid http(s) URL."
+    }
   },
   "webView": {
     "launcherTitle": "Open {{service}}",

@@ -20,7 +20,7 @@ import {
   buildShellAuthUrl,
   buildShellLogoutUrl,
   openInBrowser,
-  TENDENCYS_BASE_URL,
+  getTendencysBaseUrl,
 } from "@/lib/tendencys-auth";
 import { isTauri } from "@/lib/tauri";
 import type { TendencysAccount } from "@/lib/accounts-api";
@@ -28,6 +28,8 @@ import { useServiceStore } from "@/stores/service-store";
 import {
   clearAccountsSession,
   clearSharedWebData,
+  emitShellSessionUpdated,
+  emitShellSignedOut,
   logoutWebviews,
   readAccountsSession,
 } from "@/lib/native-webviews";
@@ -41,17 +43,31 @@ import { setLoginStarted } from "@/lib/login-gate";
  */
 async function readRealAtid(): Promise<string | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
-    const atid = await readAccountsSession(TENDENCYS_BASE_URL).catch(() => null);
+    const atid = await readAccountsSession(getTendencysBaseUrl()).catch(
+      () => null,
+    );
     if (atid) return atid;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   return null;
 }
 
+/** Live `_atid` from the shared jar when its `id` claim matches `accountId`. */
+async function readJarTokenForAccount(
+  accountId: string,
+): Promise<string | null> {
+  const atid = await readAccountsSession(getTendencysBaseUrl()).catch(
+    () => null,
+  );
+  if (!atid) return null;
+  if (extractAccountId(atid) !== accountId) return null;
+  return atid;
+}
+
 /** Wipe product cookies/webviews so the next identity cannot inherit sessions. */
 async function wipeProductSessions(): Promise<void> {
   useServiceStore.getState().clearSsoInitiated();
-  await clearAccountsSession(TENDENCYS_BASE_URL).catch(() => undefined);
+  await clearAccountsSession(getTendencysBaseUrl()).catch(() => undefined);
   await clearSharedWebData().catch(() => undefined);
   await logoutWebviews();
 }
@@ -118,6 +134,13 @@ type AuthState = {
   consumeJustAuthenticated: () => void;
   /** Sign out the active account (remove slot; switch to another if any). */
   logout: () => Promise<void>;
+  /**
+   * Clear in-memory auth after another shell signed out (cookies already wiped).
+   * Does not call wipeProductSessions again.
+   */
+  applyRemoteSignOut: () => void;
+  /** Reload session from the shared plugin store (sibling window signed in). */
+  syncFromStore: () => Promise<void>;
   getAccount: () => TendencysAccount | null;
   getToken: () => string | null;
 };
@@ -176,22 +199,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     }
 
-    // The `_atid` is never persisted; restore only the non-secret profile for an
-    // optimistic shell render. The real session token is re-minted in memory via
-    // device-key silent login before any SSO fires.
+    // Prefer the live shared-jar `_atid` (another window may already be signed
+    // in). Only remint via device-key when the jar has no matching session.
+    const jarToken = await readJarTokenForAccount(active.account.id);
     set({
       session: {
-        token: "",
+        token: jarToken ?? "",
         account: active.account,
         expiresAt: active.expiresAt,
       },
       accounts,
       activeAccountId: active.account.id,
       isInitialized: true,
-      silentLoginAttempted: false,
+      silentLoginAttempted: Boolean(jarToken),
     });
 
-    void get().remintSession();
+    if (!jarToken) {
+      void get().remintSession();
+    }
   },
 
   remintSession: async () => {
@@ -207,9 +232,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const accountId = current.account.id;
 
-    // Without a linked device key there is no silent path — force interactive login.
+    const adoptJarOrClear = async () => {
+      const jarToken = await readJarTokenForAccount(accountId);
+      const latest = get().session;
+      if (jarToken && latest?.account.id === accountId) {
+        set({
+          session: { ...latest, token: jarToken },
+          silentLoginAttempted: true,
+        });
+        return;
+      }
+      if (latest?.account.id === accountId) {
+        set({ session: null, silentLoginAttempted: true });
+      } else {
+        set({ silentLoginAttempted: true });
+      }
+    };
+
+    // Without a linked device key there is no silent path — keep jar session
+    // if another window already seeded `_atid`, else force interactive login.
     if (!(await hasDeviceKey(accountId))) {
-      set({ session: null, silentLoginAttempted: true });
+      await adoptJarOrClear();
       return;
     }
 
@@ -229,6 +272,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (result.kind === "intermediate") {
       // Terms / phone step — open in the system browser; deep link returns the handoff.
+      // Keep a jar-backed session if present so sibling windows stay signed in.
+      const jarToken = await readJarTokenForAccount(accountId);
+      if (jarToken) {
+        set({
+          session: { ...current, token: jarToken },
+          silentLoginAttempted: true,
+        });
+        return;
+      }
       set({ session: null, silentLoginAttempted: true });
       try {
         await openInBrowser(result.redirectUrl);
@@ -238,10 +290,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Silent re-mint failed (error, unavailable, rate-limited, missing token) — drop
-    // the optimistic session and route to interactive login. Mark attempted so
-    // LoginPage does not immediately re-hit options+login.
-    set({ session: null, silentLoginAttempted: true });
+    // Silent re-mint failed — adopt shared-jar `_atid` when another window is
+    // already signed in; otherwise drop the optimistic session.
+    await adoptJarOrClear();
   },
 
   validateAndLogin: async (
@@ -318,6 +369,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Await so cold-start remint works after this interactive login.
     resetDeviceKeyLoginCache();
     await registerDeviceKey(session.token, session.account.id);
+
+    // Sibling shells share the plugin store — tell them to hydrate.
+    void emitShellSessionUpdated();
 
     return true;
   },
@@ -475,6 +529,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       setLoginStarted(false);
       await wipeProductSessions();
+      void emitShellSignedOut();
       return;
     }
 
@@ -508,6 +563,68 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
     setLoginStarted(false);
     await wipeProductSessions();
+    void emitShellSignedOut();
+  },
+
+  applyRemoteSignOut: () => {
+    // Ignore our own broadcast after local logout already cleared session.
+    if (!get().session && get().accounts.length === 0) {
+      return;
+    }
+    resetDeviceKeyLoginCache();
+    useServiceStore.getState().clearSsoInitiated();
+    setLoginStarted(false);
+    set({
+      session: null,
+      accounts: [],
+      activeAccountId: null,
+      error: null,
+      silentLoginAttempted: true,
+      isAddingAccount: false,
+      justAuthenticated: false,
+    });
+  },
+
+  syncFromStore: async () => {
+    // Sibling window already validated the handoff and wrote the shared store.
+    const stored = await loadShellAuth();
+    if (!stored) {
+      get().applyRemoteSignOut();
+      return;
+    }
+    const accounts = pruneExpired(stored.accounts);
+    if (accounts.length === 0) {
+      get().applyRemoteSignOut();
+      return;
+    }
+    const active =
+      accounts.find((a) => a.account.id === stored.activeAccountId) ??
+      accounts[accounts.length - 1];
+    // Skip our own validateAndLogin broadcast — we already have the session token.
+    const current = get().session;
+    if (
+      current?.account.id === active.account.id &&
+      current.token.length > 0
+    ) {
+      return;
+    }
+    const jarToken = await readJarTokenForAccount(active.account.id);
+    set({
+      session: {
+        token: jarToken ?? "",
+        account: active.account,
+        expiresAt: active.expiresAt,
+      },
+      accounts,
+      activeAccountId: active.account.id,
+      error: null,
+      isAddingAccount: false,
+      justAuthenticated: true,
+      silentLoginAttempted: Boolean(jarToken),
+    });
+    if (!jarToken) {
+      void get().remintSession();
+    }
   },
 
   getAccount: () => get().session?.account ?? null,

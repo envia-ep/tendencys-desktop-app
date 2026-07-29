@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useServiceStore } from "@/stores/service-store";
-import { MENU_COLLAPSED_WIDTH, MENU_EXPANDED_WIDTH } from "@/config/layout";
+import { getContentLeftInset } from "@/config/layout";
 import {
   listenAuthRequired,
   listenServiceLoaded,
@@ -34,7 +34,18 @@ import {
 import { ssoCaptureFailure, ssoLog } from "@/lib/sso-log";
 import { ensureAtidSeeded } from "@/lib/atid-jar";
 import { hasDeviceKey, tryDeviceKeyLogin } from "@/lib/device-keys";
-import { getServiceById, SERVICES, type ServiceDefinition } from "@/config/services";
+import {
+  getDefaultService,
+  getServiceById,
+  getServiceUrl,
+  SERVICES,
+  type ServiceDefinition,
+} from "@/config/services";
+import {
+  isCustomMenuId,
+  resolveServiceById,
+} from "@/lib/menu-layout";
+import { usePreferencesStore } from "@/stores/preferences-store";
 
 /** If a product webview never fires its first-load event, surface a retry. */
 const LOAD_TIMEOUT_MS = 20000;
@@ -63,8 +74,18 @@ export function useProductSso() {
   const markSsoInitiated = useServiceStore((s) => s.markSsoInitiated);
   const clearSsoInitiatedFor = useServiceStore((s) => s.clearSsoInitiatedFor);
   const lastPaths = useServiceStore((s) => s.lastPaths);
+  const menuLayout = usePreferencesStore((s) => s.menuLayout);
+  const uiDensity = usePreferencesStore((s) => s.uiDensity);
 
   const isAuthenticated = Boolean(session);
+
+  const resolveService = useCallback((serviceId: string) => {
+    return resolveServiceById(
+      serviceId,
+      usePreferencesStore.getState().menuLayout,
+      getServiceById,
+    );
+  }, []);
 
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
@@ -85,16 +106,16 @@ export function useProductSso() {
   const recordNavigation = useCallback(
     (serviceId: string, url: string, replace = false) => {
       if (isAuthNoiseUrl(url)) return;
-      const service = getServiceById(serviceId);
+      const service = resolveService(serviceId);
       if (!service) return;
       try {
-        if (new URL(url).origin !== new URL(service.url).origin) return;
+        if (new URL(url).origin !== new URL(getServiceUrl(service)).origin) return;
       } catch {
         return;
       }
 
       knownUrlsRef.current[serviceId] = url;
-      void setLastPath(serviceId, pathFromServiceUrl(service.url, url));
+      void setLastPath(serviceId, pathFromServiceUrl(getServiceUrl(service), url));
 
       if (serviceId !== useServiceStore.getState().activeService.id) return;
 
@@ -105,12 +126,38 @@ export function useProductSso() {
       }
       syncHistoryButtons();
     },
-    [setLastPath, syncHistoryButtons],
+    [resolveService, setLastPath, syncHistoryButtons],
   );
 
   useEffect(() => {
     loadServiceData(activeService.id);
   }, [activeService.id, loadServiceData]);
+
+  // Custom menu item removed or renamed while it is the active tab.
+  useEffect(() => {
+    if (!isCustomMenuId(activeService.id)) return;
+    const resolved = resolveService(activeService.id);
+    if (!resolved) {
+      setActiveService(getDefaultService());
+      showHome();
+      void setServiceVisible(false);
+      return;
+    }
+    if (
+      resolved.name !== activeService.name ||
+      resolved.url !== activeService.url
+    ) {
+      setActiveService(resolved);
+    }
+  }, [
+    menuLayout,
+    activeService.id,
+    activeService.name,
+    activeService.url,
+    resolveService,
+    setActiveService,
+    showHome,
+  ]);
 
   useEffect(() => {
     if (isAuthenticated) return;
@@ -222,7 +269,7 @@ export function useProductSso() {
     (serviceId: string) => {
       const path = pendingDeepLinkRef.current[serviceId];
       if (!path) return;
-      const service = getServiceById(serviceId);
+      const service = resolveService(serviceId);
       if (!service) return;
       delete pendingDeepLinkRef.current[serviceId];
       const targetUrl = buildServiceViewUrl(service, path);
@@ -234,7 +281,7 @@ export function useProductSso() {
       }
       void navigateService(serviceId, targetUrl);
     },
-    [beginLoad, setLastPath],
+    [beginLoad, resolveService, setLastPath],
   );
 
   const resolveServiceUrl = useCallback(
@@ -332,7 +379,7 @@ export function useProductSso() {
       const others = Array.from(pendingVerificationRef.current);
       pendingVerificationRef.current.clear();
       for (const serviceId of others) {
-        const service = getServiceById(serviceId);
+        const service = resolveService(serviceId);
         const sso = service && buildServiceSsoUrl(service);
         if (!sso) continue;
         ssoLog(`service=${serviceId} verification-required resolved elsewhere -> retry login-sites`);
@@ -341,7 +388,7 @@ export function useProductSso() {
         void navigateService(serviceId, sso);
       }
     },
-    [activeService.id, beginLoad],
+    [activeService.id, beginLoad, resolveService],
   );
 
   useEffect(() => {
@@ -353,12 +400,13 @@ export function useProductSso() {
 
       const pendingPath = pendingDeepLinkRef.current[event.serviceId];
       if (pendingPath && !isAuthNoiseUrl(event.url)) {
-        const service = getServiceById(event.serviceId);
+        const service = resolveService(event.serviceId);
         if (service) {
           try {
+            const serviceUrl = getServiceUrl(service);
             const onProduct =
-              new URL(event.url).origin === new URL(service.url).origin;
-            const currentPath = pathFromServiceUrl(service.url, event.url);
+              new URL(event.url).origin === new URL(serviceUrl).origin;
+            const currentPath = pathFromServiceUrl(serviceUrl, event.url);
             if (onProduct && currentPath !== pendingPath) {
               consumePendingDeepLink(event.serviceId);
               return;
@@ -381,6 +429,7 @@ export function useProductSso() {
     };
   }, [
     recordNavigation,
+    resolveService,
     retryOtherPendingVerifications,
     consumePendingDeepLink,
   ]);
@@ -514,7 +563,7 @@ export function useProductSso() {
       syncHistoryButtons();
       if (traverseTimerRef.current) clearTimeout(traverseTimerRef.current);
 
-      const service = getServiceById(entry.serviceId);
+      const service = resolveService(entry.serviceId);
       if (!service) {
         shellHistoryRef.current.setTraversing(false);
         syncHistoryButtons();
@@ -544,7 +593,7 @@ export function useProductSso() {
         syncHistoryButtons();
       }, 400);
     },
-    [setActiveService, syncHistoryButtons],
+    [resolveService, setActiveService, syncHistoryButtons],
   );
 
   const handleSelectService = useCallback(
@@ -668,7 +717,7 @@ export function useProductSso() {
         return;
       }
       if (target.kind === "service") {
-        const service = getServiceById(target.id);
+        const service = resolveService(target.id);
         if (!service) {
           console.warn(`[shell] unknown open-service id: ${target.id}`);
           return;
@@ -716,14 +765,15 @@ export function useProductSso() {
     handleShowHome,
     handleShowDevelopers,
     handleShowSettings,
+    resolveService,
   ]);
 
   useEffect(() => {
-    const width = menuCollapsed ? MENU_COLLAPSED_WIDTH : MENU_EXPANDED_WIDTH;
-    setContentLeftInset(width).catch((err) => {
+    const inset = getContentLeftInset(menuCollapsed, uiDensity);
+    setContentLeftInset(inset).catch((err) => {
       console.error("[useProductSso] setContentLeftInset failed", err);
     });
-  }, [menuCollapsed]);
+  }, [menuCollapsed, uiDensity]);
 
   const handleNavigateBack = useCallback(() => {
     const entry = shellHistoryRef.current.back();

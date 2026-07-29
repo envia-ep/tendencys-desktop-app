@@ -117,8 +117,10 @@ fn load_service_prefs<R: Runtime>(app: &AppHandle<R>, service_id: &str) -> Servi
         .unwrap_or_default()
 }
 
+/// Product labels are `svc-<window>--<service_id>` (see webview_manager).
 fn service_id_from_label(label: &str) -> Option<&str> {
-    label.strip_prefix(SVC_PREFIX)
+    let rest = label.strip_prefix(SVC_PREFIX)?;
+    rest.split_once("--").map(|(_, service_id)| service_id)
 }
 
 async fn decode_bytes(req: &DeliverFileRequest) -> Result<Vec<u8>, String> {

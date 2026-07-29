@@ -25,12 +25,16 @@
     "description": "Cliquez avec le bouton droit sur l’icône Tendencys dans le Dock, puis choisissez Options → Garder dans le Dock pour la rouvrir après avoir quitté.",
     "gotIt": "Compris"
   },
+  "devModeBanner": {
+    "label": "Environnement de développement — non connecté à la production"
+  },
   "topBar": {
     "back": "Retour",
     "forward": "Avancer",
     "refresh": "Actualiser",
     "openInBrowser": "Ouvrir dans le navigateur",
     "userMenu": "Menu utilisateur",
+    "newWindow": "Ouvrir une nouvelle fenêtre",
     "signOut": "Se déconnecter",
     "addAccount": "Ajouter un compte",
     "switchAccount": "Passer à {{email}}",
@@ -208,6 +212,58 @@
     "version": "Version {{version}}",
     "language": "Langue",
     "languageHelp": "Choisissez la langue de l’interface Tendencys Desktop.",
+    "general": "Général",
+    "appearance": {
+      "title": "Apparence",
+      "help": "Ces options s’appliquent uniquement au chrome de Tendencys Desktop — pas aux pages produit.",
+      "theme": "Thème",
+      "themeHelp": "Clair, sombre ou selon le système d’exploitation.",
+      "themeModes": {
+        "light": "Clair",
+        "dark": "Sombre",
+        "system": "Système"
+      },
+      "density": "Densité",
+      "densityHelp": "Espacement confortable ou compact dans le menu de gauche.",
+      "densities": {
+        "comfortable": "Confortable",
+        "compact": "Compact"
+      },
+      "zoom": "Taille du texte",
+      "zoomHelp": "Met à l’échelle le texte de Tendencys Desktop. La mise en page reste plein écran.",
+      "zoomPercent": "{{percent}} %"
+    },
+    "environment": {
+      "title": "Environnement",
+      "help": "Changez le backend auquel Tendencys Desktop se connecte. Le changement vous déconnecte et redémarre l’application.",
+      "modes": {
+        "production": "Production",
+        "dev": "Dev"
+      },
+      "confirmTitle": "Passer à {{mode}} ?",
+      "confirmDescription": "Changer d’environnement vous déconnecte et redémarre l’application.",
+      "restartNow": "Redémarrer maintenant",
+      "cancel": "Annuler",
+      "error": "Impossible de changer d’environnement. Veuillez réessayer.",
+      "openDevTools": "Ouvrir DevTools",
+      "devToolsError": "Impossible d’ouvrir DevTools."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Glissez pour réordonner les produits du menu de gauche. Ajoutez vos propres URL pour les ouvrir dans l’application.",
+      "dragHandle": "Glisser pour réordonner",
+      "builtIn": "Produit intégré",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "addTitle": "Ajouter une URL",
+      "add": "Ajouter au menu",
+      "nameLabel": "Nom",
+      "namePlaceholder": "Mon site",
+      "urlLabel": "URL",
+      "invalidUrl": "Saisissez un nom et une URL http(s) valide."
+    },
     "products": "Produits",
     "loading": "Chargement des préférences…",
     "productHint": "Ces options s’appliquent uniquement dans l’app bureau — pas dans le navigateur.",

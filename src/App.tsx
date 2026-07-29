@@ -3,10 +3,16 @@ import { useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { UpdateBanner } from "@/components/UpdateBanner";
+import { DevModeBanner } from "@/components/DevModeBanner";
 import { useAuthStore } from "@/stores/auth-store";
 import { usePreferencesStore } from "@/stores/preferences-store";
+import { useAppearance } from "@/hooks/useAppearance";
 import { useTauriDeepLink } from "@/hooks/useTauriDeepLink";
-import { listenShellAuthToken } from "@/lib/native-webviews";
+import {
+  listenShellAuthToken,
+  listenShellSessionUpdated,
+  listenShellSignedOut,
+} from "@/lib/native-webviews";
 import { claimHandoffToken } from "@/lib/auth-handoff";
 import { diagnoseAccountsSession } from "@/lib/sso-log";
 import Home from "@/pages/Home";
@@ -15,6 +21,7 @@ import Authentication from "@/pages/Authentication";
 
 function AppRoutes() {
   useTauriDeepLink();
+  useAppearance();
   const navigate = useNavigate();
   const initialize = useAuthStore((s) => s.initialize);
   const isInitialized = useAuthStore((s) => s.isInitialized);
@@ -24,7 +31,7 @@ function AppRoutes() {
     initialize();
   }, [initialize]);
 
-  // Apply saved shell language early (before Settings is opened).
+  // Apply saved shell language / appearance early (before Settings is opened).
   useEffect(() => {
     void loadPreferences();
   }, [loadPreferences]);
@@ -61,6 +68,31 @@ function AppRoutes() {
     };
   }, [navigate]);
 
+  // Sibling shells: sign-out / sign-in in another window share one session.
+  useEffect(() => {
+    let unlistenSignedOut: (() => void) | undefined;
+    let unlistenSession: (() => void) | undefined;
+    void listenShellSignedOut(() => {
+      useAuthStore.getState().applyRemoteSignOut();
+      navigate("/login", { replace: true });
+    }).then((fn) => {
+      unlistenSignedOut = fn;
+    });
+    void listenShellSessionUpdated(() => {
+      void useAuthStore.getState().syncFromStore().then(() => {
+        if (useAuthStore.getState().session) {
+          navigate("/", { replace: true });
+        }
+      });
+    }).then((fn) => {
+      unlistenSession = fn;
+    });
+    return () => {
+      unlistenSignedOut?.();
+      unlistenSession?.();
+    };
+  }, [navigate]);
+
   if (!isInitialized) {
     return (
       <div className="flex h-screen items-center justify-center bg-primary text-white">
@@ -84,7 +116,8 @@ export default function App() {
     <TooltipProvider>
       <BrowserRouter>
         <ErrorBoundary>
-          <div className="flex h-screen flex-col overflow-hidden">
+          <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+            <DevModeBanner />
             <UpdateBanner />
             <div className="min-h-0 flex-1">
               <AppRoutes />

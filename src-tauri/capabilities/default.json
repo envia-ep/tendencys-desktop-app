@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Default permissions for Tendencys Desktop",
   "windows": [
-    "main"
+    "main",
+    "shell-*"
   ],
   "permissions": [
     "core:default",
@@ -11,6 +12,8 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-unminimize",
+    "core:window:allow-create",
+    "core:webview:allow-create-webview-window",
     "deep-link:default",
     "opener:default",
     "store:default",
@@ -47,6 +50,8 @@
     "allow-reload-service",
     "allow-set-service-visible",
     "allow-set-content-left-inset",
+    "allow-open-active-service-devtools",
+    "allow-create-shell-window",
     "allow-logout-webviews",
     "allow-seed-accounts-session",
     "allow-clear-accounts-session",

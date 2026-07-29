@@ -35,7 +35,7 @@ export function AppShell() {
   } = useProductSso();
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <DockTipBanner />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <ServiceMenu
@@ -47,7 +47,6 @@ export function AppShell() {
           onShowDevelopers={handleShowDevelopers}
           onShowSettings={handleShowSettings}
           onToggleCollapsed={toggleMenuCollapsed}
-          onOpenInBrowser={handleOpenInBrowser}
           onNavigateBack={handleNavigateBack}
           onNavigateForward={handleNavigateForward}
           onRefresh={handleRefresh}

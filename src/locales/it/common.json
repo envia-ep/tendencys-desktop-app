@@ -25,12 +25,16 @@
     "description": "Fai clic con il tasto destro sull’icona Tendencys nel Dock, poi scegli Opzioni → Tieni nel Dock per riaprirla dopo aver uscito.",
     "gotIt": "Ho capito"
   },
+  "devModeBanner": {
+    "label": "Ambiente di sviluppo — non connesso alla produzione"
+  },
   "topBar": {
     "back": "Indietro",
     "forward": "Avanti",
     "refresh": "Aggiorna",
     "openInBrowser": "Apri nel browser",
     "userMenu": "Menu utente",
+    "newWindow": "Apri nuova finestra",
     "signOut": "Esci",
     "addAccount": "Aggiungi account",
     "switchAccount": "Passa a {{email}}",
@@ -208,6 +212,58 @@
     "version": "Versione {{version}}",
     "language": "Lingua",
     "languageHelp": "Scegli la lingua dell’interfaccia di Tendencys Desktop.",
+    "general": "Generale",
+    "appearance": {
+      "title": "Aspetto",
+      "help": "Queste opzioni si applicano solo al chrome di Tendencys Desktop — non alle pagine prodotto.",
+      "theme": "Tema",
+      "themeHelp": "Chiaro, scuro o in base al sistema operativo.",
+      "themeModes": {
+        "light": "Chiaro",
+        "dark": "Scuro",
+        "system": "Sistema"
+      },
+      "density": "Densità",
+      "densityHelp": "Spaziatura comoda o compatta nel menu a sinistra.",
+      "densities": {
+        "comfortable": "Comoda",
+        "compact": "Compatta"
+      },
+      "zoom": "Dimensione testo",
+      "zoomHelp": "Scala il testo di Tendencys Desktop. Il layout resta a tutto schermo.",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "Ambiente",
+      "help": "Cambia il backend a cui si connette Tendencys Desktop. Il cambio disconnette e riavvia l’app.",
+      "modes": {
+        "production": "Produzione",
+        "dev": "Dev"
+      },
+      "confirmTitle": "Passare a {{mode}}?",
+      "confirmDescription": "Cambiare ambiente disconnette e riavvia l’app.",
+      "restartNow": "Riavvia ora",
+      "cancel": "Annulla",
+      "error": "Impossibile cambiare ambiente. Riprova.",
+      "openDevTools": "Apri DevTools",
+      "devToolsError": "Impossibile aprire DevTools."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Trascina per riordinare i prodotti nel menu a sinistra. Aggiungi i tuoi URL per aprirli nell’app.",
+      "dragHandle": "Trascina per riordinare",
+      "builtIn": "Prodotto integrato",
+      "edit": "Modifica",
+      "delete": "Rimuovi",
+      "save": "Salva",
+      "cancel": "Annulla",
+      "addTitle": "Aggiungi un URL",
+      "add": "Aggiungi al menu",
+      "nameLabel": "Nome",
+      "namePlaceholder": "Il mio sito",
+      "urlLabel": "URL",
+      "invalidUrl": "Inserisci un nome e un URL http(s) valido."
+    },
     "products": "Prodotti",
     "loading": "Caricamento preferenze…",
     "productHint": "Queste opzioni valgono solo nell’app desktop — non nel browser.",

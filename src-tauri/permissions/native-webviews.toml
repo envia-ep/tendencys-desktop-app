@@ -34,6 +34,11 @@ description = "Allows updating the left chrome inset to match the collapsible se
 commands.allow = ["set_content_left_inset"]
 
 [[permission]]
+identifier = "allow-create-shell-window"
+description = "Allows opening an independent shell window that shares the Accounts session"
+commands.allow = ["create_shell_window"]
+
+[[permission]]
 identifier = "allow-logout-webviews"
 description = "Allows tearing down all product and auth child webviews on logout"
 commands.allow = ["logout_webviews"]
@@ -52,3 +57,8 @@ commands.allow = ["clear_accounts_session"]
 identifier = "allow-read-accounts-session"
 description = "Allows reading the Accounts _atid cookie back from the shared product webview store"
 commands.allow = ["read_accounts_session"]
+
+[[permission]]
+identifier = "allow-open-active-service-devtools"
+description = "Allows opening DevTools on the active product child webview (Dev-mode Settings only)"
+commands.allow = ["open_active_service_devtools"]

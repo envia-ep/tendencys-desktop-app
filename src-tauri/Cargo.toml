@@ -15,7 +15,10 @@ tauri-build = { version = "2", features = [] }
 # Pinned exact: the multiwebview API lives behind `unstable` and can shift
 # between minor versions. Bump deliberately, never via `cargo update`.
 [dependencies]
-tauri = { version = "=2.11.3", features = ["unstable", "tray-icon"] }
+# devtools: lets Settings' Dev-mode "Open DevTools" button call
+# `.open_devtools()` on a product webview in a *signed release* build — by
+# default DevTools only auto-work with `--debug` builds.
+tauri = { version = "=2.11.3", features = ["unstable", "tray-icon", "devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-store = "2"
@@ -34,6 +37,9 @@ uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 hostname = "0.4"
 urlencoding = "2"
+sha2 = "0.10"
+hex = "0.4"
+mac_address = "1"
 cookie = "0.18"
 # Crash/error reporting. tauri-plugin-sentry 0.5 pins the sentry-rust 0.42 line
 # and re-exports sentry-rust-minidump for native hard-crash capture.

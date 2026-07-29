@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: #ffffff;
   --color-foreground: #1a1a1a;
@@ -24,8 +26,30 @@
   --radius: 0.5rem;
 }
 
+/* Shell dark theme — keep brand primary blues; product webviews are unaffected. */
+.dark {
+  --color-background: #0b1220;
+  --color-foreground: #eef2ff;
+  --color-secondary: #152238;
+  --color-secondary-foreground: #eef2ff;
+  --color-muted: #152238;
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #1a2b45;
+  --color-accent-foreground: #eef2ff;
+  --color-border: #243247;
+  --color-input: #243247;
+  --color-popover: #111a2c;
+  --color-popover-foreground: #eef2ff;
+  --color-ring: #3b82f6;
+}
+
 * {
   box-sizing: border-box;
+}
+
+html {
+  /* Shell zoom preference — rem-based type/spacing only; layout stays full-window. */
+  font-size: calc(16px * var(--shell-font-scale, 1));
 }
 
 html,
@@ -44,6 +68,8 @@ body {
     "Helvetica Neue",
     Arial,
     sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

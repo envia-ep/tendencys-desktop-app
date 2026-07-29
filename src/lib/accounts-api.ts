@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { TENDENCYS_BASE_URL, SHELL_SITE_ID } from "./tendencys-auth";
+import { getTendencysBaseUrl, getShellSiteId } from "./tendencys-auth";
 
 export type TendencysAccount = {
   id: string;
@@ -91,8 +91,8 @@ export async function validateAuthorizationToken(
     const data = await invoke<AccountsAuthorizationResponse>(
       "validate_accounts_token",
       {
-        accountsBaseUrl: TENDENCYS_BASE_URL,
-        siteId: SHELL_SITE_ID,
+        accountsBaseUrl: getTendencysBaseUrl(),
+        siteId: getShellSiteId(),
         token,
         referer: audience,
       },

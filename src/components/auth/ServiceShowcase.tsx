@@ -7,7 +7,7 @@ import {
 } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ServiceIcon } from "@/components/ServiceIcon";
-import { SERVICES, type ServiceDefinition } from "@/config/services";
+import { getVisibleServices, type ServiceDefinition } from "@/config/services";
 
 import enviaShipping from "@/assets/logos/services/envia-shipping.svg";
 import enviaCargo from "@/assets/logos/services/envia-cargo.png";
@@ -88,18 +88,19 @@ function ServiceLogo({
 export function ServiceShowcase() {
   const { t } = useTranslation();
   const reduce = useReducedMotion();
+  const services = getVisibleServices();
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (reduce || paused) return;
     const id = window.setInterval(() => {
-      setActiveIndex((i) => (i + 1) % SERVICES.length);
+      setActiveIndex((i) => (i + 1) % services.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [reduce, paused]);
+  }, [reduce, paused, services.length]);
 
-  const featured = SERVICES[activeIndex];
+  const featured = services[activeIndex];
 
   const container: Variants = {
     hidden: {},
@@ -191,7 +192,7 @@ export function ServiceShowcase() {
 
         {/* Service grid */}
         <motion.div variants={item} className="grid grid-cols-3 gap-3">
-          {SERVICES.map((service, i) => {
+          {services.map((service, i) => {
             const isActive = i === activeIndex;
             return (
               <motion.button

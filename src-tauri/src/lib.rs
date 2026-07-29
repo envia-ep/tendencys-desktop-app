@@ -1,8 +1,8 @@
 mod desktop_files;
 mod device_key;
+mod machine_fingerprint;
 mod webview_manager;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use desktop_files::{desktop_deliver_file, list_printers, print_test_page, save_bytes};
@@ -12,21 +12,12 @@ use device_key::{
 };
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
-    clear_accounts_session, clear_shared_web_data, desktop_report_nav, emit_deep_link,
-    focus_main_window, logout_webviews, navigate_service, read_accounts_session, reload_service,
-    reposition_all, seed_accounts_session, select_service, service_history_back,
+    attach_shell_window_events, clear_accounts_session, clear_shared_web_data, create_shell_window,
+    desktop_report_nav, emit_deep_link, focus_main_window, logout_webviews, mark_exit_allowed,
+    navigate_service, open_active_service_devtools, read_accounts_session, reload_service,
+    request_quit, seed_accounts_session, select_service, service_history_back,
     service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
 };
-
-/// When true, window CloseRequested may destroy the window. Red traffic-light / X
-/// leaves this false and only hides. Real Quit (menu / Cmd+Q / tray) sets it and
-/// calls `app.exit` — ExitRequested alone never fires if we always prevent_close.
-static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
-
-fn request_quit(app: &tauri::AppHandle) {
-    ALLOW_EXIT.store(true, Ordering::SeqCst);
-    app.exit(0);
-}
 
 /// Substrings that mark a key or query param as carrying an auth secret we must
 /// never ship to Sentry. Mirrors the "never print the token" discipline in
@@ -206,6 +197,8 @@ pub fn run() {
             reload_service,
             set_service_visible,
             set_content_left_inset,
+            open_active_service_devtools,
+            create_shell_window,
             logout_webviews,
             seed_accounts_session,
             clear_accounts_session,
@@ -250,16 +243,18 @@ pub fn run() {
             }
 
             // Always log to a file (LogDir) so `[sso]` diagnostics are recoverable
-            // from an affected user's release build; add stdout only in debug.
-            // macOS: ~/Library/Logs/com.tendencys.desktop/tendencys.log
+            // from an affected user's release build. Stdout is unconditional too
+            // (not gated on debug_assertions) so a terminal-launched signed release
+            // — e.g. a developer running Settings' Dev mode — still gets console
+            // logs. macOS: ~/Library/Logs/com.tendencys.desktop/tendencys.log
             {
                 use tauri_plugin_log::{Target, TargetKind};
-                let mut targets = vec![Target::new(TargetKind::LogDir {
-                    file_name: Some("tendencys".into()),
-                })];
-                if cfg!(debug_assertions) {
-                    targets.push(Target::new(TargetKind::Stdout));
-                }
+                let targets = vec![
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("tendencys".into()),
+                    }),
+                    Target::new(TargetKind::Stdout),
+                ];
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
@@ -268,38 +263,24 @@ pub fn run() {
                 )?;
             }
 
-            // Keep child webviews glued to the content area on resize / DPI change.
-            // Window X hides (Slack-style). Real quit goes through `request_quit`.
-            // Hide via `get_window` — at CloseRequested, `get_webview_window("main")`
-            // is None in this multiwebview setup, so hide would no-op while
-            // prevent_close still ran and trapped the window open.
-            use tauri::Manager;
-            if let Some(window) = app.get_window("main") {
-                let handle = app.handle().clone();
-                window.on_window_event(move |event| match event {
-                    tauri::WindowEvent::CloseRequested { api, .. } => {
-                        if !ALLOW_EXIT.load(Ordering::SeqCst) {
-                            if let Some(w) = handle.get_window("main") {
-                                let _ = w.hide();
-                            }
-                            api.prevent_close();
-                        }
-                    }
-                    tauri::WindowEvent::Resized(_)
-                    | tauri::WindowEvent::ScaleFactorChanged { .. } => {
-                        reposition_all(&handle);
-                    }
-                    _ => {}
-                });
-            }
+            // Keep child webviews glued to the content area; last window hides
+            // (Slack-style); extra shells close for real. Real quit → request_quit.
+            attach_shell_window_events(app.handle(), "main");
 
-            // macOS: own Quit + Cmd+Q via app.exit. The system terminate path
+            // macOS: New Window + Quit via app menu. The system terminate path
             // (default Quit) only fires CloseRequested — prevent_close would
             // cancel quit and leave the process stuck.
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
+                let new_window_i = MenuItem::with_id(
+                    app,
+                    "new-window",
+                    "New Window",
+                    true,
+                    Some("CmdOrCtrl+N"),
+                )?;
                 let quit_i =
                     MenuItem::with_id(app, "quit", "Quit Tendencys", true, Some("CmdOrCtrl+Q"))?;
                 let app_submenu = Submenu::with_items(
@@ -319,6 +300,7 @@ pub fn run() {
                         &PredefinedMenuItem::hide_others(app, None)?,
                         &PredefinedMenuItem::show_all(app, None)?,
                         &PredefinedMenuItem::separator(app)?,
+                        &new_window_i,
                         &quit_i,
                     ],
                 )?;
@@ -338,34 +320,71 @@ pub fn run() {
                 )?;
                 let menu = Menu::with_items(app, &[&app_submenu, &edit_submenu])?;
                 app.set_menu(menu)?;
-                app.on_menu_event(|app, event| {
-                    if event.id.as_ref() == "quit" {
-                        request_quit(app);
+                app.on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => request_quit(app),
+                    "new-window" => {
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(err) = create_shell_window(handle).await {
+                                log::warn!("[shell] new-window menu failed: {err}");
+                            }
+                        });
                     }
+                    _ => {}
                 });
             }
 
-            // Windows/Linux: after X there is no Dock — tray Show/Quit is the
-            // Slack affordance. macOS uses Dock reopen + app menu Quit instead.
+            // Windows/Linux: File menu (New Window + Quit) + tray Show/Quit.
             #[cfg(any(windows, target_os = "linux"))]
             {
-                use tauri::menu::{Menu, MenuItem};
+                use tauri::menu::{Menu, MenuItem, Submenu};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
+                let new_window_i = MenuItem::with_id(
+                    app,
+                    "new-window",
+                    "New Window",
+                    true,
+                    Some("CmdOrCtrl+N"),
+                )?;
+                let quit_i =
+                    MenuItem::with_id(app, "quit", "Quit Tendencys", true, Some("CmdOrCtrl+Q"))?;
+                let file_submenu = Submenu::with_items(
+                    app,
+                    "File",
+                    true,
+                    &[&new_window_i, &quit_i],
+                )?;
+                let app_menu = Menu::with_items(app, &[&file_submenu])?;
+                app.set_menu(app_menu)?;
+                app.on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => request_quit(app),
+                    "new-window" => {
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(err) = create_shell_window(handle).await {
+                                log::warn!("[shell] new-window menu failed: {err}");
+                            }
+                        });
+                    }
+                    _ => {}
+                });
+
                 let show_i = MenuItem::with_id(app, "show", "Show Tendencys", true, None::<&str>)?;
-                let quit_i = MenuItem::with_id(app, "quit", "Quit Tendencys", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+                let tray_quit_i =
+                    MenuItem::with_id(app, "tray-quit", "Quit Tendencys", true, None::<&str>)?;
+                let tray_menu = Menu::with_items(app, &[&show_i, &tray_quit_i])?;
                 let icon = app
                     .default_window_icon()
                     .cloned()
                     .ok_or("missing default window icon for tray")?;
                 let tray = TrayIconBuilder::with_id("main-tray")
                     .icon(icon)
-                    .menu(&menu)
+                    .menu(&tray_menu)
                     .tooltip("Tendencys")
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "show" => focus_main_window(app),
-                        "quit" => request_quit(app),
+                        "tray-quit" => request_quit(app),
                         _ => {}
                     })
                     .on_tray_icon_event(|tray, event| {
@@ -389,7 +408,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| match event {
             tauri::RunEvent::ExitRequested { .. } => {
-                ALLOW_EXIT.store(true, Ordering::SeqCst);
+                mark_exit_allowed();
             }
             // macOS Dock click when no windows are visible.
             // `Reopen` exists only on macOS — unguarded match fails Windows/Linux CI.

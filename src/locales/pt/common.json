@@ -25,12 +25,16 @@
     "description": "Clique com o botão direito no ícone do Tendencys no Dock e escolha Opções → Manter no Dock para reabri-lo depois de sair.",
     "gotIt": "Entendi"
   },
+  "devModeBanner": {
+    "label": "Ambiente de desenvolvimento — não conectado à produção"
+  },
   "topBar": {
     "back": "Voltar",
     "forward": "Avançar",
     "refresh": "Atualizar",
     "openInBrowser": "Abrir no navegador",
     "userMenu": "Menu do usuário",
+    "newWindow": "Abrir nova janela",
     "signOut": "Sair",
     "addAccount": "Adicionar conta",
     "switchAccount": "Trocar para {{email}}",
@@ -208,6 +212,58 @@
     "version": "Versão {{version}}",
     "language": "Idioma",
     "languageHelp": "Escolha o idioma da interface do Tendencys Desktop.",
+    "general": "Geral",
+    "appearance": {
+      "title": "Aparência",
+      "help": "Estas opções se aplicam apenas ao chrome do Tendencys Desktop — não às páginas de produto.",
+      "theme": "Tema",
+      "themeHelp": "Claro, escuro ou conforme o sistema operacional.",
+      "themeModes": {
+        "light": "Claro",
+        "dark": "Escuro",
+        "system": "Sistema"
+      },
+      "density": "Densidade",
+      "densityHelp": "Espaçamento confortável ou compacto no menu esquerdo.",
+      "densities": {
+        "comfortable": "Confortável",
+        "compact": "Compacto"
+      },
+      "zoom": "Tamanho do texto",
+      "zoomHelp": "Escala o texto do Tendencys Desktop. O layout continua em tela cheia.",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "Ambiente",
+      "help": "Altere o backend ao qual o Tendencys Desktop se conecta. A troca desconecta você e reinicia o app.",
+      "modes": {
+        "production": "Produção",
+        "dev": "Dev"
+      },
+      "confirmTitle": "Mudar para {{mode}}?",
+      "confirmDescription": "Mudar de ambiente desconecta você e reinicia o app.",
+      "restartNow": "Reiniciar agora",
+      "cancel": "Cancelar",
+      "error": "Não foi possível mudar de ambiente. Tente novamente.",
+      "openDevTools": "Abrir DevTools",
+      "devToolsError": "Não foi possível abrir o DevTools."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Arraste para reordenar os produtos no menu esquerdo. Adicione suas próprias URLs para abri-las no app.",
+      "dragHandle": "Arrastar para reordenar",
+      "builtIn": "Produto integrado",
+      "edit": "Editar",
+      "delete": "Remover",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "addTitle": "Adicionar uma URL",
+      "add": "Adicionar ao menu",
+      "nameLabel": "Nome",
+      "namePlaceholder": "Meu site",
+      "urlLabel": "URL",
+      "invalidUrl": "Informe um nome e uma URL http(s) válida."
+    },
     "products": "Produtos",
     "loading": "Carregando preferências…",
     "productHint": "Essas opções valem só no app desktop — não no navegador.",

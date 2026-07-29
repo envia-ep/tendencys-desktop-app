@@ -25,12 +25,16 @@
     "description": "Haz clic derecho en el icono de Tendencys en el Dock y elige Opciones → Mantener en el Dock para poder reabrirlo después de salir.",
     "gotIt": "Entendido"
   },
+  "devModeBanner": {
+    "label": "Entorno de desarrollo — no conectado a producción"
+  },
   "topBar": {
     "back": "Atrás",
     "forward": "Adelante",
     "refresh": "Actualizar",
     "openInBrowser": "Abrir en navegador",
     "userMenu": "Menú de usuario",
+    "newWindow": "Abrir nueva ventana",
     "signOut": "Cerrar sesión",
     "addAccount": "Agregar cuenta",
     "switchAccount": "Cambiar a {{email}}",
@@ -235,7 +239,59 @@
     "testPrintSuccess": "Página de prueba enviada.",
     "testPrintError": "Falló la impresión de prueba.",
     "language": "Idioma",
-    "languageHelp": "Elige el idioma de la interfaz de Tendencys Desktop."
+    "languageHelp": "Elige el idioma de la interfaz de Tendencys Desktop.",
+    "general": "General",
+    "appearance": {
+      "title": "Apariencia",
+      "help": "Estas opciones solo afectan el chrome de Tendencys Desktop, no las páginas de producto.",
+      "theme": "Tema",
+      "themeHelp": "Claro, oscuro o según el sistema operativo.",
+      "themeModes": {
+        "light": "Claro",
+        "dark": "Oscuro",
+        "system": "Sistema"
+      },
+      "density": "Densidad",
+      "densityHelp": "Espaciado cómodo o compacto en el menú izquierdo.",
+      "densities": {
+        "comfortable": "Cómodo",
+        "compact": "Compacto"
+      },
+      "zoom": "Tamaño del texto",
+      "zoomHelp": "Escala el texto de Tendencys Desktop. El diseño sigue ocupando toda la ventana.",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "Entorno",
+      "help": "Cambia el backend al que se conecta Tendencys Desktop. Cambiarlo cierra tu sesión y reinicia la app.",
+      "modes": {
+        "production": "Producción",
+        "dev": "Dev"
+      },
+      "confirmTitle": "¿Cambiar a {{mode}}?",
+      "confirmDescription": "Cambiar de entorno cierra tu sesión y reinicia la app.",
+      "restartNow": "Reiniciar ahora",
+      "cancel": "Cancelar",
+      "error": "No se pudo cambiar de entorno. Inténtalo de nuevo.",
+      "openDevTools": "Abrir DevTools",
+      "devToolsError": "No se pudo abrir DevTools."
+    },
+    "menu": {
+      "title": "Menú",
+      "help": "Arrastra para reordenar los productos del menú izquierdo. Añade tus propias URLs para abrirlas en la app.",
+      "dragHandle": "Arrastrar para reordenar",
+      "builtIn": "Producto integrado",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "addTitle": "Añadir una URL",
+      "add": "Añadir al menú",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Mi sitio",
+      "urlLabel": "URL",
+      "invalidUrl": "Introduce un nombre y una URL http(s) válida."
+    }
   },
   "webView": {
     "launcherTitle": "Abrir {{service}}",

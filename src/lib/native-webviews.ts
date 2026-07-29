@@ -53,6 +53,11 @@ export async function reloadService(): Promise<void> {
   await invoke("reload_service");
 }
 
+/** Open the OS-native DevTools inspector on the active product webview. */
+export async function openActiveServiceDevtools(): Promise<void> {
+  await invoke("open_active_service_devtools");
+}
+
 export async function setServiceVisible(visible: boolean): Promise<void> {
   await invoke("set_service_visible", { visible });
 }
@@ -64,6 +69,14 @@ export async function setContentLeftInset(leftInset: number): Promise<void> {
 
 export async function logoutWebviews(): Promise<void> {
   await invoke("logout_webviews");
+}
+
+/** Open an independent shell window that shares the Accounts session. */
+export async function createShellWindow(): Promise<string> {
+  const label = await invoke<string>("create_shell_window");
+  // Nudge the new shell to hydrate if it raced past an empty store read.
+  await emitShellSessionUpdated().catch(() => undefined);
+  return label;
 }
 
 /** Write shell session JWT as `_atid` into the shared product WKWebView cookie jar. */
@@ -164,4 +177,37 @@ export async function listenVerificationRequired(
   return listen<string>("verification-required", (event) =>
     handler(event.payload),
   );
+}
+
+/**
+ * Broadcast after the shared auth store is cleared so sibling shells drop
+ * in-memory session UI (cookies/webviews already wiped by the caller).
+ */
+export async function emitShellSignedOut(): Promise<void> {
+  const { emit } = await import("@tauri-apps/api/event");
+  await emit("shell-signed-out");
+}
+
+/** Fires when another shell fully signed out. */
+export async function listenShellSignedOut(
+  handler: () => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("shell-signed-out", () => handler());
+}
+
+/**
+ * Broadcast after a successful login so sibling shells reload the shared
+ * session from the plugin store (handoff JWT is one-time / single-window).
+ */
+export async function emitShellSessionUpdated(): Promise<void> {
+  const { emit } = await import("@tauri-apps/api/event");
+  await emit("shell-session-updated");
+}
+
+export async function listenShellSessionUpdated(
+  handler: () => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("shell-session-updated", () => handler());
 }

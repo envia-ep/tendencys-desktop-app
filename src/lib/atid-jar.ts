@@ -1,4 +1,4 @@
-import { TENDENCYS_BASE_URL } from "@/lib/tendencys-auth";
+import { getTendencysBaseUrl } from "@/lib/tendencys-auth";
 import {
   readAccountsSession,
   seedAccountsSession,
@@ -12,16 +12,13 @@ import {
 export async function ensureAtidSeeded(
   sessionToken: string | null | undefined,
 ): Promise<boolean> {
-  const existing = await readAccountsSession(TENDENCYS_BASE_URL).catch(
-    () => null,
-  );
+  const accountsBase = getTendencysBaseUrl();
+  const existing = await readAccountsSession(accountsBase).catch(() => null);
   if (existing) {
     return true;
   }
   if (!sessionToken) return false;
-  await seedAccountsSession(TENDENCYS_BASE_URL, sessionToken).catch(() => null);
-  const after = await readAccountsSession(TENDENCYS_BASE_URL).catch(
-    () => null,
-  );
+  await seedAccountsSession(accountsBase, sessionToken).catch(() => null);
+  const after = await readAccountsSession(accountsBase).catch(() => null);
   return Boolean(after);
 }

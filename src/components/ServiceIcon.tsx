@@ -10,6 +10,7 @@ import {
   Handshake,
   Undo2,
   PackageSearch,
+  Globe,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   partners: Handshake,
   returns: Undo2,
   parapaquetes: PackageSearch,
+  custom: Globe,
 };
 
 type ServiceIconProps = {

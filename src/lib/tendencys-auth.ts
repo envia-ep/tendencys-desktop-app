@@ -1,13 +1,38 @@
 import { isTauri } from "./tauri";
-import type { ServiceDefinition } from "@/config/services";
+import {
+  getServiceSiteId,
+  getServiceUrl,
+  type ServiceDefinition,
+} from "@/config/services";
+import {
+  getEnvironmentMode,
+  DEV_ACCOUNTS_BASE_URL,
+  DEV_SHELL_SITE_ID,
+} from "@/config/environment";
 
-export const TENDENCYS_BASE_URL =
+const PROD_TENDENCYS_BASE_URL =
   import.meta.env.VITE_TENDENCYS_BASE_URL ||
   "https://accounts-sandbox.envia.com";
 
 /** Tendencys Desktop site_id (accountsdb / ecartdb). Override via VITE_SHELL_SITE_ID. */
-export const SHELL_SITE_ID =
+const PROD_SHELL_SITE_ID =
   import.meta.env.VITE_SHELL_SITE_ID || "6a51478d752f0077b7d9b356";
+
+/**
+ * Accounts base URL for the active environment mode. Always call this
+ * function — never cache the result — so a runtime mode switch (Settings)
+ * takes effect immediately everywhere it's read.
+ */
+export function getTendencysBaseUrl(): string {
+  return getEnvironmentMode() === "dev"
+    ? DEV_ACCOUNTS_BASE_URL
+    : PROD_TENDENCYS_BASE_URL;
+}
+
+/** Tendencys Desktop site_id for the active environment mode. */
+export function getShellSiteId(): string {
+  return getEnvironmentMode() === "dev" ? DEV_SHELL_SITE_ID : PROD_SHELL_SITE_ID;
+}
 
 export const DEEP_LINK_SCHEME = "tendencys";
 
@@ -26,8 +51,8 @@ export function buildShellAuthUrl(
   );
   const emailParam = email ? `&email=${encodeURIComponent(email)}` : "";
   return (
-    `${TENDENCYS_BASE_URL}/${authPath}` +
-    `?site_id=${SHELL_SITE_ID}` +
+    `${getTendencysBaseUrl()}/${authPath}` +
+    `?site_id=${getShellSiteId()}` +
     `&redirect_url=${redirect}` +
     `&google_login_mode=redirection&apple_login_mode=redirection` +
     emailParam
@@ -44,7 +69,7 @@ export function buildShellAuthUrl(
  * account.
  */
 export function buildShellLogoutUrl(): string {
-  return `${TENDENCYS_BASE_URL}/?logout=1`;
+  return `${getTendencysBaseUrl()}/?logout=1`;
 }
 
 /** Plain service URL (no shell token). Path defaults to `/`. */
@@ -52,12 +77,12 @@ export function buildServiceViewUrl(
   service: ServiceDefinition,
   path = "/",
 ): string {
-  return new URL(path, service.url).toString();
+  return new URL(path, getServiceUrl(service)).toString();
 }
 
 /** Callback URL Accounts will redirect to after login-sites for this service. */
 export function buildServiceAuthCallbackUrl(service: ServiceDefinition): string {
-  return new URL(service.authCallbackPath, service.url).toString();
+  return new URL(service.authCallbackPath, getServiceUrl(service)).toString();
 }
 
 /**
@@ -72,7 +97,7 @@ export function buildServiceSsoUrl(service: ServiceDefinition): string | null {
   const redirectUrl = encodeURIComponent(
     btoa(buildServiceAuthCallbackUrl(service)),
   );
-  return `${TENDENCYS_BASE_URL}/login-sites?site_id=${service.siteId}&redirect_url=${redirectUrl}`;
+  return `${getTendencysBaseUrl()}/login-sites?site_id=${getServiceSiteId(service)}&redirect_url=${redirectUrl}`;
 }
 
 export async function openInBrowser(url: string): Promise<void> {

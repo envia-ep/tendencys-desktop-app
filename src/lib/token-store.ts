@@ -52,6 +52,38 @@ function singletonToShellAuth(session: PersistedSession): PersistedShellAuth {
   };
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Keep one slot per email. Prefer the slot matching `preferredAccountId`, else
+ * the later `expiresAt` (then last-seen order).
+ */
+export function dedupeAccountsByEmail(
+  accounts: PersistedAccountSlot[],
+  preferredAccountId?: string | null,
+): PersistedAccountSlot[] {
+  const byEmail = new Map<string, PersistedAccountSlot>();
+  for (const slot of accounts) {
+    const key = normalizeEmail(slot.account.email);
+    if (!key) continue;
+    const existing = byEmail.get(key);
+    if (!existing) {
+      byEmail.set(key, slot);
+      continue;
+    }
+    const preferNew =
+      slot.account.id === preferredAccountId ||
+      (existing.account.id !== preferredAccountId &&
+        slot.expiresAt >= existing.expiresAt);
+    if (preferNew) {
+      byEmail.set(key, slot);
+    }
+  }
+  return [...byEmail.values()];
+}
+
 async function getStore() {
   const { load } = await import("@tauri-apps/plugin-store");
   return load(STORE_FILE, { autoSave: true, defaults: {} });
@@ -98,11 +130,16 @@ export async function saveSession(session: AuthSession): Promise<void> {
     account: session.account,
     expiresAt: session.expiresAt,
   };
+  const sessionEmail = normalizeEmail(session.account.email);
   const others =
-    existing?.accounts.filter((a) => a.account.id !== session.account.id) ?? [];
+    existing?.accounts.filter(
+      (a) =>
+        a.account.id !== session.account.id &&
+        normalizeEmail(a.account.email) !== sessionEmail,
+    ) ?? [];
   await saveShellAuth({
     activeAccountId: session.account.id,
-    accounts: [...others, slot],
+    accounts: dedupeAccountsByEmail([...others, slot], session.account.id),
   });
 }
 
@@ -148,13 +185,22 @@ export async function loadShellAuth(): Promise<PersistedShellAuth | null> {
 
   if (isShellAuth(raw)) {
     if (raw.accounts.length === 0) return null;
+    const accounts = dedupeAccountsByEmail(
+      raw.accounts,
+      raw.activeAccountId,
+    );
     const active =
-      raw.accounts.find((a) => a.account.id === raw.activeAccountId) ??
-      raw.accounts[raw.accounts.length - 1];
-    return {
+      accounts.find((a) => a.account.id === raw.activeAccountId) ??
+      accounts[accounts.length - 1];
+    const cleaned: PersistedShellAuth = {
       activeAccountId: active.account.id,
-      accounts: raw.accounts,
+      accounts,
     };
+    // Heal stores that accumulated duplicate emails under different ids.
+    if (accounts.length !== raw.accounts.length) {
+      await saveShellAuth(cleaned);
+    }
+    return cleaned;
   }
 
   // Migrate singleton PersistedSession → multi-account shape.

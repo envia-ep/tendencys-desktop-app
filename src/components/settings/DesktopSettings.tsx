@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { Loader2, Printer, Settings2 } from "lucide-react";
+import { relaunch } from "@tauri-apps/plugin-process";
+import {
+  Bug,
+  ListOrdered,
+  Loader2,
+  Printer,
+  Settings2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SERVICES } from "@/config/services";
+import type { AppEnvironmentMode } from "@/config/environment";
 import { ServiceIcon } from "@/components/ServiceIcon";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
+import { MenuLayoutSettings } from "@/components/settings/MenuLayoutSettings";
 import { Button } from "@/components/ui/button";
 import { listPrinters, type PrinterInfo } from "@/lib/desktop-print";
 import {
@@ -15,25 +26,56 @@ import {
   DEFAULT_SERVICE_PREFERENCES,
   type LabelPrintMode,
 } from "@/lib/preferences";
+import {
+  clearAccountsSession,
+  clearSharedWebData,
+  logoutWebviews,
+  openActiveServiceDevtools,
+} from "@/lib/native-webviews";
+import { getTendencysBaseUrl } from "@/lib/tendencys-auth";
+import { isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/stores/preferences-store";
 
 const PRINT_MODES: LabelPrintMode[] = ["instant", "system", "save"];
+const ENVIRONMENT_MODES: AppEnvironmentMode[] = ["production", "dev"];
+const GENERAL_SELECTION = "general" as const;
+const MENU_SELECTION = "menu" as const;
+
+type SettingsSelection =
+  | typeof GENERAL_SELECTION
+  | typeof MENU_SELECTION
+  | string;
+
+function isProductSelection(selection: SettingsSelection): boolean {
+  return selection !== GENERAL_SELECTION && selection !== MENU_SELECTION;
+}
 
 export function DesktopSettings() {
   const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState(SERVICES[0]?.id ?? "");
+  const [selection, setSelection] =
+    useState<SettingsSelection>(GENERAL_SELECTION);
+  const selectedServiceId = isProductSelection(selection)
+    ? selection
+    : (SERVICES[0]?.id ?? "");
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [printersLoading, setPrintersLoading] = useState(true);
   const [printersError, setPrintersError] = useState<string | null>(null);
   const [testBusy, setTestBusy] = useState(false);
   const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [pendingEnvironmentMode, setPendingEnvironmentMode] =
+    useState<AppEnvironmentMode | null>(null);
+  const [switchingEnvironment, setSwitchingEnvironment] = useState(false);
+  const [environmentError, setEnvironmentError] = useState<string | null>(null);
+  const [devToolsError, setDevToolsError] = useState<string | null>(null);
 
   const loaded = usePreferencesStore((s) => s.loaded);
   const language = usePreferencesStore((s) => s.language);
+  const environmentMode = usePreferencesStore((s) => s.environmentMode);
   const loadPreferences = usePreferencesStore((s) => s.loadPreferences);
   const setLanguage = usePreferencesStore((s) => s.setLanguage);
+  const setEnvironmentMode = usePreferencesStore((s) => s.setEnvironmentMode);
   const setLabelPrintMode = usePreferencesStore((s) => s.setLabelPrintMode);
   const setLabelPrinter = usePreferencesStore((s) => s.setLabelPrinter);
   const storedPrefs = usePreferencesStore(
@@ -108,6 +150,45 @@ export function DesktopSettings() {
     }
   };
 
+  const handleConfirmEnvironmentSwitch = async () => {
+    if (!pendingEnvironmentMode) return;
+    setSwitchingEnvironment(true);
+    setEnvironmentError(null);
+    try {
+      // Capture the still-active Accounts host before switching so its jar
+      // entry gets cleared too, not just whichever host we're about to point at.
+      const previousAccountsBase = getTendencysBaseUrl();
+      await setEnvironmentMode(pendingEnvironmentMode);
+      await clearAccountsSession(previousAccountsBase).catch(() => undefined);
+      await clearSharedWebData().catch(() => undefined);
+      await logoutWebviews().catch(() => undefined);
+      if (isTauri()) {
+        await relaunch();
+        return;
+      }
+      setSwitchingEnvironment(false);
+      setPendingEnvironmentMode(null);
+    } catch (err) {
+      setSwitchingEnvironment(false);
+      setEnvironmentError(
+        err instanceof Error ? err.message : t("settings.environment.error"),
+      );
+    }
+  };
+
+  const handleOpenDevTools = async () => {
+    setDevToolsError(null);
+    try {
+      await openActiveServiceDevtools();
+    } catch (err) {
+      setDevToolsError(
+        err instanceof Error
+          ? err.message
+          : t("settings.environment.devToolsError"),
+      );
+    }
+  };
+
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0" aria-hidden>
@@ -134,48 +215,57 @@ export function DesktopSettings() {
               {t("settings.version", { version: appVersion })}
             </p>
           )}
-
-          <div className="mt-5 max-w-sm space-y-2">
-            <label
-              htmlFor="app-language"
-              className="text-sm font-medium text-foreground"
-            >
-              {t("settings.language")}
-            </label>
-            <p className="text-xs text-muted-foreground">
-              {t("settings.languageHelp")}
-            </p>
-            <select
-              id="app-language"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={language}
-              disabled={!loaded}
-              onChange={(e) => {
-                void setLanguage(e.target.value as SupportedLanguage);
-              }}
-            >
-              {SUPPORTED_LANGUAGES.map((code) => (
-                <option key={code} value={code}>
-                  {LANGUAGE_LABELS[code]}
-                </option>
-              ))}
-            </select>
-          </div>
         </header>
 
         <div className="flex min-h-0 flex-1 gap-6 overflow-hidden">
           <aside className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border/60 pr-4">
-            <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setSelection(GENERAL_SELECTION)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                selection === GENERAL_SELECTION
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground/80 hover:bg-muted",
+              )}
+              aria-current={
+                selection === GENERAL_SELECTION ? "page" : undefined
+              }
+            >
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
+              <span className="truncate font-medium">
+                {t("settings.general")}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelection(MENU_SELECTION)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                selection === MENU_SELECTION
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground/80 hover:bg-muted",
+              )}
+              aria-current={selection === MENU_SELECTION ? "page" : undefined}
+            >
+              <ListOrdered className="h-4 w-4 shrink-0" />
+              <span className="truncate font-medium">
+                {t("settings.menu.title")}
+              </span>
+            </button>
+
+            <p className="mb-1 mt-3 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t("settings.products")}
             </p>
             {SERVICES.map((service) => {
-              const active = service.id === selectedServiceId;
+              const active = selection === service.id;
               return (
                 <button
                   key={service.id}
                   type="button"
                   onClick={() => {
-                    setSelectedServiceId(service.id);
+                    setSelection(service.id);
                     setTestMessage(null);
                   }}
                   className={cn(
@@ -186,15 +276,156 @@ export function DesktopSettings() {
                   )}
                   aria-current={active ? "page" : undefined}
                 >
-                  <ServiceIcon icon={service.icon} className="h-4 w-4 shrink-0" />
+                  <ServiceIcon
+                    icon={service.icon}
+                    className="h-4 w-4 shrink-0"
+                  />
                   <span className="truncate font-medium">{service.name}</span>
                 </button>
               );
             })}
           </aside>
 
-          <section className="min-w-0 flex-1 overflow-y-auto pb-8">
-            {!loaded || !selectedService ? (
+          <section className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-8">
+            {selection === GENERAL_SELECTION ? (
+              <div className="max-w-xl space-y-4">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {t("settings.general")}
+                </h2>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="app-language"
+                      className="text-sm font-medium text-foreground"
+                      title={t("settings.languageHelp")}
+                    >
+                      {t("settings.language")}
+                    </label>
+                    <select
+                      id="app-language"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={language}
+                      disabled={!loaded}
+                      title={t("settings.languageHelp")}
+                      onChange={(e) => {
+                        void setLanguage(e.target.value as SupportedLanguage);
+                      }}
+                    >
+                      {SUPPORTED_LANGUAGES.map((code) => (
+                        <option key={code} value={code}>
+                          {LANGUAGE_LABELS[code]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p
+                      className="text-sm font-medium text-foreground"
+                      title={t("settings.environment.help")}
+                    >
+                      {t("settings.environment.title")}
+                    </p>
+                    <div
+                      role="radiogroup"
+                      aria-label={t("settings.environment.title")}
+                      title={t("settings.environment.help")}
+                      className="inline-flex h-9 items-center rounded-md border border-input p-0.5"
+                    >
+                      {ENVIRONMENT_MODES.map((mode) => {
+                        const active = environmentMode === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            disabled={!loaded || switchingEnvironment}
+                            className={cn(
+                              "h-full rounded-[5px] px-3 text-sm font-medium transition-colors disabled:opacity-50",
+                              active
+                                ? "bg-primary text-primary-foreground"
+                                : "text-foreground/70 hover:bg-muted",
+                            )}
+                            onClick={() => {
+                              if (mode === environmentMode) return;
+                              setEnvironmentError(null);
+                              setPendingEnvironmentMode(mode);
+                            }}
+                          >
+                            {t(`settings.environment.modes.${mode}`)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {pendingEnvironmentMode && (
+                  <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {t("settings.environment.confirmTitle", {
+                        mode: t(
+                          `settings.environment.modes.${pendingEnvironmentMode}`,
+                        ),
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.environment.confirmDescription")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={switchingEnvironment}
+                        onClick={() => void handleConfirmEnvironmentSwitch()}
+                      >
+                        {switchingEnvironment ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {t("settings.environment.restartNow")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={switchingEnvironment}
+                        onClick={() => setPendingEnvironmentMode(null)}
+                      >
+                        {t("settings.environment.cancel")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {environmentError && (
+                  <p className="text-sm text-destructive">{environmentError}</p>
+                )}
+
+                {environmentMode === "dev" && (
+                  <div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleOpenDevTools()}
+                    >
+                      <Bug className="mr-2 h-4 w-4" />
+                      {t("settings.environment.openDevTools")}
+                    </Button>
+                    {devToolsError && (
+                      <p className="mt-1 text-sm text-destructive">
+                        {devToolsError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <AppearanceSettings />
+              </div>
+            ) : selection === MENU_SELECTION ? (
+              <MenuLayoutSettings />
+            ) : !loaded || !selectedService ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("settings.loading")}
@@ -279,11 +510,15 @@ export function DesktopSettings() {
                         setTestMessage(null);
                       }}
                     >
-                      <option value="">{t("settings.systemDefaultPrinter")}</option>
+                      <option value="">
+                        {t("settings.systemDefaultPrinter")}
+                      </option>
                       {printers.map((p) => (
                         <option key={p.name} value={p.name}>
                           {p.name}
-                          {p.isDefault ? ` (${t("settings.defaultBadge")})` : ""}
+                          {p.isDefault
+                            ? ` (${t("settings.defaultBadge")})`
+                            : ""}
                         </option>
                       ))}
                     </select>
@@ -309,7 +544,9 @@ export function DesktopSettings() {
                     {t("settings.testPrint")}
                   </Button>
                   {testMessage && (
-                    <p className="text-sm text-muted-foreground">{testMessage}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {testMessage}
+                    </p>
                   )}
                 </div>
               </div>

@@ -25,12 +25,16 @@
     "description": "Dock में Tendencys आइकन पर राइट‑क्लिक करें, फिर Options → Keep in Dock चुनें ताकि बंद करने के बाद भी आप इसे फिर खोल सकें।",
     "gotIt": "समझ गया"
   },
+  "devModeBanner": {
+    "label": "डेव एनवायरनमेंट — प्रोडक्शन से कनेक्ट नहीं है"
+  },
   "topBar": {
     "back": "पीछे जाएँ",
     "forward": "आगे जाएँ",
     "refresh": "रिफ्रेश",
     "openInBrowser": "ब्राउज़र में खोलें",
     "userMenu": "उपयोगकर्ता मेनू",
+    "newWindow": "नई विंडो खोलें",
     "signOut": "साइन आउट",
     "addAccount": "खाता जोड़ें",
     "switchAccount": "{{email}} पर स्विच करें",
@@ -208,6 +212,58 @@
     "version": "संस्करण {{version}}",
     "language": "भाषा",
     "languageHelp": "Tendencys Desktop इंटरफ़ेस की भाषा चुनें।",
+    "general": "सामान्य",
+    "appearance": {
+      "title": "दिखावट",
+      "help": "ये विकल्प केवल Tendencys Desktop क्रोम पर लागू होते हैं — उत्पाद पृष्ठों पर नहीं।",
+      "theme": "थीम",
+      "themeHelp": "हल्की, गहरी, या ऑपरेटिंग सिस्टम के अनुसार।",
+      "themeModes": {
+        "light": "हल्की",
+        "dark": "गहरी",
+        "system": "सिस्टम"
+      },
+      "density": "घनत्व",
+      "densityHelp": "बाएँ मेनू में आरामदायक या सघन स्पेसिंग।",
+      "densities": {
+        "comfortable": "आरामदायक",
+        "compact": "सघन"
+      },
+      "zoom": "टेक्स्ट आकार",
+      "zoomHelp": "Tendencys Desktop का टेक्स्ट स्केल करें। लेआउट पूरी विंडो में रहता है।",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "एनवायरनमेंट",
+      "help": "बदलें कि Tendencys Desktop किस बैकएंड से कनेक्ट होता है। बदलने पर आप साइन आउट हो जाएंगे और ऐप फिर से शुरू होगा।",
+      "modes": {
+        "production": "प्रोडक्शन",
+        "dev": "डेव"
+      },
+      "confirmTitle": "{{mode}} में बदलें?",
+      "confirmDescription": "एनवायरनमेंट बदलने से आप साइन आउट हो जाते हैं और ऐप फिर से शुरू होता है।",
+      "restartNow": "अभी रीस्टार्ट करें",
+      "cancel": "रद्द करें",
+      "error": "एनवायरनमेंट नहीं बदला जा सका। कृपया पुनः प्रयास करें।",
+      "openDevTools": "DevTools खोलें",
+      "devToolsError": "DevTools नहीं खोला जा सका।"
+    },
+    "menu": {
+      "title": "मेनू",
+      "help": "बाएँ मेनू में उत्पादों का क्रम बदलने के लिए खींचें। अपने URL जोड़ें और ऐप में खोलें।",
+      "dragHandle": "क्रम बदलने के लिए खींचें",
+      "builtIn": "बिल्ट-इन उत्पाद",
+      "edit": "संपादित करें",
+      "delete": "हटाएँ",
+      "save": "सहेजें",
+      "cancel": "रद्द करें",
+      "addTitle": "URL जोड़ें",
+      "add": "मेनू में जोड़ें",
+      "nameLabel": "नाम",
+      "namePlaceholder": "मेरी साइट",
+      "urlLabel": "URL",
+      "invalidUrl": "एक नाम और मान्य http(s) URL दर्ज करें।"
+    },
     "products": "उत्पाद",
     "loading": "वरीयताएँ लोड हो रही हैं…",
     "productHint": "ये विकल्प केवल डेस्कटॉप ऐप में लागू होते हैं — ब्राउज़र में नहीं।",

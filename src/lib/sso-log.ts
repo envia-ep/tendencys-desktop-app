@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/react";
 
 import { readAccountsSession } from "./native-webviews";
-import { TENDENCYS_BASE_URL } from "./tendencys-auth";
+import { getTendencysBaseUrl } from "./tendencys-auth";
 
 /** Dev-only so packaged release consoles stay clean (mirrors Rust debug gating). */
 const DEBUG = import.meta.env.DEV;
@@ -73,7 +73,9 @@ export async function diagnoseAccountsSession(): Promise<{
   present: boolean;
   shape: TokenShape | null;
 }> {
-  const atid = await readAccountsSession(TENDENCYS_BASE_URL).catch(() => null);
+  const atid = await readAccountsSession(getTendencysBaseUrl()).catch(
+    () => null,
+  );
   const shape = atid ? decodeTokenShape(atid) : null;
   console.info("[sso] diagnose _atid present=%s shape=%o", Boolean(atid), shape);
   return { present: Boolean(atid), shape };

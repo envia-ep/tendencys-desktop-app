@@ -1,3 +1,5 @@
+import { DEV_SERVICE_OVERRIDES, getEnvironmentMode } from "./environment";
+
 export type QuickLink = {
   label: string;
   path: string;
@@ -27,6 +29,18 @@ export type ServiceDefinition = {
    * (it would land on a missing route). Defaults to true.
    */
   ssoReady?: boolean;
+  /**
+   * Hidden from the service rail and login showcase while Dev mode is
+   * active (`getEnvironmentMode() === "dev"`). Used for products that have
+   * no real sandbox counterpart to test against — e.g. Envia Cargo ships its
+   * own built-in demo-tenant mode instead of a separate sandbox deployment.
+   */
+  disabledInDev?: boolean;
+  /**
+   * Hidden from the service rail and login showcase in every environment.
+   * Keep the service in `SERVICES` so deep links / SSO config stay intact.
+   */
+  hidden?: boolean;
 };
 
 export const SERVICES: ServiceDefinition[] = [
@@ -58,6 +72,10 @@ export const SERVICES: ServiceDefinition[] = [
     accentColor: "#1A365D",
     authMode: "login-sites",
     authCallbackPath: "/authentication",
+    // Cargo ships its own built-in demo-tenant mode for exploring the product
+    // without a real company — hide it in Dev so testers use that instead of
+    // a nonexistent sandbox deployment.
+    disabledInDev: true,
     quickLinks: [
       { label: "Dashboard", path: "/" },
       { label: "Loads", path: "/loads" },
@@ -94,6 +112,8 @@ export const SERVICES: ServiceDefinition[] = [
     accentColor: "#DD6B20",
     authMode: "login-sites",
     authCallbackPath: "/authentication",
+    // No sandbox deployment to test against — disabled in Dev mode.
+    disabledInDev: true,
     quickLinks: [
       { label: "Dashboard", path: "/" },
       { label: "Settings", path: "/settings" },
@@ -150,6 +170,8 @@ export const SERVICES: ServiceDefinition[] = [
     // Prereq: banking site_id + this callback must be in the accounts.envia.com allowlist.
     authMode: "login-sites",
     authCallbackPath: "/api/auth/callback",
+    // Temporarily hide from the rail / login showcase until Banking is ready.
+    hidden: true,
     quickLinks: [
       { label: "Dashboard", path: "/dashboard" },
       { label: "Accounts", path: "/accounts" },
@@ -176,6 +198,8 @@ export const SERVICES: ServiceDefinition[] = [
     // `?authorization=` handoff and exchanges it for the product session.
     authMode: "login-sites",
     authCallbackPath: "/authentication",
+    // No sandbox deployment to test against — disabled in Dev mode.
+    disabledInDev: true,
     quickLinks: [
       { label: "Dashboard", path: "/dashboard" },
       { label: "Apps", path: "/dashboard/apps" },
@@ -195,6 +219,8 @@ export const SERVICES: ServiceDefinition[] = [
     accentColor: "#6B46C1",
     authMode: "login-sites",
     authCallbackPath: "/authentication",
+    // No sandbox deployment to test against — disabled in Dev mode.
+    disabledInDev: true,
     quickLinks: [
       { label: "Dashboard", path: "/" },
       { label: "Settings", path: "/settings" },
@@ -204,6 +230,43 @@ export const SERVICES: ServiceDefinition[] = [
 
 export function getServiceById(id: string): ServiceDefinition | undefined {
   return SERVICES.find((service) => service.id === id);
+}
+
+/**
+ * Products the service rail / login showcase should render right now. Call
+ * this fresh at render time (never cache the result) — it depends on
+ * `getEnvironmentMode()`, which the Settings Environment toggle can change
+ * at runtime. See `ServiceDefinition.disabledInDev` / `hidden`.
+ */
+export function getVisibleServices(): ServiceDefinition[] {
+  const inDev = getEnvironmentMode() === "dev";
+  return SERVICES.filter((service) => {
+    if (service.hidden) return false;
+    if (inDev && service.disabledInDev) return false;
+    return true;
+  });
+}
+
+/**
+ * Effective service URL for the active environment mode. Always call this
+ * instead of reading `service.url` directly — never cache the result on the
+ * `ServiceDefinition` object (`useServiceStore`'s `activeService` is a plain
+ * snapshot taken once at module load, so anything baked onto it would go
+ * stale after a runtime mode switch).
+ */
+export function getServiceUrl(service: ServiceDefinition): string {
+  if (getEnvironmentMode() === "dev") {
+    return DEV_SERVICE_OVERRIDES[service.id]?.url ?? service.url;
+  }
+  return service.url;
+}
+
+/** Effective service Accounts site_id for the active environment mode. */
+export function getServiceSiteId(service: ServiceDefinition): string {
+  if (getEnvironmentMode() === "dev") {
+    return DEV_SERVICE_OVERRIDES[service.id]?.siteId ?? service.siteId;
+  }
+  return service.siteId;
 }
 
 /** First product that can run Accounts SSO on first paint (skip Shipping/API gaps). */

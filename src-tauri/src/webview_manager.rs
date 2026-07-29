@@ -6,9 +6,9 @@
 //! overlaid on the content area, sharing the macOS WKWebView cookie store.
 //!
 //! Child webview labels:
-//! - `svc-<service_id>` — one per product, shown/hidden on menu switch.
-//! - `auth` — transient Accounts login (left-inset so LoginPage recovery rail
-//!   stays visible), closed once the token is captured.
+//! - `svc-<window>--<service_id>` — one per product per shell window,
+//!   shown/hidden on menu switch within that window.
+//! - Shell windows: `main` (primary) and `shell-N` (additional).
 //!
 //! SSO cookie sharing: the Accounts session cookie `_atid` is a *session* cookie
 //! (no `Max-Age`/`Expires`). Session cookies live only in a `WKWebsiteDataStore`
@@ -27,7 +27,8 @@
 //! webviews use top=0 and only a left inset — wry pins child WKWebViews to the
 //! window top (`ViewMinYMargin`), so a top inset cannot be relied on.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -36,9 +37,16 @@ use cookie::SameSite;
 use tauri::{
     webview::{Cookie, DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder},
     AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Runtime, Webview,
-    WebviewUrl,
+    WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_opener::OpenerExt;
+
+/// When true, shell CloseRequested may destroy the window. Red traffic-light / X
+/// leaves this false. Real Quit sets it via [`request_quit`].
+static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
+
+/// Cap independent shell windows (main + extras) to bound WKWebView memory.
+const MAX_SHELL_WINDOWS: usize = 6;
 
 use crate::desktop_files::unique_download_path;
 
@@ -59,21 +67,60 @@ struct ShellAuthPayload {
     atid: Option<String>,
 }
 
-/// Bring the shell window to the front (deep link, macOS Dock reopen,
-/// Windows/Linux tray Show, second-instance). Repositions product webviews
-/// after the window was hidden. Uses `get_window` — `get_webview_window("main")`
-/// is often None in this multiwebview setup (same as CloseRequested hide).
+/// Quit the whole process (menu / Cmd+Q / tray). Sets ALLOW_EXIT so close
+/// handlers do not hide windows instead of destroying them.
+pub fn request_quit(app: &AppHandle) {
+    ALLOW_EXIT.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
+
+/// Mark exit allowed (ExitRequested path) without calling `app.exit`.
+pub fn mark_exit_allowed() {
+    ALLOW_EXIT.store(true, Ordering::SeqCst);
+}
+
+/// Bring a shell window to the front (deep link, Dock reopen, tray Show,
+/// second-instance). Prefers last-focused, then any visible shell, then `main`.
 pub fn focus_main_window(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
         let _ = app.show();
     }
-    if let Some(window) = app.get_window(MAIN_WINDOW) {
+    let target = resolve_focus_shell(app);
+    if let Some(window) = app.get_window(&target) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
-    reposition_all(app);
+    reposition_window(app, &target);
+}
+
+fn resolve_focus_shell(app: &AppHandle) -> String {
+    let last = app
+        .state::<ServiceWebviews>()
+        .last_focused
+        .lock()
+        .unwrap()
+        .clone();
+    if let Some(label) = last {
+        if app.get_window(&label).is_some() {
+            return label;
+        }
+    }
+    for label in shell_window_labels(app) {
+        if let Some(w) = app.get_window(&label) {
+            if w.is_visible().unwrap_or(false) {
+                return label;
+            }
+        }
+    }
+    if app.get_window(MAIN_WINDOW).is_some() {
+        return MAIN_WINDOW.to_string();
+    }
+    shell_window_labels(app)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| MAIN_WINDOW.to_string())
 }
 
 /// Handle OS deep links: Accounts auth handoff or open a product/section.
@@ -84,9 +131,10 @@ pub fn emit_deep_link(app: &AppHandle, urls: &[String]) {
     for raw in urls {
         if let Some(token) = extract_deep_link_authorization(raw) {
             focus_main_window(app);
-            log::info!("[sso] deep-link shell-auth-token emitted");
+            let target = resolve_focus_shell(app);
+            log::info!("[sso] deep-link shell-auth-token emitted → {target}");
             let _ = app.emit_to(
-                main_target(),
+                shell_target(&target),
                 "shell-auth-token",
                 ShellAuthPayload {
                     token,
@@ -97,8 +145,9 @@ pub fn emit_deep_link(app: &AppHandle, urls: &[String]) {
         }
         if let Some(target_id) = extract_deep_link_open_target(raw) {
             focus_main_window(app);
-            log::info!("[shell] deep-link open target={target_id}");
-            let _ = app.emit_to(main_target(), "shell-open", target_id);
+            let target = resolve_focus_shell(app);
+            log::info!("[shell] deep-link open target={target_id} → {target}");
+            let _ = app.emit_to(shell_target(&target), "shell-open", target_id);
             return;
         }
     }
@@ -229,17 +278,16 @@ const DESKTOP_BRIDGE_SCRIPT: &str = r#"
 
 fn emit_service_navigated<R: Runtime>(
     app: &AppHandle<R>,
+    window_label: &str,
     service_id: &str,
     url: &str,
     replace: bool,
 ) {
-    app.state::<ServiceWebviews>()
-        .stuck_on_auth
-        .lock()
-        .unwrap()
-        .remove(service_id);
+    app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
+        state.stuck_on_auth.remove(service_id);
+    });
     let _ = app.emit_to(
-        main_target(),
+        shell_target(window_label),
         "service-navigated",
         ServiceNavigatedPayload {
             service_id: service_id.to_string(),
@@ -259,10 +307,11 @@ pub async fn desktop_report_nav<R: Runtime>(
     url: String,
 ) -> Result<(), String> {
     let label = webview.label().to_string();
-    let service_id = label
-        .strip_prefix(SVC_PREFIX)
-        .ok_or_else(|| format!("desktop_report_nav only from product webviews, got {label}"))?
-        .to_string();
+    let (window_label, service_id) = parse_svc_label(&label).ok_or_else(|| {
+        format!("desktop_report_nav only from product webviews, got {label}")
+    })?;
+    let window_label = window_label.to_string();
+    let service_id = service_id.to_string();
 
     // Same product-vs-Accounts filter as the former tendencys-nav path: Accounts
     // SPA router jumps must not clear stuck auth or enter shell history.
@@ -282,7 +331,7 @@ pub async fn desktop_report_nav<R: Runtime>(
         }
     }
 
-    emit_service_navigated(&app, &service_id, &url, replace);
+    emit_service_navigated(&app, &window_label, &service_id, &url, replace);
     Ok(())
 }
 
@@ -336,18 +385,17 @@ fn is_accounts_step_up(url: &tauri::Url) -> bool {
 /// if emitted.
 fn emit_verification_required_if_stepup(
     app: &AppHandle,
+    window_label: &str,
     service_id: &str,
     url: &tauri::Url,
 ) -> bool {
     if !is_accounts_step_up(url) {
         return false;
     }
-    app.state::<ServiceWebviews>()
-        .stuck_on_auth
-        .lock()
-        .unwrap()
-        .insert(service_id.to_string());
-    let _ = app.emit_to(main_target(), "verification-required", service_id);
+    app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
+        state.stuck_on_auth.insert(service_id.to_string());
+    });
+    let _ = app.emit_to(shell_target(window_label), "verification-required", service_id);
     true
 }
 
@@ -407,46 +455,118 @@ const DEFAULT_LEFT_INSET: f64 = 220.0;
 /// on cold restore (before any product `svc-*` webview exists).
 const ATID_SEED_LABEL: &str = "atid-seed";
 const SVC_PREFIX: &str = "svc-";
+/// Separates window label from service id inside a product webview label.
+const SVC_SEP: &str = "--";
 const MAIN_WINDOW: &str = "main";
+const SHELL_PREFIX: &str = "shell-";
 
-/// Shared WKWebView data store so `auth` + every `svc-*` webview see the same
-/// cookie jar (notably the `_atid` session cookie that drives `/login-sites`
-/// SSO). Fixed bytes = "TendencysDesktop" so the store is stable across launches.
+/// Shared WKWebView data store so every `svc-*` webview sees the same cookie
+/// jar (notably the `_atid` session cookie that drives `/login-sites` SSO).
+/// Fixed bytes = "TendencysDesktop" so the store is stable across launches.
 const SHARED_DATA_STORE: [u8; 16] = *b"TendencysDesktop";
 
-/// Only the main (shell) webview should receive shell events — never the remote
-/// product/Accounts webviews.
-fn main_target() -> EventTarget {
-    EventTarget::labeled(MAIN_WINDOW)
+/// Shell webviews only — never remote product webviews.
+fn shell_target(window_label: &str) -> EventTarget {
+    EventTarget::labeled(window_label.to_string())
 }
 
-/// Tracks which service webview is currently front-most (for resize/visibility
-/// commands and the load-gate) and the current left chrome inset (for the
-/// collapsible service menu's width).
-pub struct ServiceWebviews {
-    pub active: Mutex<Option<String>>,
-    pub left_inset: Mutex<f64>,
-    /// service_ids currently parked on an Accounts fallback page: the
-    /// auth-required login form (`/login` or the `/login-sites` relay) or a
-    /// pending verification step-up (`/verify`, `/accept-terms`,
-    /// `/phone-verification`, `/verify-device`). Re-selecting an
-    /// already-mounted webview in this state must not report "loaded" — the
-    /// webview is still showing an Accounts page, not the product.
-    pub stuck_on_auth: Mutex<HashSet<String>>,
+fn is_shell_window_label(label: &str) -> bool {
+    label == MAIN_WINDOW || label.starts_with(SHELL_PREFIX)
 }
 
-impl Default for ServiceWebviews {
-    fn default() -> Self {
+fn shell_window_labels<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+    app.windows()
+        .into_keys()
+        .filter(|l| is_shell_window_label(l))
+        .collect()
+}
+
+fn count_shell_windows<R: Runtime>(app: &AppHandle<R>) -> usize {
+    shell_window_labels(app).len()
+}
+
+/// Product child label for a shell window: `svc-<window>--<service_id>`.
+fn svc_label(window_label: &str, service_id: &str) -> String {
+    format!("{SVC_PREFIX}{window_label}{SVC_SEP}{service_id}")
+}
+
+fn svc_prefix_for_window(window_label: &str) -> String {
+    format!("{SVC_PREFIX}{window_label}{SVC_SEP}")
+}
+
+/// Parse `svc-<window>--<service_id>` → `(window, service_id)`.
+fn parse_svc_label(label: &str) -> Option<(&str, &str)> {
+    let rest = label.strip_prefix(SVC_PREFIX)?;
+    let (window, service) = rest.split_once(SVC_SEP)?;
+    if window.is_empty() || service.is_empty() {
+        return None;
+    }
+    Some((window, service))
+}
+
+/// Calling shell label from an invoke originating in that shell's webview.
+fn caller_shell_label(webview: &Webview) -> Result<String, String> {
+    let label = webview.label().to_string();
+    if !is_shell_window_label(&label) {
+        return Err(format!("command requires a shell webview, got {label}"));
+    }
+    Ok(label)
+}
+
+/// Per-shell active service, menu inset, and auth-stuck set.
+pub struct WindowShellState {
+    pub active: Option<String>,
+    pub left_inset: f64,
+    /// service_ids parked on an Accounts fallback / step-up page in this window.
+    pub stuck_on_auth: HashSet<String>,
+}
+
+impl WindowShellState {
+    fn new() -> Self {
         Self {
-            active: Mutex::new(None),
-            left_inset: Mutex::new(DEFAULT_LEFT_INSET),
-            stuck_on_auth: Mutex::new(HashSet::new()),
+            active: None,
+            left_inset: DEFAULT_LEFT_INSET,
+            stuck_on_auth: HashSet::new(),
         }
     }
 }
 
-fn svc_label(service_id: &str) -> String {
-    format!("{SVC_PREFIX}{service_id}")
+/// Tracks per-window product webview state for independent shells.
+pub struct ServiceWebviews {
+    pub by_window: Mutex<HashMap<String, WindowShellState>>,
+    pub last_focused: Mutex<Option<String>>,
+}
+
+impl Default for ServiceWebviews {
+    fn default() -> Self {
+        let mut by_window = HashMap::new();
+        by_window.insert(MAIN_WINDOW.to_string(), WindowShellState::new());
+        Self {
+            by_window: Mutex::new(by_window),
+            last_focused: Mutex::new(Some(MAIN_WINDOW.to_string())),
+        }
+    }
+}
+
+impl ServiceWebviews {
+    fn with_window_mut<F, T>(&self, window_label: &str, f: F) -> T
+    where
+        F: FnOnce(&mut WindowShellState) -> T,
+    {
+        let mut map = self.by_window.lock().unwrap();
+        let state = map
+            .entry(window_label.to_string())
+            .or_insert_with(WindowShellState::new);
+        f(state)
+    }
+
+    fn remove_window(&self, window_label: &str) {
+        self.by_window.lock().unwrap().remove(window_label);
+        let mut last = self.last_focused.lock().unwrap();
+        if last.as_deref() == Some(window_label) {
+            *last = None;
+        }
+    }
 }
 
 /// Content rect (physical px) to the right of the left chrome column.
@@ -463,20 +583,110 @@ fn content_rect<R: Runtime>(
     Ok((PhysicalPosition::new(left, 0.0), PhysicalSize::new(w, h)))
 }
 
-/// Reposition every child webview to track the window on resize / DPI change.
-pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app.get_window(MAIN_WINDOW) else {
+/// Reposition product children of one shell window.
+pub fn reposition_window<R: Runtime>(app: &AppHandle<R>, window_label: &str) {
+    let Some(window) = app.get_window(window_label) else {
         return;
     };
-    let left_inset = *app.state::<ServiceWebviews>().left_inset.lock().unwrap();
+    let left_inset = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.left_inset);
+    let prefix = svc_prefix_for_window(window_label);
     if let Ok((pos, size)) = content_rect(&window, left_inset) {
         for (label, webview) in app.webviews() {
-            if label.starts_with(SVC_PREFIX) {
+            if label.starts_with(&prefix) {
                 let _ = webview.set_position(pos);
                 let _ = webview.set_size(size);
             }
         }
     }
+}
+
+/// Reposition product children of every shell window.
+#[allow(dead_code)] // kept for tray/Dock paths that restore multiple shells
+pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
+    for label in shell_window_labels(app) {
+        reposition_window(app, &label);
+    }
+}
+
+/// Close every product child belonging to a shell window and drop its state.
+fn destroy_shell_children(app: &AppHandle, window_label: &str) {
+    let prefix = svc_prefix_for_window(window_label);
+    for (label, webview) in app.webviews() {
+        if label.starts_with(&prefix) {
+            let _ = webview.close();
+        }
+    }
+    app.state::<ServiceWebviews>().remove_window(window_label);
+}
+
+/// Wire resize / focus / close for a shell window (main or shell-N).
+pub fn attach_shell_window_events(app: &AppHandle, window_label: &str) {
+    let Some(window) = app.get_window(window_label) else {
+        return;
+    };
+    let handle = app.clone();
+    let label = window_label.to_string();
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::CloseRequested { api, .. } => {
+            if ALLOW_EXIT.load(Ordering::SeqCst) {
+                return;
+            }
+            if count_shell_windows(&handle) <= 1 {
+                if let Some(w) = handle.get_window(&label) {
+                    let _ = w.hide();
+                }
+                api.prevent_close();
+            } else {
+                destroy_shell_children(&handle, &label);
+            }
+        }
+        tauri::WindowEvent::Resized(_)
+        | tauri::WindowEvent::ScaleFactorChanged { .. } => {
+            reposition_window(&handle, &label);
+        }
+        tauri::WindowEvent::Focused(true) => {
+            *handle.state::<ServiceWebviews>().last_focused.lock().unwrap() =
+                Some(label.clone());
+        }
+        _ => {}
+    });
+}
+
+fn next_shell_label(app: &AppHandle) -> Result<String, String> {
+    for n in 2..=MAX_SHELL_WINDOWS + 1 {
+        let label = format!("{SHELL_PREFIX}{n}");
+        if app.get_window(&label).is_none() {
+            return Ok(label);
+        }
+    }
+    Err("maximum number of windows reached".into())
+}
+
+/// Open an independent shell window sharing the same Accounts session.
+#[tauri::command]
+pub async fn create_shell_window(app: AppHandle) -> Result<String, String> {
+    if count_shell_windows(&app) >= MAX_SHELL_WINDOWS {
+        return Err("maximum number of windows reached".into());
+    }
+    let label = next_shell_label(&app)?;
+    app.state::<ServiceWebviews>()
+        .with_window_mut(&label, |_| ());
+
+    let built = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
+        .title("Tendencys")
+        .inner_size(1280.0, 800.0)
+        .min_inner_size(1024.0, 768.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    attach_shell_window_events(&app, &label);
+    *app.state::<ServiceWebviews>().last_focused.lock().unwrap() = Some(label.clone());
+    let _ = built.set_focus();
+    log::info!("[shell] created window {label}");
+    Ok(label)
 }
 
 /// Create a hidden product webview glued to the content area. The webview stays
@@ -487,18 +697,23 @@ pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
 fn build_service_webview(
     app: &AppHandle,
     window: &tauri::Window,
+    window_label: &str,
     label: &str,
     service_id: &str,
     url: &str,
 ) -> Result<(), String> {
     let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
-    let left_inset = *app.state::<ServiceWebviews>().left_inset.lock().unwrap();
+    let left_inset = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.left_inset);
     let (pos, size) = content_rect(window, left_inset).map_err(|e| e.to_string())?;
 
     let app_for_nav = app.clone();
     let id_for_nav = service_id.to_string();
+    let win_for_nav = window_label.to_string();
     let app_for_load = app.clone();
     let id_for_load = service_id.to_string();
+    let win_for_load = window_label.to_string();
 
     // `_atid` is committed to the shared cookie store before this webview
     // exists, but is not reliably visible via `document.cookie` on the
@@ -575,14 +790,15 @@ fn build_service_webview(
             // revealed for one re-auth instead of silently stuck on a form.
             // Product `/login` (except Shipping's mid-handoff token relay) is the
             // same class of failure.
-            if emit_auth_required_if_login(&app_for_nav, &id_for_nav, url) {
+            if emit_auth_required_if_login(&app_for_nav, &win_for_nav, &id_for_nav, url) {
                 return true;
             }
 
             // Same class of "not actually loaded" fallback as the check above,
             // but for a pending 2FA/terms/phone step-up rather than a dead
             // session — see `emit_verification_required_if_stepup`.
-            if emit_verification_required_if_stepup(&app_for_nav, &id_for_nav, url) {
+            if emit_verification_required_if_stepup(&app_for_nav, &win_for_nav, &id_for_nav, url)
+            {
                 return true;
             }
 
@@ -594,7 +810,13 @@ fn build_service_webview(
                 && url.path() != "/authentication"
                 && (url.scheme() == "https" || url.scheme() == "http")
             {
-                emit_service_navigated(&app_for_nav, &id_for_nav, &url.to_string(), false);
+                emit_service_navigated(
+                    &app_for_nav,
+                    &win_for_nav,
+                    &id_for_nav,
+                    &url.to_string(),
+                    false,
+                );
             }
             true
         })
@@ -605,9 +827,14 @@ fn build_service_webview(
             let loaded_url = payload.url();
             // Catch product `/login` on finished load too (some redirects skip
             // on_navigation for the final document).
-            let auth_required = emit_auth_required_if_login(&app_for_load, &id_for_load, loaded_url);
-            let verification_required =
-                emit_verification_required_if_stepup(&app_for_load, &id_for_load, loaded_url);
+            let auth_required =
+                emit_auth_required_if_login(&app_for_load, &win_for_load, &id_for_load, loaded_url);
+            let verification_required = emit_verification_required_if_stepup(
+                &app_for_load,
+                &win_for_load,
+                &id_for_load,
+                loaded_url,
+            );
             // The `/login-sites` relay page itself finishes loading (the "Accessing…"
             // spinner) before its client-side XHR to `/api/login/sites` resolves and
             // (on failure) redirects to `/login`. Treat it the same as the `/login`
@@ -626,6 +853,7 @@ fn build_service_webview(
             {
                 emit_service_navigated(
                     &app_for_load,
+                    &win_for_load,
                     &id_for_load,
                     &loaded_url.to_string(),
                     false,
@@ -633,10 +861,7 @@ fn build_service_webview(
             }
             let active = app_for_load
                 .state::<ServiceWebviews>()
-                .active
-                .lock()
-                .unwrap()
-                .clone();
+                .with_window_mut(&win_for_load, |s| s.active.clone());
             if active.as_deref() == Some(id_for_load.as_str()) {
                 let _ = webview.show();
             }
@@ -647,7 +872,11 @@ fn build_service_webview(
             // gets mistaken for the product itself) as if the product had
             // actually loaded.
             if !auth_required && !verification_required && !is_sso_relay && !is_auth_callback {
-                let _ = app_for_load.emit_to(main_target(), "service-loaded", &id_for_load);
+                let _ = app_for_load.emit_to(
+                    shell_target(&win_for_load),
+                    "service-loaded",
+                    &id_for_load,
+                );
             }
         });
 
@@ -708,7 +937,10 @@ fn shared_store_webview(app: &AppHandle) -> Result<tauri::Webview, String> {
     if let Some(existing) = find_shared_store_webview(app) {
         return Ok(existing);
     }
-    let window = app.get_window(MAIN_WINDOW).ok_or("main window not found")?;
+    let host_label = resolve_focus_shell(app);
+    let window = app
+        .get_window(&host_label)
+        .ok_or_else(|| format!("shell window not found: {host_label}"))?;
     let (pos, size) = content_rect(&window, DEFAULT_LEFT_INSET).map_err(|e| e.to_string())?;
     let blank: tauri::Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
     let builder = WebviewBuilder::new(ATID_SEED_LABEL, WebviewUrl::External(blank))
@@ -722,18 +954,21 @@ fn shared_store_webview(app: &AppHandle) -> Result<tauri::Webview, String> {
 
 /// Emit `auth-required` when the URL is Accounts `/login` or a product `/login`
 /// that is not Shipping's mid-handoff token relay. Returns true if emitted.
-fn emit_auth_required_if_login(app: &AppHandle, service_id: &str, url: &tauri::Url) -> bool {
+fn emit_auth_required_if_login(
+    app: &AppHandle,
+    window_label: &str,
+    service_id: &str,
+    url: &tauri::Url,
+) -> bool {
     let is_accounts_login = is_accounts_host(url) && url.path() == "/login";
     let is_product_login = !is_accounts_host(url)
         && url.path() == "/login"
         && !is_temporal_token_relay(url);
     if is_accounts_login || is_product_login {
-        app.state::<ServiceWebviews>()
-            .stuck_on_auth
-            .lock()
-            .unwrap()
-            .insert(service_id.to_string());
-        let _ = app.emit_to(main_target(), "auth-required", service_id);
+        app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
+            state.stuck_on_auth.insert(service_id.to_string());
+        });
+        let _ = app.emit_to(shell_target(window_label), "auth-required", service_id);
         return true;
     }
     false
@@ -907,152 +1142,156 @@ pub async fn clear_shared_web_data(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Show the target product webview (creating it on first use) and hide the rest.
-/// `url` is only used on creation; re-selecting an existing service preserves its
-/// state. New webviews stay hidden until first load completes (load-gating), so
-/// switching shows the shell's loading overlay instead of a blank native rect.
+/// Show the target product webview (creating it on first use) and hide the rest
+/// in this shell window. `url` is only used on creation; re-selecting preserves
+/// state. New webviews stay hidden until first load completes (load-gating).
 #[tauri::command]
 pub async fn select_service(
     app: AppHandle,
+    webview: Webview,
     service_id: String,
     url: String,
 ) -> Result<(), String> {
-    let label = svc_label(&service_id);
+    let window_label = caller_shell_label(&webview)?;
+    let label = svc_label(&window_label, &service_id);
     let window = app
-        .get_window(MAIN_WINDOW)
-        .ok_or("main window not found")?;
+        .get_window(&window_label)
+        .ok_or_else(|| format!("shell window not found: {window_label}"))?;
 
-    for (other, webview) in app.webviews() {
-        if other.starts_with(SVC_PREFIX) && other != label {
-            let _ = webview.hide();
+    let prefix = svc_prefix_for_window(&window_label);
+    for (other, child) in app.webviews() {
+        if other.starts_with(&prefix) && other != label {
+            let _ = child.hide();
         }
     }
 
-    *app.state::<ServiceWebviews>().active.lock().unwrap() = Some(service_id.clone());
+    app.state::<ServiceWebviews>()
+        .with_window_mut(&window_label, |s| s.active = Some(service_id.clone()));
 
-    if let Some(webview) = app.get_webview(&label) {
-        // Re-apply left inset in case the menu width changed while this webview
-        // was hidden in the background.
-        let left_inset = *app.state::<ServiceWebviews>().left_inset.lock().unwrap();
-        if let Ok((pos, size)) = content_rect(&window, left_inset) {
-            let _ = webview.set_position(pos);
-            let _ = webview.set_size(size);
-        }
-        let _ = webview.show();
-        // Skip "loaded" when this webview is currently parked on the
-        // auth-required fallback — re-selecting it must not clear the
-        // reseed-retry guard as if the product had actually loaded.
-        let stuck = app
+    if let Some(child) = app.get_webview(&label) {
+        let left_inset = app
             .state::<ServiceWebviews>()
-            .stuck_on_auth
-            .lock()
-            .unwrap()
-            .contains(&service_id);
+            .with_window_mut(&window_label, |s| s.left_inset);
+        if let Ok((pos, size)) = content_rect(&window, left_inset) {
+            let _ = child.set_position(pos);
+            let _ = child.set_size(size);
+        }
+        let _ = child.show();
+        let stuck = app.state::<ServiceWebviews>().with_window_mut(&window_label, |s| {
+            s.stuck_on_auth.contains(&service_id)
+        });
         if !stuck {
-            let _ = app.emit_to(main_target(), "service-loaded", &service_id);
+            let _ = app.emit_to(shell_target(&window_label), "service-loaded", &service_id);
         }
         return Ok(());
     }
 
-    build_service_webview(&app, &window, &label, &service_id, &url)
+    build_service_webview(&app, &window, &window_label, &label, &service_id, &url)
 }
 
 /// Navigate an existing product webview (quick links / bookmarks).
 #[tauri::command]
 pub async fn navigate_service(
     app: AppHandle,
+    webview: Webview,
     service_id: String,
     url: String,
 ) -> Result<(), String> {
-    let webview = app
-        .get_webview(&svc_label(&service_id))
+    let window_label = caller_shell_label(&webview)?;
+    let child = app
+        .get_webview(&svc_label(&window_label, &service_id))
         .ok_or("service webview not found")?;
     let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
-    webview.navigate(parsed).map_err(|e| e.to_string())
+    child.navigate(parsed).map_err(|e| e.to_string())
+}
+
+fn active_service_webview(app: &AppHandle, window_label: &str) -> Result<tauri::Webview, String> {
+    let active = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.active.clone())
+        .ok_or("no active service")?;
+    app.get_webview(&svc_label(window_label, &active))
+        .ok_or_else(|| "service webview not found".into())
 }
 
 /// Walk the active product webview's history back one step.
 #[tauri::command]
-pub async fn service_history_back(app: AppHandle) -> Result<(), String> {
-    let active = app
-        .state::<ServiceWebviews>()
-        .active
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("no active service")?;
-    let webview = app
-        .get_webview(&svc_label(&active))
-        .ok_or("service webview not found")?;
-    webview
+pub async fn service_history_back(app: AppHandle, webview: Webview) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    active_service_webview(&app, &window_label)?
         .eval("window.history.back()")
         .map_err(|e| e.to_string())
 }
 
 /// Walk the active product webview's history forward one step.
 #[tauri::command]
-pub async fn service_history_forward(app: AppHandle) -> Result<(), String> {
-    let active = app
-        .state::<ServiceWebviews>()
-        .active
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("no active service")?;
-    let webview = app
-        .get_webview(&svc_label(&active))
-        .ok_or("service webview not found")?;
-    webview
+pub async fn service_history_forward(app: AppHandle, webview: Webview) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    active_service_webview(&app, &window_label)?
         .eval("window.history.forward()")
         .map_err(|e| e.to_string())
 }
 
 /// Reload the active product webview (user-triggered recovery).
 #[tauri::command]
-pub async fn reload_service(app: AppHandle) -> Result<(), String> {
-    let active = app
-        .state::<ServiceWebviews>()
-        .active
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("no active service")?;
-    let webview = app
-        .get_webview(&svc_label(&active))
-        .ok_or("service webview not found")?;
-    webview
+pub async fn reload_service(app: AppHandle, webview: Webview) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    active_service_webview(&app, &window_label)?
         .eval("window.location.reload()")
         .map_err(|e| e.to_string())
 }
 
-/// Update the left chrome inset (logical px) to match the collapsible service
-/// menu's current width and reposition every child webview immediately.
+/// Open the OS-native DevTools inspector on the active product webview.
+/// Requires the `devtools` Cargo feature (enabled unconditionally, not just
+/// `--debug` builds) so the Settings "Dev mode" DevTools button works in a
+/// signed release. Called only while `environmentMode === "dev"` — see
+/// `DesktopSettings.tsx`.
 #[tauri::command]
-pub async fn set_content_left_inset(app: AppHandle, left_inset: f64) -> Result<(), String> {
-    *app.state::<ServiceWebviews>().left_inset.lock().unwrap() = left_inset;
-    reposition_all(&app);
+pub async fn open_active_service_devtools(app: AppHandle, webview: Webview) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    active_service_webview(&app, &window_label)?.open_devtools();
+    Ok(())
+}
+
+/// Update the left chrome inset (logical px) for this shell and reposition its
+/// product children immediately.
+#[tauri::command]
+pub async fn set_content_left_inset(
+    app: AppHandle,
+    webview: Webview,
+    left_inset: f64,
+) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    app.state::<ServiceWebviews>()
+        .with_window_mut(&window_label, |s| s.left_inset = left_inset);
+    reposition_window(&app, &window_label);
     Ok(())
 }
 
 /// Hide/show the active product webview so shell overlays that overhang the
 /// content area (e.g. the user menu) are not occluded by the native layer.
 #[tauri::command]
-pub async fn set_service_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+pub async fn set_service_visible(
+    app: AppHandle,
+    webview: Webview,
+    visible: bool,
+) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
     let active = app
         .state::<ServiceWebviews>()
-        .active
-        .lock()
-        .unwrap()
-        .clone();
+        .with_window_mut(&window_label, |s| s.active.clone());
     if let Some(id) = active {
-        if let Some(webview) = app.get_webview(&svc_label(&id)) {
-            let _ = if visible { webview.show() } else { webview.hide() };
+        if let Some(child) = app.get_webview(&svc_label(&window_label, &id)) {
+            let _ = if visible { child.show() } else { child.hide() };
         }
     }
     Ok(())
 }
 
-/// Tear down all product webviews on logout and clear active state.
+/// Tear down all product webviews and clear per-window active state.
+/// Used on logout and account switch (shared cookie jar). Sign-out UI sync
+/// across shells is emitted from the frontend after the store is cleared —
+/// this command alone also runs mid-switch and must not broadcast signed-out.
 #[tauri::command]
 pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
     for (label, webview) in app.webviews() {
@@ -1060,6 +1299,13 @@ pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
             let _ = webview.close();
         }
     }
-    *app.state::<ServiceWebviews>().active.lock().unwrap() = None;
+    {
+        let state = app.state::<ServiceWebviews>();
+        let mut map = state.by_window.lock().unwrap();
+        for window_state in map.values_mut() {
+            window_state.active = None;
+            window_state.stuck_on_auth.clear();
+        }
+    }
     Ok(())
 }

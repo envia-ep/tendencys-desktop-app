@@ -1,7 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./tauri";
 import { extractAudience } from "./accounts-api";
-import { TENDENCYS_BASE_URL, SHELL_SITE_ID, DEEP_LINK_SCHEME } from "./tendencys-auth";
+import {
+  getTendencysBaseUrl,
+  getShellSiteId,
+  DEEP_LINK_SCHEME,
+} from "./tendencys-auth";
 
 export type DeviceKeyMeta = {
   deviceId: string;
@@ -69,12 +73,12 @@ export async function registerDeviceKey(
   if (!isTauri() || !sessionToken || !accountId) return;
   // Accounts checks the session token's `aud` (= HOSTNAME) against the request
   // Referer; pass the decoded audience so the register POST is not rejected.
-  const referer = extractAudience(sessionToken) || TENDENCYS_BASE_URL;
+  const referer = extractAudience(sessionToken) || getTendencysBaseUrl();
 
   try {
     await invoke<DeviceKeyMeta>("register_device_key", {
       accountId,
-      accountsBaseUrl: TENDENCYS_BASE_URL,
+      accountsBaseUrl: getTendencysBaseUrl(),
       sessionToken,
       referer,
     });
@@ -132,8 +136,8 @@ async function performDeviceKeyLogin(
       token?: string;
     }>("login_with_device_key", {
       accountId,
-      accountsBaseUrl: TENDENCYS_BASE_URL,
-      siteId: SHELL_SITE_ID,
+      accountsBaseUrl: getTendencysBaseUrl(),
+      siteId: getShellSiteId(),
       redirectUrlB64,
     });
 

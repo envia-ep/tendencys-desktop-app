@@ -357,6 +357,24 @@ struct LoginBody<'a> {
     device_id: &'a str,
     challenge: &'a str,
     signature: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    machine_fingerprint: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    machine_fingerprint_version: Option<&'a str>,
+}
+
+fn register_payload(meta: &DeviceKeyMeta, machine: &crate::machine_fingerprint::MachineFingerprint) -> serde_json::Value {
+    serde_json::json!({
+        "device_id": meta.device_id,
+        "public_key": meta.public_key,
+        "algorithm": "ed25519",
+        "platform": meta.platform,
+        "client": "desktop",
+        "app_id": "tendencys-desktop",
+        "device_label": meta.device_label,
+        "machine_fingerprint": machine.fingerprint,
+        "machine_fingerprint_version": machine.version,
+    })
 }
 
 #[tauri::command]
@@ -370,6 +388,7 @@ pub async fn login_with_device_key(
     let id = require_account_id(&account_id)?.to_string();
     let base = resolve_accounts_base(&accounts_base_url)?;
     let meta = read_meta(&app, &id)?.ok_or_else(|| "no device key".to_string())?;
+    let machine = crate::machine_fingerprint::get_or_create_machine_fingerprint(&app)?;
     let client = reqwest::Client::new();
 
     let options_url = format!(
@@ -413,6 +432,8 @@ pub async fn login_with_device_key(
             device_id: &meta.device_id,
             challenge: &options.challenge,
             signature: &signature,
+            machine_fingerprint: Some(&machine.fingerprint),
+            machine_fingerprint_version: Some(&machine.version),
         })
         .send()
         .await
@@ -446,6 +467,7 @@ pub async fn register_device_key(
     let id = require_account_id(&account_id)?.to_string();
     let base = resolve_accounts_base(&accounts_base_url)?;
     let meta = generate_device_keypair(app.clone(), id.clone())?;
+    let machine = crate::machine_fingerprint::get_or_create_machine_fingerprint(&app)?;
     let url = format!("{}/api/device-keys/register", base);
 
     // Diagnostics: `/api/device-keys/register` needs a token with a valid `id`
@@ -455,15 +477,7 @@ pub async fn register_device_key(
     // Accounts' jsonwebtoken middleware rejects the session token unless the
     // Referer echoes its `aud` (= HOSTNAME). The caller passes the token's
     // decoded audience so this matches regardless of HOSTNAME formatting.
-    let register_body = serde_json::json!({
-        "device_id": meta.device_id,
-        "public_key": meta.public_key,
-        "algorithm": "ed25519",
-        "platform": meta.platform,
-        "client": "desktop",
-        "app_id": "tendencys-desktop",
-        "device_label": meta.device_label,
-    });
+    let register_body = register_payload(&meta, &machine);
     let (status_u16, body_text) = curl_json_post(
         &url,
         &[
@@ -485,15 +499,7 @@ pub async fn register_device_key(
         if body_str.to_lowercase().contains("already registered") {
             delete_device_key(app.clone(), id.clone())?;
             let meta = generate_device_keypair(app.clone(), id.clone())?;
-            let retry_body = serde_json::json!({
-                "device_id": meta.device_id,
-                "public_key": meta.public_key,
-                "algorithm": "ed25519",
-                "platform": meta.platform,
-                "client": "desktop",
-                "app_id": "tendencys-desktop",
-                "device_label": meta.device_label,
-            });
+            let retry_body = register_payload(&meta, &machine);
             let (retry_status_u16, retry_body_text) = curl_json_post(
                 &url,
                 &[

@@ -25,12 +25,16 @@
     "description": "按住 Control 键并点按程序坞中的 Tendencys 图标，然后选择“选项”→“在程序坞中保留”，以便退出后仍可重新打开。",
     "gotIt": "知道了"
   },
+  "devModeBanner": {
+    "label": "开发环境 — 未连接到生产环境"
+  },
   "topBar": {
     "back": "后退",
     "forward": "前进",
     "refresh": "刷新",
     "openInBrowser": "在浏览器中打开",
     "userMenu": "用户菜单",
+    "newWindow": "打开新窗口",
     "signOut": "退出登录",
     "addAccount": "添加账户",
     "switchAccount": "切换到 {{email}}",
@@ -208,6 +212,58 @@
     "version": "版本 {{version}}",
     "language": "语言",
     "languageHelp": "选择 Tendencys Desktop 界面语言。",
+    "general": "常规",
+    "appearance": {
+      "title": "外观",
+      "help": "这些选项仅适用于 Tendencys Desktop 外壳，不影响产品页面。",
+      "theme": "主题",
+      "themeHelp": "浅色、深色或跟随操作系统。",
+      "themeModes": {
+        "light": "浅色",
+        "dark": "深色",
+        "system": "系统"
+      },
+      "density": "密度",
+      "densityHelp": "左侧菜单使用舒适或紧凑间距。",
+      "densities": {
+        "comfortable": "舒适",
+        "compact": "紧凑"
+      },
+      "zoom": "文字大小",
+      "zoomHelp": "缩放 Tendencys Desktop 文字。布局仍占满窗口。",
+      "zoomPercent": "{{percent}}%"
+    },
+    "environment": {
+      "title": "环境",
+      "help": "切换 Tendencys Desktop 连接的后端。切换会注销并重启应用。",
+      "modes": {
+        "production": "生产环境",
+        "dev": "开发环境"
+      },
+      "confirmTitle": "切换到{{mode}}？",
+      "confirmDescription": "切换环境会注销并重启应用。",
+      "restartNow": "立即重启",
+      "cancel": "取消",
+      "error": "无法切换环境，请重试。",
+      "openDevTools": "打开 DevTools",
+      "devToolsError": "无法打开 DevTools。"
+    },
+    "menu": {
+      "title": "菜单",
+      "help": "拖动可调整左侧菜单中产品的顺序。可添加自己的网址并在应用内打开。",
+      "dragHandle": "拖动以重新排序",
+      "builtIn": "内置产品",
+      "edit": "编辑",
+      "delete": "删除",
+      "save": "保存",
+      "cancel": "取消",
+      "addTitle": "添加网址",
+      "add": "添加到菜单",
+      "nameLabel": "名称",
+      "namePlaceholder": "我的网站",
+      "urlLabel": "网址",
+      "invalidUrl": "请输入名称和有效的 http(s) 网址。"
+    },
     "products": "产品",
     "loading": "正在加载偏好设置…",
     "productHint": "这些选项仅适用于桌面应用 — 不适用于浏览器。",
