@@ -339,6 +339,7 @@ pub fn run() {
             {
                 use tauri::menu::{Menu, MenuItem, Submenu};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+                use tauri::Manager;
 
                 let new_window_i = MenuItem::with_id(
                     app,
