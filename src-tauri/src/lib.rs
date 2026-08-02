@@ -12,11 +12,12 @@ use device_key::{
 };
 use sentry::protocol::{Breadcrumb, Event, Value};
 use webview_manager::{
-    attach_shell_window_events, clear_accounts_session, clear_shared_web_data, create_shell_window,
-    desktop_report_nav, emit_deep_link, focus_main_window, logout_webviews, mark_exit_allowed,
-    navigate_service, open_active_service_devtools, read_accounts_session, reload_service,
-    request_quit, seed_accounts_session, select_service, service_history_back,
-    service_history_forward, set_content_left_inset, set_service_visible, ServiceWebviews,
+    attach_shell_window_events, clear_accounts_session, clear_shared_web_data, close_product_tab,
+    create_shell_window, desktop_open_or_tab, desktop_report_nav, emit_deep_link,
+    focus_main_window, focus_product_tab, logout_webviews, mark_exit_allowed, navigate_service,
+    open_active_service_devtools, read_accounts_session, reload_service, request_quit,
+    seed_accounts_session, select_service, service_history_back, service_history_forward,
+    set_content_left_inset, set_service_visible, ServiceWebviews,
 };
 
 /// Substrings that mark a key or query param as carrying an auth secret we must
@@ -208,7 +209,10 @@ pub fn run() {
             save_bytes,
             print_test_page,
             desktop_deliver_file,
-            desktop_report_nav
+            desktop_report_nav,
+            desktop_open_or_tab,
+            focus_product_tab,
+            close_product_tab
         ])
         .setup(|app| {
             #[cfg(desktop)]

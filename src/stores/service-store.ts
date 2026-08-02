@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getDefaultService, type ServiceDefinition } from "@/config/services";
+import type { ProductTab } from "@/lib/native-webviews";
 import {
   loadBookmarks,
   saveBookmarks,
@@ -39,6 +40,11 @@ type ServiceState = {
   menuCollapsed: boolean;
   /** Home hub, Developers hub, Settings, or native product webview. Defaults to home after sign-in. */
   shellView: ShellView;
+  /** Aux in-app tabs from product window.open (synced from Rust). */
+  productTabs: ProductTab[];
+  /** null = primary service surface is focused. */
+  activeTabId: string | null;
+  setProductTabs: (tabs: ProductTab[], activeTabId: string | null) => void;
   setActiveService: (service: ServiceDefinition) => void;
   showHome: () => void;
   showDevelopers: () => void;
@@ -63,9 +69,20 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
   ssoInitiated: {},
   menuCollapsed: loadMenuCollapsed(),
   shellView: "home",
+  productTabs: [],
+  activeTabId: null,
+
+  setProductTabs: (tabs, activeTabId) => {
+    set({ productTabs: tabs, activeTabId });
+  },
 
   setActiveService: (service) => {
-    set({ activeService: service, shellView: "service" });
+    set({
+      activeService: service,
+      shellView: "service",
+      productTabs: [],
+      activeTabId: null,
+    });
   },
 
   showHome: () => {
@@ -151,7 +168,7 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
   },
 
   clearSsoInitiated: () => {
-    set({ ssoInitiated: {} });
+    set({ ssoInitiated: {}, productTabs: [], activeTabId: null });
   },
 
   getBookmarksForService: (serviceId) =>

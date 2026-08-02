@@ -52,6 +52,8 @@
     "allow-set-content-left-inset",
     "allow-open-active-service-devtools",
     "allow-create-shell-window",
+    "allow-focus-product-tab",
+    "allow-close-product-tab",
     "allow-logout-webviews",
     "allow-seed-accounts-session",
     "allow-clear-accounts-session",

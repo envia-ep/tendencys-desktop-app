@@ -4,6 +4,7 @@ import { useServiceStore } from "@/stores/service-store";
 import { getContentLeftInset } from "@/config/layout";
 import {
   listenAuthRequired,
+  listenProductTabsChanged,
   listenServiceLoaded,
   listenServiceNavigated,
   listenShellOpen,
@@ -433,6 +434,20 @@ export function useProductSso() {
     retryOtherPendingVerifications,
     consumePendingDeepLink,
   ]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listenProductTabsChanged((event) => {
+      useServiceStore
+        .getState()
+        .setProductTabs(event.tabs, event.activeTabId);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

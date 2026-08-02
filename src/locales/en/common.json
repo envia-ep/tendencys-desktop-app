@@ -45,6 +45,11 @@
     "expand": "Expand menu",
     "collapse": "Collapse menu"
   },
+  "tabs": {
+    "label": "Open tabs",
+    "untitled": "New page",
+    "close": "Close {{title}}"
+  },
   "home": {
     "menuLabel": "Home",
     "greeting": "Hi, {{name}}",

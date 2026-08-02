@@ -22,3 +22,8 @@ commands.allow = ["desktop_deliver_file"]
 identifier = "allow-desktop-report-nav"
 description = "Allows product webviews to report SPA history changes to the shell (no navigation)"
 commands.allow = ["desktop_report_nav"]
+
+[[permission]]
+identifier = "allow-desktop-open-or-tab"
+description = "Allows product/tab webviews to open allowlisted URLs as in-app tabs (or system browser)"
+commands.allow = ["desktop_open_or_tab"]

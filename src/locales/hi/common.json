@@ -45,6 +45,11 @@
     "expand": "मेनू बढ़ाएँ",
     "collapse": "मेनू समेटें"
   },
+  "tabs": {
+    "label": "खुली टैब",
+    "untitled": "नया पेज",
+    "close": "{{title}} बंद करें"
+  },
   "home": {
     "menuLabel": "होम",
     "greeting": "नमस्ते, {{name}}",

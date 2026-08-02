@@ -45,6 +45,11 @@
     "expand": "Expandir menú",
     "collapse": "Colapsar menú"
   },
+  "tabs": {
+    "label": "Pestañas abiertas",
+    "untitled": "Nueva página",
+    "close": "Cerrar {{title}}"
+  },
   "home": {
     "menuLabel": "Inicio",
     "greeting": "Hola, {{name}}",

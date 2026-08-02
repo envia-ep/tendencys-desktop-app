@@ -21,15 +21,18 @@ export function WelcomeScreen({ onSignIn, onCreateAccount }: WelcomeScreenProps)
   const reduce = useReducedMotion();
 
   return (
-    <div className="flex h-screen bg-white">
-      <div className="flex w-full flex-col items-center justify-center px-8 md:w-[440px] md:shrink-0">
+    <div className="flex h-screen bg-background">
+      <div className="flex w-full flex-col items-center justify-center border-r border-border px-8 md:w-[440px] md:shrink-0">
         <motion.div
           initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="flex w-full max-w-sm flex-col gap-6"
         >
-          <img src={accountsLogo} alt="Tendencys" className="h-8 w-auto" />
+          {/* Dark wordmark stays on a light plate so brand colors survive dark mode. */}
+          <span className="flex w-fit items-center rounded-lg dark:bg-white dark:px-2.5 dark:py-2">
+            <img src={accountsLogo} alt="Tendencys" className="h-8 w-auto" />
+          </span>
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold leading-tight text-foreground">
               {t("welcome.title")}

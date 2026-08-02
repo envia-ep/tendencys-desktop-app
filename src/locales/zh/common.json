@@ -45,6 +45,11 @@
     "expand": "展开菜单",
     "collapse": "收起菜单"
   },
+  "tabs": {
+    "label": "打开的标签页",
+    "untitled": "新页面",
+    "close": "关闭 {{title}}"
+  },
   "home": {
     "menuLabel": "首页",
     "greeting": "你好，{{name}}",

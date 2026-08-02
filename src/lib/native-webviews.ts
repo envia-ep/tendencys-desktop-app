@@ -211,3 +211,54 @@ export async function listenShellSessionUpdated(
   const { listen } = await import("@tauri-apps/api/event");
   return listen("shell-session-updated", () => handler());
 }
+
+export type ProductTab = {
+  id: string;
+  label: string;
+  url: string;
+  title: string;
+  openerServiceId: string;
+};
+
+export type ProductTabsChangedEvent = {
+  tabs: ProductTab[];
+  /** null = primary service surface */
+  activeTabId: string | null;
+};
+
+/** Aux in-app tabs opened from product window.open / target=_blank. */
+export async function listenProductTabsChanged(
+  handler: (event: ProductTabsChangedEvent) => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<{
+    tabs: Array<{
+      id: string;
+      label: string;
+      url: string;
+      title: string;
+      opener_service_id: string;
+    }>;
+    active_tab_id: string | null;
+  }>("product-tabs-changed", (event) =>
+    handler({
+      tabs: event.payload.tabs.map((tab) => ({
+        id: tab.id,
+        label: tab.label,
+        url: tab.url,
+        title: tab.title,
+        openerServiceId: tab.opener_service_id,
+      })),
+      activeTabId: event.payload.active_tab_id,
+    }),
+  );
+}
+
+/** Focus an aux tab, or pass null to return to the primary service surface. */
+export async function focusProductTab(tabId: string | null): Promise<void> {
+  await invoke("focus_product_tab", { tabId });
+}
+
+export async function closeProductTab(tabId: string): Promise<void> {
+  await invoke("close_product_tab", { tabId });
+}

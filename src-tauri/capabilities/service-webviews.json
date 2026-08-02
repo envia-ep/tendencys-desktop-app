@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "service-webviews",
   "description": "Limited IPC for product child webviews (label save/print + SPA nav report)",
-  "windows": ["svc-*"],
+  "windows": ["svc-*", "tab-*"],
   "remote": {
     "urls": [
       "https://ship.envia.com/*",
@@ -20,6 +20,7 @@
   },
   "permissions": [
     "allow-desktop-deliver-file",
-    "allow-desktop-report-nav"
+    "allow-desktop-report-nav",
+    "allow-desktop-open-or-tab"
   ]
 }

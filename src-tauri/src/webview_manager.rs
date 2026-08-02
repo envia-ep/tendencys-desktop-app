@@ -8,7 +8,12 @@
 //! Child webview labels:
 //! - `svc-<window>--<service_id>` — one per product per shell window,
 //!   shown/hidden on menu switch within that window.
+//! - `tab-<window>--<n>` — auxiliary in-app tabs from product `window.open`
+//!   / `target=_blank` on allowlisted hosts (external hosts → system browser).
 //! - Shell windows: `main` (primary) and `shell-N` (additional).
+//!
+//! Tab chrome lives in the left ServiceMenu (not above the content rect): wry
+//! pins child WKWebViews to the window top, so a top inset is unreliable.
 //!
 //! SSO cookie sharing: the Accounts session cookie `_atid` is a *session* cookie
 //! (no `Max-Age`/`Expires`). Session cookies live only in a `WKWebsiteDataStore`
@@ -47,6 +52,9 @@ static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
 
 /// Cap independent shell windows (main + extras) to bound WKWebView memory.
 const MAX_SHELL_WINDOWS: usize = 6;
+/// Cap auxiliary product tabs per shell window.
+const MAX_AUX_TABS: usize = 6;
+
 
 use crate::desktop_files::unique_download_path;
 
@@ -55,6 +63,23 @@ struct ServiceNavigatedPayload {
     service_id: String,
     url: String,
     replace: bool,
+}
+
+/// One auxiliary in-app tab opened from a product new-window request.
+#[derive(Clone, Serialize)]
+pub(crate) struct ProductTabInfo {
+    id: String,
+    label: String,
+    url: String,
+    title: String,
+    opener_service_id: String,
+}
+
+#[derive(Clone, Serialize)]
+struct ProductTabsChangedPayload {
+    tabs: Vec<ProductTabInfo>,
+    /// `null` = primary service surface; otherwise aux tab id.
+    active_tab_id: Option<String>,
 }
 
 /// Emitted when shell auth captures a handoff JWT (`token`) and optionally the
@@ -273,6 +298,48 @@ const DESKTOP_BRIDGE_SCRIPT: &str = r#"
     return ret;
   };
   window.addEventListener('popstate', function () { ping(false); });
+
+  if (window.__tendencysOpenPatched) return;
+  window.__tendencysOpenPatched = true;
+  function openExternalOrTab(url) {
+    if (!url || typeof url !== 'string') return;
+    invoke('desktop_open_or_tab', { url: url }).catch(function () {});
+  }
+  function makeOpenStub() {
+    var stub = { closed: false, close: function () { this.closed = true; }, focus: function () {}, blur: function () {} };
+    var loc = {
+      assign: function (v) { openExternalOrTab(String(v)); },
+      replace: function (v) { openExternalOrTab(String(v)); },
+      toString: function () { return 'about:blank'; }
+    };
+    Object.defineProperty(loc, 'href', {
+      get: function () { return 'about:blank'; },
+      set: function (v) { openExternalOrTab(String(v)); },
+      configurable: true
+    });
+    Object.defineProperty(stub, 'location', {
+      get: function () { return loc; },
+      set: function (v) { openExternalOrTab(String(v)); },
+      configurable: true
+    });
+    return stub;
+  }
+  var _open = window.open;
+  window.open = function (url, target, features) {
+    var u = url == null ? '' : String(url);
+    if (!u || u === 'about:blank') {
+      return makeOpenStub();
+    }
+    if (/^https?:/i.test(u)) {
+      openExternalOrTab(u);
+      return makeOpenStub();
+    }
+    try {
+      return _open.call(window, url, target, features);
+    } catch (e) {
+      return null;
+    }
+  };
 })();
 "#;
 
@@ -455,7 +522,8 @@ const DEFAULT_LEFT_INSET: f64 = 220.0;
 /// on cold restore (before any product `svc-*` webview exists).
 const ATID_SEED_LABEL: &str = "atid-seed";
 const SVC_PREFIX: &str = "svc-";
-/// Separates window label from service id inside a product webview label.
+const TAB_PREFIX: &str = "tab-";
+/// Separates window label from service id / tab id inside a child label.
 const SVC_SEP: &str = "--";
 const MAIN_WINDOW: &str = "main";
 const SHELL_PREFIX: &str = "shell-";
@@ -504,6 +572,60 @@ fn parse_svc_label(label: &str) -> Option<(&str, &str)> {
     Some((window, service))
 }
 
+fn tab_label(window_label: &str, tab_id: &str) -> String {
+    format!("{TAB_PREFIX}{window_label}{SVC_SEP}{tab_id}")
+}
+
+fn tab_prefix_for_window(window_label: &str) -> String {
+    format!("{TAB_PREFIX}{window_label}{SVC_SEP}")
+}
+
+/// Parse `tab-<window>--<tab_id>` → `(window, tab_id)`.
+fn parse_tab_label(label: &str) -> Option<(&str, &str)> {
+    let rest = label.strip_prefix(TAB_PREFIX)?;
+    let (window, tab_id) = rest.split_once(SVC_SEP)?;
+    if window.is_empty() || tab_id.is_empty() {
+        return None;
+    }
+    Some((window, tab_id))
+}
+
+/// Hosts allowed as in-app tabs (mirror `capabilities/service-webviews.json` + Accounts).
+fn is_product_tab_host(url: &tauri::Url) -> bool {
+    let Some(host) = url.host_str().map(|h| h.to_ascii_lowercase()) else {
+        return false;
+    };
+    if host == "localhost" || host.ends_with(".localhost") {
+        return true;
+    }
+    const EXACT: &[&str] = &[
+        "parapaquetes.com",
+        "partners.tendencys.com",
+        "accounts.envia.com",
+        "accounts.ecart.com",
+        "accounts-sandbox.envia.com",
+        "ship.envia.com",
+    ];
+    if EXACT.iter().any(|h| host == *h) {
+        return true;
+    }
+    const SUFFIXES: &[&str] = &[
+        ".envia.com",
+        ".ecart.com",
+        ".ecartapi.com",
+        ".ecartpay.com",
+        ".parapaquetes.com",
+        ".tendencys.com",
+    ];
+    SUFFIXES.iter().any(|suffix| host.ends_with(suffix))
+}
+
+fn title_from_url(url: &tauri::Url) -> String {
+    url.host_str()
+        .map(|h| h.to_string())
+        .unwrap_or_else(|| "Page".into())
+}
+
 /// Calling shell label from an invoke originating in that shell's webview.
 fn caller_shell_label(webview: &Webview) -> Result<String, String> {
     let label = webview.label().to_string();
@@ -513,12 +635,16 @@ fn caller_shell_label(webview: &Webview) -> Result<String, String> {
     Ok(label)
 }
 
-/// Per-shell active service, menu inset, and auth-stuck set.
+/// Per-shell active service, menu inset, aux tabs, and auth-stuck set.
 pub struct WindowShellState {
     pub active: Option<String>,
     pub left_inset: f64,
     /// service_ids parked on an Accounts fallback / step-up page in this window.
     pub stuck_on_auth: HashSet<String>,
+    pub tabs: Vec<ProductTabInfo>,
+    pub next_tab_seq: u32,
+    /// When set, that aux tab webview is shown instead of the active service.
+    pub active_tab_id: Option<String>,
 }
 
 impl WindowShellState {
@@ -527,6 +653,9 @@ impl WindowShellState {
             active: None,
             left_inset: DEFAULT_LEFT_INSET,
             stuck_on_auth: HashSet::new(),
+            tabs: Vec::new(),
+            next_tab_seq: 1,
+            active_tab_id: None,
         }
     }
 }
@@ -583,7 +712,7 @@ fn content_rect<R: Runtime>(
     Ok((PhysicalPosition::new(left, 0.0), PhysicalSize::new(w, h)))
 }
 
-/// Reposition product children of one shell window.
+/// Reposition product + aux-tab children of one shell window.
 pub fn reposition_window<R: Runtime>(app: &AppHandle<R>, window_label: &str) {
     let Some(window) = app.get_window(window_label) else {
         return;
@@ -591,10 +720,11 @@ pub fn reposition_window<R: Runtime>(app: &AppHandle<R>, window_label: &str) {
     let left_inset = app
         .state::<ServiceWebviews>()
         .with_window_mut(window_label, |s| s.left_inset);
-    let prefix = svc_prefix_for_window(window_label);
+    let svc_prefix = svc_prefix_for_window(window_label);
+    let tab_prefix = tab_prefix_for_window(window_label);
     if let Ok((pos, size)) = content_rect(&window, left_inset) {
         for (label, webview) in app.webviews() {
-            if label.starts_with(&prefix) {
+            if label.starts_with(&svc_prefix) || label.starts_with(&tab_prefix) {
                 let _ = webview.set_position(pos);
                 let _ = webview.set_size(size);
             }
@@ -610,15 +740,249 @@ pub fn reposition_all<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Close every product child belonging to a shell window and drop its state.
+/// Close every product + aux-tab child belonging to a shell window and drop its state.
 fn destroy_shell_children(app: &AppHandle, window_label: &str) {
-    let prefix = svc_prefix_for_window(window_label);
+    let svc_prefix = svc_prefix_for_window(window_label);
+    let tab_prefix = tab_prefix_for_window(window_label);
     for (label, webview) in app.webviews() {
-        if label.starts_with(&prefix) {
+        if label.starts_with(&svc_prefix) || label.starts_with(&tab_prefix) {
             let _ = webview.close();
         }
     }
     app.state::<ServiceWebviews>().remove_window(window_label);
+}
+
+fn emit_product_tabs_changed(app: &AppHandle, window_label: &str) {
+    let payload = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        ProductTabsChangedPayload {
+            tabs: s.tabs.clone(),
+            active_tab_id: s.active_tab_id.clone(),
+        }
+    });
+    let _ = app.emit_to(shell_target(window_label), "product-tabs-changed", payload);
+}
+
+fn hide_window_product_children(app: &AppHandle, window_label: &str, except: Option<&str>) {
+    let svc_prefix = svc_prefix_for_window(window_label);
+    let tab_prefix = tab_prefix_for_window(window_label);
+    for (label, child) in app.webviews() {
+        if (label.starts_with(&svc_prefix) || label.starts_with(&tab_prefix))
+            && except != Some(label.as_str())
+        {
+            let _ = child.hide();
+        }
+    }
+}
+
+fn close_all_aux_tabs_for_window(app: &AppHandle, window_label: &str) {
+    let labels: Vec<String> = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            let labels = s.tabs.iter().map(|t| t.label.clone()).collect();
+            s.tabs.clear();
+            s.active_tab_id = None;
+            labels
+        });
+    for label in labels {
+        if let Some(wv) = app.get_webview(&label) {
+            let _ = wv.close();
+        }
+    }
+    emit_product_tabs_changed(app, window_label);
+}
+
+/// Open allowlisted http(s) in an in-app tab; otherwise system browser.
+fn handle_new_window_url(
+    app: &AppHandle,
+    window_label: &str,
+    opener_service_id: &str,
+    url: &tauri::Url,
+) {
+    let scheme = url.scheme();
+    let host = url.host_str().unwrap_or("");
+    let allowlisted = is_product_tab_host(url);
+    log::info!(
+        "[product-tabs] new-window scheme={scheme} url={url} opener={opener_service_id}"
+    );
+    if scheme != "http" && scheme != "https" {
+        return;
+    }
+    if allowlisted {
+        match open_product_tab(app, window_label, opener_service_id, url) {
+            Ok(()) => {}
+            Err(err) => {
+                log::warn!("[product-tabs] open_product_tab failed: {err}");
+            }
+        }
+        return;
+    }
+    if let Err(err) = app.opener().open_url(url.as_str(), None::<&str>) {
+        log::warn!("[product-tabs] open_url failed for {url}: {err}");
+    }
+}
+
+fn open_product_tab(
+    app: &AppHandle,
+    window_label: &str,
+    opener_service_id: &str,
+    url: &tauri::Url,
+) -> Result<(), String> {
+    // Reuse an existing tab with the same URL.
+    let existing = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        s.tabs
+            .iter()
+            .find(|t| t.url == url.as_str())
+            .map(|t| t.id.clone())
+    });
+    if let Some(tab_id) = existing {
+        return focus_product_tab_inner(app, window_label, Some(&tab_id));
+    }
+
+    let tab_count = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.tabs.len());
+    if tab_count >= MAX_AUX_TABS {
+        return Err("maximum number of tabs reached".into());
+    }
+
+    let window = app
+        .get_window(window_label)
+        .ok_or_else(|| format!("shell window not found: {window_label}"))?;
+
+    let (tab_id, label) = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        let id = s.next_tab_seq.to_string();
+        s.next_tab_seq = s.next_tab_seq.saturating_add(1);
+        let label = tab_label(window_label, &id);
+        (id, label)
+    });
+
+    build_tab_webview(
+        app,
+        &window,
+        window_label,
+        &label,
+        &tab_id,
+        opener_service_id,
+        url.as_str(),
+    )?;
+
+    let info = ProductTabInfo {
+        id: tab_id.clone(),
+        label: label.clone(),
+        url: url.to_string(),
+        title: title_from_url(url),
+        opener_service_id: opener_service_id.to_string(),
+    };
+    app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        s.tabs.push(info);
+        s.active_tab_id = Some(tab_id.clone());
+    });
+
+    hide_window_product_children(app, window_label, Some(&label));
+    if let Some(child) = app.get_webview(&label) {
+        let _ = child.show();
+    }
+    emit_product_tabs_changed(app, window_label);
+    log::info!("[product-tabs] opened tab={tab_id} label={label}");
+    Ok(())
+}
+
+fn focus_product_tab_inner(
+    app: &AppHandle,
+    window_label: &str,
+    tab_id: Option<&str>,
+) -> Result<(), String> {
+    let window = app
+        .get_window(window_label)
+        .ok_or_else(|| format!("shell window not found: {window_label}"))?;
+    let left_inset = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.left_inset);
+
+    if let Some(id) = tab_id {
+        let label = app
+            .state::<ServiceWebviews>()
+            .with_window_mut(window_label, |s| {
+                if !s.tabs.iter().any(|t| t.id == id) {
+                    return None;
+                }
+                s.active_tab_id = Some(id.to_string());
+                Some(tab_label(window_label, id))
+            })
+            .ok_or_else(|| format!("tab not found: {id}"))?;
+        hide_window_product_children(app, window_label, Some(&label));
+        if let Some(child) = app.get_webview(&label) {
+            if let Ok((pos, size)) = content_rect(&window, left_inset) {
+                let _ = child.set_position(pos);
+                let _ = child.set_size(size);
+            }
+            let _ = child.show();
+        }
+        emit_product_tabs_changed(app, window_label);
+        return Ok(());
+    }
+
+    // Focus primary service surface.
+    let active = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        s.active_tab_id = None;
+        s.active.clone()
+    });
+    let except = active
+        .as_ref()
+        .map(|svc| svc_label(window_label, svc));
+    hide_window_product_children(app, window_label, except.as_deref());
+    if let Some(svc) = active {
+        if let Some(child) = app.get_webview(&svc_label(window_label, &svc)) {
+            if let Ok((pos, size)) = content_rect(&window, left_inset) {
+                let _ = child.set_position(pos);
+                let _ = child.set_size(size);
+            }
+            let _ = child.show();
+        }
+    }
+    emit_product_tabs_changed(app, window_label);
+    Ok(())
+}
+
+fn close_product_tab_inner(
+    app: &AppHandle,
+    window_label: &str,
+    tab_id: &str,
+) -> Result<(), String> {
+    let label = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        let idx = s.tabs.iter().position(|t| t.id == tab_id)?;
+        let removed = s.tabs.remove(idx);
+        if s.active_tab_id.as_deref() == Some(tab_id) {
+            s.active_tab_id = None;
+        }
+        Some(removed.label)
+    });
+    let Some(label) = label else {
+        return Err(format!("tab not found: {tab_id}"));
+    };
+    if let Some(wv) = app.get_webview(&label) {
+        let _ = wv.close();
+    }
+    // Return to primary service (or keep another tab if we later change policy).
+    focus_product_tab_inner(app, window_label, None)?;
+    Ok(())
+}
+
+/// Resolve opener service id from the calling product or tab webview label.
+fn opener_service_from_label(app: &AppHandle, label: &str) -> Option<(String, String)> {
+    if let Some((window, service)) = parse_svc_label(label) {
+        return Some((window.to_string(), service.to_string()));
+    }
+    if let Some((window, tab_id)) = parse_tab_label(label) {
+        let opener = app.state::<ServiceWebviews>().with_window_mut(window, |s| {
+            s.tabs
+                .iter()
+                .find(|t| t.id == tab_id)
+                .map(|t| t.opener_service_id.clone())
+        })?;
+        return Some((window.to_string(), opener));
+    }
+    None
 }
 
 /// Wire resize / focus / close for a shell window (main or shell-N).
@@ -732,6 +1096,8 @@ fn build_service_webview(
         builder = builder.initialization_script(script);
     }
     let app_for_new_window = app.clone();
+    let win_for_new_window = window_label.to_string();
+    let opener_for_new_window = service_id.to_string();
     let builder = builder
         .on_download(move |_webview, event| {
             match event {
@@ -774,14 +1140,12 @@ fn build_service_webview(
             }
         })
         .on_new_window(move |url, _features| {
-            if url.scheme() == "http" || url.scheme() == "https" {
-                if let Err(err) = app_for_new_window
-                    .opener()
-                    .open_url(url.as_str(), None::<&str>)
-                {
-                    log::warn!("[desktop-files] open_url failed for {url}: {err}");
-                }
-            }
+            handle_new_window_url(
+                &app_for_new_window,
+                &win_for_new_window,
+                &opener_for_new_window,
+                &url,
+            );
             NewWindowResponse::Deny
         })
         .on_navigation(move |url| {
@@ -859,10 +1223,13 @@ fn build_service_webview(
                     false,
                 );
             }
-            let active = app_for_load
+            let (active, active_tab) = app_for_load
                 .state::<ServiceWebviews>()
-                .with_window_mut(&win_for_load, |s| s.active.clone());
-            if active.as_deref() == Some(id_for_load.as_str()) {
+                .with_window_mut(&win_for_load, |s| {
+                    (s.active.clone(), s.active_tab_id.clone())
+                });
+            // Only reveal when this service is active and no aux tab is focused.
+            if active_tab.is_none() && active.as_deref() == Some(id_for_load.as_str()) {
                 let _ = webview.show();
             }
             // Do not report "loaded" for the auth-required fallback page, a
@@ -884,6 +1251,98 @@ fn build_service_webview(
         .add_child(builder, pos, size)
         .map_err(|e| e.to_string())?;
     // Hidden until on_page_load(Finished) reveals it (only if active).
+    let _ = webview.hide();
+    Ok(())
+}
+
+/// Auxiliary in-app tab webview (product popup / target=_blank on allowlisted hosts).
+fn build_tab_webview(
+    app: &AppHandle,
+    window: &tauri::Window,
+    window_label: &str,
+    label: &str,
+    tab_id: &str,
+    opener_service_id: &str,
+    url: &str,
+) -> Result<(), String> {
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
+    let left_inset = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| s.left_inset);
+    let (pos, size) = content_rect(window, left_inset).map_err(|e| e.to_string())?;
+
+    let app_for_new_window = app.clone();
+    let win_for_new_window = window_label.to_string();
+    let opener_for_new_window = opener_service_id.to_string();
+    let app_for_load = app.clone();
+    let win_for_load = window_label.to_string();
+    let tab_id_for_load = tab_id.to_string();
+
+    let builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
+        .data_store_identifier(SHARED_DATA_STORE)
+        .initialization_script(DESKTOP_BRIDGE_SCRIPT)
+        .on_download(move |_webview, event| {
+            match event {
+                DownloadEvent::Requested { url, destination } => {
+                    let from_webkit = destination
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .filter(|s| {
+                            !s.is_empty()
+                                && !s.eq_ignore_ascii_case("unknown")
+                                && !s.eq_ignore_ascii_case("download.bin")
+                        })
+                        .map(|s| s.to_string());
+                    let from_url = url
+                        .path_segments()
+                        .and_then(|mut s| s.next_back())
+                        .filter(|s| !s.is_empty() && !s.contains('='))
+                        .map(|s| s.to_string());
+                    let suggested = from_webkit
+                        .or(from_url)
+                        .unwrap_or_else(|| "download.bin".into());
+                    *destination = unique_download_path(&suggested);
+                    true
+                }
+                _ => true,
+            }
+        })
+        .on_new_window(move |nav_url, _features| {
+            handle_new_window_url(
+                &app_for_new_window,
+                &win_for_new_window,
+                &opener_for_new_window,
+                &nav_url,
+            );
+            NewWindowResponse::Deny
+        })
+        .on_page_load(move |webview, payload| {
+            if payload.event() != PageLoadEvent::Finished {
+                return;
+            }
+            let loaded = payload.url();
+            let title = title_from_url(loaded);
+            let url_str = loaded.to_string();
+            app_for_load
+                .state::<ServiceWebviews>()
+                .with_window_mut(&win_for_load, |s| {
+                    if let Some(tab) = s.tabs.iter_mut().find(|t| t.id == tab_id_for_load) {
+                        tab.url = url_str.clone();
+                        tab.title = title.clone();
+                    }
+                });
+            emit_product_tabs_changed(&app_for_load, &win_for_load);
+            let active_tab = app_for_load
+                .state::<ServiceWebviews>()
+                .with_window_mut(&win_for_load, |s| s.active_tab_id.clone());
+            if active_tab.as_deref() == Some(tab_id_for_load.as_str()) {
+                let _ = webview.show();
+            }
+        });
+
+    let webview = window
+        .add_child(builder, pos, size)
+        .map_err(|e| e.to_string())?;
     let _ = webview.hide();
     Ok(())
 }
@@ -928,7 +1387,7 @@ fn find_shared_store_webview(app: &AppHandle) -> Option<tauri::Webview> {
     }
     app.webviews()
         .into_iter()
-        .find(|(label, _)| label.starts_with(SVC_PREFIX))
+        .find(|(label, _)| label.starts_with(SVC_PREFIX) || label.starts_with(TAB_PREFIX))
         .map(|(_, wv)| wv)
 }
 
@@ -1158,15 +1617,16 @@ pub async fn select_service(
         .get_window(&window_label)
         .ok_or_else(|| format!("shell window not found: {window_label}"))?;
 
-    let prefix = svc_prefix_for_window(&window_label);
-    for (other, child) in app.webviews() {
-        if other.starts_with(&prefix) && other != label {
-            let _ = child.hide();
-        }
-    }
+    // Switching product clears aux tabs (plan: keep it simple).
+    close_all_aux_tabs_for_window(&app, &window_label);
+
+    hide_window_product_children(&app, &window_label, Some(&label));
 
     app.state::<ServiceWebviews>()
-        .with_window_mut(&window_label, |s| s.active = Some(service_id.clone()));
+        .with_window_mut(&window_label, |s| {
+            s.active = Some(service_id.clone());
+            s.active_tab_id = None;
+        });
 
     if let Some(child) = app.get_webview(&label) {
         let left_inset = app
@@ -1205,11 +1665,17 @@ pub async fn navigate_service(
     child.navigate(parsed).map_err(|e| e.to_string())
 }
 
+/// Active surface webview: focused aux tab, or the active product service.
 fn active_service_webview(app: &AppHandle, window_label: &str) -> Result<tauri::Webview, String> {
-    let active = app
-        .state::<ServiceWebviews>()
-        .with_window_mut(window_label, |s| s.active.clone())
-        .ok_or("no active service")?;
+    let (active_tab, active_service) = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
+        (s.active_tab_id.clone(), s.active.clone())
+    });
+    if let Some(tab_id) = active_tab {
+        return app
+            .get_webview(&tab_label(window_label, &tab_id))
+            .ok_or_else(|| "tab webview not found".into());
+    }
+    let active = active_service.ok_or("no active service")?;
     app.get_webview(&svc_label(window_label, &active))
         .ok_or_else(|| "service webview not found".into())
 }
@@ -1268,7 +1734,7 @@ pub async fn set_content_left_inset(
     Ok(())
 }
 
-/// Hide/show the active product webview so shell overlays that overhang the
+/// Hide/show the active product/tab webview so shell overlays that overhang the
 /// content area (e.g. the user menu) are not occluded by the native layer.
 #[tauri::command]
 pub async fn set_service_visible(
@@ -1277,14 +1743,47 @@ pub async fn set_service_visible(
     visible: bool,
 ) -> Result<(), String> {
     let window_label = caller_shell_label(&webview)?;
-    let active = app
-        .state::<ServiceWebviews>()
-        .with_window_mut(&window_label, |s| s.active.clone());
-    if let Some(id) = active {
-        if let Some(child) = app.get_webview(&svc_label(&window_label, &id)) {
-            let _ = if visible { child.show() } else { child.hide() };
-        }
+    if let Ok(child) = active_service_webview(&app, &window_label) {
+        let _ = if visible { child.show() } else { child.hide() };
     }
+    Ok(())
+}
+
+/// Focus an aux tab (`Some(id)`) or the primary service surface (`None`).
+#[tauri::command]
+pub async fn focus_product_tab(
+    app: AppHandle,
+    webview: Webview,
+    tab_id: Option<String>,
+) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    focus_product_tab_inner(&app, &window_label, tab_id.as_deref())
+}
+
+/// Close an auxiliary product tab and return to the primary service surface.
+#[tauri::command]
+pub async fn close_product_tab(
+    app: AppHandle,
+    webview: Webview,
+    tab_id: String,
+) -> Result<(), String> {
+    let window_label = caller_shell_label(&webview)?;
+    close_product_tab_inner(&app, &window_label, &tab_id)
+}
+
+/// Product bridge: open allowlisted URLs as in-app tabs; others in the system browser.
+#[tauri::command]
+pub async fn desktop_open_or_tab(
+    app: AppHandle,
+    webview: Webview,
+    url: String,
+) -> Result<(), String> {
+    let label = webview.label().to_string();
+    let (window_label, opener) = opener_service_from_label(&app, &label).ok_or_else(|| {
+        format!("desktop_open_or_tab only from product/tab webviews, got {label}")
+    })?;
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
+    handle_new_window_url(&app, &window_label, &opener, &parsed);
     Ok(())
 }
 
@@ -1295,7 +1794,10 @@ pub async fn set_service_visible(
 #[tauri::command]
 pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
     for (label, webview) in app.webviews() {
-        if label.starts_with(SVC_PREFIX) || label == ATID_SEED_LABEL {
+        if label.starts_with(SVC_PREFIX)
+            || label.starts_with(TAB_PREFIX)
+            || label == ATID_SEED_LABEL
+        {
             let _ = webview.close();
         }
     }
@@ -1305,6 +1807,8 @@ pub async fn logout_webviews(app: AppHandle) -> Result<(), String> {
         for window_state in map.values_mut() {
             window_state.active = None;
             window_state.stuck_on_auth.clear();
+            window_state.tabs.clear();
+            window_state.active_tab_id = None;
         }
     }
     Ok(())

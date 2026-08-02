@@ -62,3 +62,13 @@ commands.allow = ["read_accounts_session"]
 identifier = "allow-open-active-service-devtools"
 description = "Allows opening DevTools on the active product child webview (Dev-mode Settings only)"
 commands.allow = ["open_active_service_devtools"]
+
+[[permission]]
+identifier = "allow-focus-product-tab"
+description = "Allows focusing an in-app product tab or the primary service surface"
+commands.allow = ["focus_product_tab"]
+
+[[permission]]
+identifier = "allow-close-product-tab"
+description = "Allows closing an in-app product tab"
+commands.allow = ["close_product_tab"]

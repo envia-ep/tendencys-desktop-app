@@ -45,9 +45,10 @@ import { composeMenuServices } from "@/lib/menu-layout";
 import { cn } from "@/lib/utils";
 import { getMenuWidth } from "@/config/layout";
 import { createShellWindow } from "@/lib/native-webviews";
+import { ProductTabStrip } from "@/components/layout/ProductTabStrip";
 import { useAuthStore } from "@/stores/auth-store";
 import { usePreferencesStore } from "@/stores/preferences-store";
-import type { ShellView } from "@/stores/service-store";
+import { useServiceStore, type ShellView } from "@/stores/service-store";
 
 type ServiceMenuProps = {
   activeService: ServiceDefinition;
@@ -174,6 +175,8 @@ export function ServiceMenu({
   const menuLayout = usePreferencesStore((s) => s.menuLayout);
   const environmentMode = usePreferencesStore((s) => s.environmentMode);
   const uiDensity = usePreferencesStore((s) => s.uiDensity);
+  const productTabs = useServiceStore((s) => s.productTabs);
+  const activeTabId = useServiceStore((s) => s.activeTabId);
   const setMenuOrder = usePreferencesStore((s) => s.setMenuOrder);
   const compact = uiDensity === "compact";
   const railServices = useMemo(
@@ -563,6 +566,16 @@ export function ServiceMenu({
               </>
             ),
           })}
+
+          {onService && (
+            <ProductTabStrip
+              serviceName={activeService.name}
+              tabs={productTabs}
+              activeTabId={activeTabId}
+              collapsed={collapsed}
+              compact={compact}
+            />
+          )}
 
           <button
             type="button"
