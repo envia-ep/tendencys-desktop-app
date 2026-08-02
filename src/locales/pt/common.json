@@ -296,7 +296,12 @@
     "printersError": "Não foi possível listar as impressoras deste computador.",
     "testPrint": "Impressão de teste",
     "testPrintSuccess": "Página de teste enviada.",
-    "testPrintError": "Falha na impressão de teste."
+    "testPrintError": "Falha na impressão de teste.",
+    "reportProblem": {
+      "title": "Reportar um problema",
+      "help": "Conte o que deu errado no app. Inclua o que você estava fazendo e o que esperava.",
+      "action": "Reportar um problema"
+    }
   },
   "webView": {
     "launcherTitle": "Abrir {{service}}",

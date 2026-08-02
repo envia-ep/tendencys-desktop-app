@@ -296,7 +296,12 @@
     "printersError": "无法列出此电脑上的打印机。",
     "testPrint": "测试打印",
     "testPrintSuccess": "测试页已发送。",
-    "testPrintError": "测试打印失败。"
+    "testPrintError": "测试打印失败。",
+    "reportProblem": {
+      "title": "报告问题",
+      "help": "告诉我们应用出了什么问题。请说明你在做什么以及期望的结果。",
+      "action": "报告问题"
+    }
   },
   "webView": {
     "launcherTitle": "打开 {{service}}",

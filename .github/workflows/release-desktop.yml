@@ -173,6 +173,8 @@ jobs:
           # Baked into the Rust binary via option_env!("SENTRY_DSN"). Unset =>
           # Sentry stays disabled (nothing sent) rather than failing the build.
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Enables @sentry/vite-plugin sourcemap upload during `vite build`.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -190,6 +192,46 @@ jobs:
           tauriScript: npx tauri
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+      # Symbolicate native minidumps. Skips cleanly when SENTRY_AUTH_TOKEN is unset.
+      - name: Upload Sentry debug files
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: envia
+          SENTRY_PROJECT: tendencys-desktop-app
+          MATRIX_ARGS: ${{ matrix.args }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+            echo "SENTRY_AUTH_TOKEN unset — skipping debug file upload"
+            exit 0
+          fi
+
+          TARGET_DIR="src-tauri/target/release"
+          if [[ "$MATRIX_ARGS" == *"--target "* ]]; then
+            TARGET="$(echo "$MATRIX_ARGS" | sed -n 's/.*--target \([^ ]*\).*/\1/p')"
+            if [ -n "$TARGET" ]; then
+              TARGET_DIR="src-tauri/target/${TARGET}/release"
+            fi
+          fi
+
+          if [ ! -d "$TARGET_DIR" ]; then
+            echo "::warning::Debug upload skipped — missing $TARGET_DIR"
+            exit 0
+          fi
+
+          BIN="$TARGET_DIR/tendencys-desktop"
+          if [ -f "${BIN}.exe" ]; then
+            BIN="${BIN}.exe"
+          fi
+
+          if [[ "${{ matrix.platform }}" == "macos-latest" ]] && [ -f "$BIN" ]; then
+            dsymutil "$BIN" -o "${BIN}.dSYM"
+          fi
+
+          echo "Uploading Sentry debug files from $TARGET_DIR"
+          npx --yes @sentry/cli@2.46.0 debug-files upload "$TARGET_DIR"
 
   publish-release:
     runs-on: ubuntu-latest

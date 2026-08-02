@@ -296,6 +296,11 @@
       "namePlaceholder": "Mi sitio",
       "urlLabel": "URL",
       "invalidUrl": "Introduce un nombre y una URL http(s) válida."
+    },
+    "reportProblem": {
+      "title": "Reportar un problema",
+      "help": "Cuéntanos qué falló en la app. Incluye qué estabas haciendo y qué esperabas.",
+      "action": "Reportar un problema"
     }
   },
   "webView": {

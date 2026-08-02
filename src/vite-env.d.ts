@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+/** Injected from package.json by vite.config.ts */
+declare const __APP_VERSION__: string;
+
 interface ImportMetaEnv {
   readonly VITE_TENDENCYS_BASE_URL: string;
   readonly VITE_SHELL_SITE_ID: string;

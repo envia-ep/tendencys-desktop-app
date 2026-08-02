@@ -125,6 +125,19 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .footer button.linkish {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .footer button.linkish:hover {
+        color: var(--text);
+      }
       .smartscreen {
         display: none;
         margin-top: 18px;
@@ -151,7 +164,34 @@
       .smartscreen li {
         margin: 4px 0;
       }
+      .trouble {
+        margin-top: 14px;
+        text-align: left;
+      }
+      .trouble-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease;
+      }
+      .trouble-btn:hover {
+        border-color: var(--primary);
+        background: rgba(47, 109, 246, 0.08);
+      }
     </style>
+    <script
+      src="https://browser.sentry-cdn.com/10.65.0/bundle.feedback.min.js"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <main>
@@ -171,13 +211,65 @@
           <li>Confirm the publisher is <strong>TENDENCIES INNOVATIONS</strong></li>
           <li>Click <strong>Run anyway</strong> / <strong>Ejecutar de todas formas</strong></li>
         </ol>
+        <div class="trouble">
+          <button type="button" class="trouble-btn" data-report-trouble>
+            Still stuck? Report a problem
+          </button>
+        </div>
       </div>
       <p class="footer">
         The app updates itself automatically after install.
+        <br />
+        <button type="button" class="linkish" data-report-trouble>
+          Having trouble downloading or installing?
+        </button>
       </p>
     </main>
 
     <script>
+      // Public Client Key for envia/tendencys-desktop-app (DSN is public by design).
+      const SENTRY_DSN =
+        "https://da179f797b0fda8a548f258d9c72becc@o4511028129103872.ingest.us.sentry.io/4511730494865417";
+
+      if (typeof Sentry !== "undefined") {
+        Sentry.init({
+          dsn: SENTRY_DSN,
+          environment: "production",
+          sendDefaultPii: false,
+          initialScope: {
+            tags: { surface: "download-page" },
+          },
+          integrations: [
+            Sentry.feedbackIntegration({
+              autoInject: false,
+              showBranding: false,
+              colorScheme: "dark",
+              enableScreenshot: true,
+              formTitle: "Having trouble downloading or installing?",
+              messagePlaceholder:
+                "Include your OS, the step that failed (download, Gatekeeper, SmartScreen, or installer), and what you saw.",
+              submitButtonLabel: "Send report",
+              tags: { surface: "download-page" },
+            }),
+          ],
+        });
+      }
+
+      async function openDownloadFeedback() {
+        if (typeof Sentry === "undefined") return;
+        const feedback = Sentry.getFeedback && Sentry.getFeedback();
+        if (!feedback) return;
+        const form = await feedback.createForm();
+        form.appendToDom();
+        form.open();
+      }
+
+      document.querySelectorAll("[data-report-trouble]").forEach((el) => {
+        el.addEventListener("click", () => {
+          void openDownloadFeedback();
+        });
+      });
+
       const REPO = "envia-ep/tendencys-desktop-app";
       const API = `https://api.github.com/repos/${REPO}/releases/latest`;
       const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
@@ -296,7 +388,18 @@
                   .join("")}</div>`
               : ""
           }
+          <div class="trouble">
+            <button type="button" class="trouble-btn" data-report-trouble>
+              Having trouble downloading or installing?
+            </button>
+          </div>
         `;
+
+        card.querySelectorAll("[data-report-trouble]").forEach((el) => {
+          el.addEventListener("click", () => {
+            void openDownloadFeedback();
+          });
+        });
 
         const tip = document.getElementById("smartscreen");
         const showWindowsTip =
@@ -304,6 +407,10 @@
           others.some((e) => e.key === "windows") ||
           detected === "windows";
         tip.classList.toggle("visible", showWindowsTip);
+
+        if (typeof Sentry !== "undefined" && version) {
+          Sentry.setTag("release_tag", version);
+        }
       }
 
       fetch(API, { headers: { Accept: "application/vnd.github+json" } })
@@ -312,10 +419,25 @@
           return res.json();
         })
         .then(render)
-        .catch(() => {
+        .catch((err) => {
+          if (typeof Sentry !== "undefined") {
+            Sentry.captureException(err);
+          }
           document.getElementById("card").innerHTML =
             `<div class="state">Could not load the latest release.</div>` +
-            `<a class="releases" href="${RELEASES_PAGE}">Download from GitHub</a>`;
+            `<a class="releases" href="${RELEASES_PAGE}">Download from GitHub</a>` +
+            `<div class="trouble">
+              <button type="button" class="trouble-btn" data-report-trouble>
+                Having trouble downloading or installing?
+              </button>
+            </div>`;
+          document
+            .querySelectorAll("#card [data-report-trouble]")
+            .forEach((el) => {
+              el.addEventListener("click", () => {
+                void openDownloadFeedback();
+              });
+            });
         });
     </script>
   </body>

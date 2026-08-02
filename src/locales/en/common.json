@@ -245,6 +245,11 @@
     "testPrintError": "Test print failed.",
     "language": "Language",
     "languageHelp": "Choose the language for the Tendencys Desktop interface.",
+    "reportProblem": {
+      "title": "Report a problem",
+      "help": "Tell us what went wrong in the app. Include what you were doing and what you expected.",
+      "action": "Report a problem"
+    },
     "general": "General",
     "appearance": {
       "title": "Appearance",

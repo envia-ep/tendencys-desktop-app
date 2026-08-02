@@ -217,6 +217,19 @@ Set under Settings → Secrets and variables → Actions. `GITHUB_TOKEN` is prov
 | `VITE_TENDENCYS_BASE_URL` | Prod Accounts URL | `https://accounts.envia.com` (without it the build defaults to **sandbox**) |
 | `VITE_SHELL_SITE_ID` | Prod Desktop site id | `ecartdb.sites` document `_id` |
 | `VITE_*_URL` / `VITE_*_SITE_ID` | Per-service overrides | Optional — unset falls back to the in-code prod defaults in `src/config/services.ts` |
+| `SENTRY_DSN` | Crash/error/feedback reporting | Sentry → Projects → **tendencys-desktop-app** → Client Keys (DSN). Baked into the Rust binary via `option_env!("SENTRY_DSN")`. Unset disables Sentry in that build |
+| `SENTRY_AUTH_TOKEN` | Sourcemaps + native debug-file upload | Sentry → Settings → Auth Tokens (scopes: `project:releases`, `project:write`) for org **envia**. Unset skips upload without failing the release |
+
+### Crash reporting (Sentry)
+
+Production releases report to Sentry org **envia**, project **tendencys-desktop-app** (`https://envia.sentry.io`).
+
+- **Runtime crashes / SSO failures / in-app “Report a problem”** — Rust + JS shell (DSN baked at compile time).
+- **Download / install stuck** — User Feedback on the GitHub Pages download page (`docs/index.html`).
+- **Releases** are named `tendencys-desktop@X.Y.Z` (aligned across JS, Rust, and CI artifact uploads).
+- Filter User Feedback / Issues by tag `surface` (`app` vs `download-page`).
+
+Confirm `SENTRY_DSN` and `SENTRY_AUTH_TOKEN` are set before cutting a release if you need symbolicated stacks and inbound reports.
 
 ### Windows code signing (Azure Trusted Signing)
 

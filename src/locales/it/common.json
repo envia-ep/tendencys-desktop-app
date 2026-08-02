@@ -296,7 +296,12 @@
     "printersError": "Impossibile elencare le stampanti di questo computer.",
     "testPrint": "Stampa di prova",
     "testPrintSuccess": "Pagina di prova inviata.",
-    "testPrintError": "Stampa di prova non riuscita."
+    "testPrintError": "Stampa di prova non riuscita.",
+    "reportProblem": {
+      "title": "Segnala un problema",
+      "help": "Dicci cosa non ha funzionato. Indica cosa stavi facendo e cosa ti aspettavi.",
+      "action": "Segnala un problema"
+    }
   },
   "webView": {
     "launcherTitle": "Apri {{service}}",

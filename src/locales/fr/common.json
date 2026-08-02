@@ -296,7 +296,12 @@
     "printersError": "Impossible de lister les imprimantes de cet ordinateur.",
     "testPrint": "Impression test",
     "testPrintSuccess": "Page test envoyée.",
-    "testPrintError": "Échec de l’impression test."
+    "testPrintError": "Échec de l’impression test.",
+    "reportProblem": {
+      "title": "Signaler un problème",
+      "help": "Dites-nous ce qui s’est mal passé. Indiquez ce que vous faisiez et ce que vous attendiez.",
+      "action": "Signaler un problème"
+    }
   },
   "webView": {
     "launcherTitle": "Ouvrir {{service}}",

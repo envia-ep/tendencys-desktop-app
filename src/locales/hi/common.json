@@ -296,7 +296,12 @@
     "printersError": "इस कंप्यूटर पर प्रिंटर सूचीबद्ध नहीं हो सके।",
     "testPrint": "टेस्ट प्रिंट",
     "testPrintSuccess": "टेस्ट पेज भेजा गया।",
-    "testPrintError": "टेस्ट प्रिंट विफल।"
+    "testPrintError": "टेस्ट प्रिंट विफल।",
+    "reportProblem": {
+      "title": "समस्या रिपोर्ट करें",
+      "help": "बताएँ ऐप में क्या गलत हुआ। आप क्या कर रहे थे और क्या अपेक्षित था।",
+      "action": "समस्या रिपोर्ट करें"
+    }
   },
   "webView": {
     "launcherTitle": "{{service}} खोलें",

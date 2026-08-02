@@ -5,6 +5,7 @@ import {
   Bug,
   ListOrdered,
   Loader2,
+  MessageSquareWarning,
   Printer,
   Settings2,
   SlidersHorizontal,
@@ -32,6 +33,7 @@ import {
   logoutWebviews,
   openActiveServiceDevtools,
 } from "@/lib/native-webviews";
+import { openUserFeedback } from "@/lib/sentry";
 import { getTendencysBaseUrl } from "@/lib/tendencys-auth";
 import { isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -292,6 +294,27 @@ export function DesktopSettings() {
                 <h2 className="text-lg font-semibold text-foreground">
                   {t("settings.general")}
                 </h2>
+
+                <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+                  <h3 className="text-sm font-medium text-foreground">
+                    {t("settings.reportProblem.title")}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {t("settings.reportProblem.help")}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      void openUserFeedback();
+                    }}
+                  >
+                    <MessageSquareWarning className="h-4 w-4" />
+                    {t("settings.reportProblem.action")}
+                  </Button>
+                </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">

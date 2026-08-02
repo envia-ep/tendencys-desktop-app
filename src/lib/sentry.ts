@@ -13,6 +13,9 @@ type SentryTransport = ReturnType<typeof Sentry.createTransport>;
 
 let ipcFailed = false;
 
+/** Matches Cargo `sentry::release_name!()` for package `tendencys-desktop`. */
+export const SENTRY_RELEASE = `tendencys-desktop@${__APP_VERSION__}`;
+
 /** Keys / query params that carry an auth secret we must never ship. */
 const SENSITIVE = /authorization|_atid|token|redirect_url|cookie/i;
 
@@ -110,6 +113,57 @@ function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
 }
 
 /**
+ * Bind the signed-in Accounts identity for triage / feedback prefill.
+ * Pass null on sign-out. Does not enable sendDefaultPii.
+ */
+export function setSentryUser(
+  user: { id: string; email: string } | null,
+): void {
+  if (user) {
+    Sentry.setUser({ id: user.id, email: user.email });
+    return;
+  }
+  Sentry.setUser(null);
+}
+
+export type OpenUserFeedbackOptions = {
+  associatedEventId?: string;
+};
+
+/**
+ * Open the Sentry User Feedback form (no floating widget). Safe no-op when the
+ * integration is unavailable or IPC transport has already failed.
+ *
+ * When `associatedEventId` is set (e.g. from ErrorBoundary), tag the feedback
+ * with `crash_event_id` so triage can link it — createForm has no associatedEventId
+ * field, and showReportDialog cannot use our IPC/dummy-DSN transport.
+ */
+export async function openUserFeedback(
+  options: OpenUserFeedbackOptions = {},
+): Promise<void> {
+  if (ipcFailed) return;
+  const feedback = Sentry.getFeedback();
+  if (!feedback) return;
+  const form = await feedback.createForm({
+    tags: {
+      surface: "app",
+      ...(options.associatedEventId
+        ? { crash_event_id: options.associatedEventId }
+        : {}),
+    },
+    ...(options.associatedEventId
+      ? {
+          formTitle: "Report this problem",
+          messagePlaceholder:
+            "What were you doing when this happened? Any steps to reproduce?",
+        }
+      : {}),
+  });
+  form.appendToDom();
+  form.open();
+}
+
+/**
  * Initialise the shell's Sentry SDK. A dummy DSN is required for the SDK to
  * start; nothing is ever sent from the browser — the transport routes envelopes
  * to Rust, which holds the real DSN. Safe to call when Rust Sentry is disabled:
@@ -118,13 +172,25 @@ function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
 export function initSentry(): void {
   Sentry.init({
     dsn: "https://[email protected]/0",
+    release: SENTRY_RELEASE,
     environment: import.meta.env.PROD ? "production" : "development",
     // Tracing is disabled; this is error/crash reporting only.
     tracesSampleRate: 0,
     sendDefaultPii: false,
+    initialScope: {
+      tags: { surface: "app" },
+    },
     // App sessions are tracked in Rust; drop the browser session integration.
-    integrations: (integrations) =>
-      integrations.filter((integration) => integration.name !== "BrowserSession"),
+    integrations: (integrations) => [
+      ...integrations.filter((integration) => integration.name !== "BrowserSession"),
+      Sentry.feedbackIntegration({
+        autoInject: false,
+        showBranding: false,
+        colorScheme: "system",
+        enableScreenshot: true,
+        tags: { surface: "app" },
+      }),
+    ],
     transport: makeRendererTransport,
     beforeBreadcrumb,
     beforeSend,
