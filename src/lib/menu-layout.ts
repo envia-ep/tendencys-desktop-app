@@ -95,9 +95,44 @@ export function normalizeMenuLayout(raw: unknown): MenuLayout {
 }
 
 /**
+ * Insert a newly visible catalog service at its catalog-relative position
+ * among already-composed rail items (after the nearest earlier catalog sibling).
+ * Avoids dumping new products after custom Admon links when the saved order
+ * pre-dates the catalog entry.
+ */
+function insertCatalogService(
+  result: ServiceDefinition[],
+  service: ServiceDefinition,
+  catalogIds: string[],
+): void {
+  const my_index = catalogIds.indexOf(service.id);
+  let insert_after = -1;
+  for (let i = 0; i < result.length; i++) {
+    const cat_index = catalogIds.indexOf(result[i].id);
+    if (cat_index !== -1 && cat_index < my_index) {
+      insert_after = i;
+    }
+  }
+  if (insert_after !== -1) {
+    result.splice(insert_after + 1, 0, service);
+    return;
+  }
+  let insert_before = result.length;
+  for (let i = 0; i < result.length; i++) {
+    const cat_index = catalogIds.indexOf(result[i].id);
+    if (cat_index > my_index) {
+      insert_before = i;
+      break;
+    }
+  }
+  result.splice(insert_before, 0, service);
+}
+
+/**
  * Merge catalog visibility with user order + custom URLs.
- * Unknown / orphan ids in `order` are skipped; new catalog ids append in
- * catalog order; customs missing from `order` append after catalog leftovers.
+ * Unknown / orphan ids in `order` are skipped; new catalog ids insert at their
+ * catalog position relative to ordered siblings; customs missing from `order`
+ * append at the end.
  */
 export function composeMenuServices(
   visibleBuiltIns: ServiceDefinition[],
@@ -107,6 +142,7 @@ export function composeMenuServices(
   const customById = new Map(
     layout.customItems.map((item) => [item.id, customItemToService(item)]),
   );
+  const catalogIds = visibleBuiltIns.map((service) => service.id);
   const seen = new Set<string>();
   const result: ServiceDefinition[] = [];
 
@@ -127,7 +163,7 @@ export function composeMenuServices(
 
   for (const service of visibleBuiltIns) {
     if (seen.has(service.id)) continue;
-    result.push(service);
+    insertCatalogService(result, service, catalogIds);
     seen.add(service.id);
   }
 

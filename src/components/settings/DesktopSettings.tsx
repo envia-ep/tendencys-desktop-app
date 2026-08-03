@@ -1,23 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
   Bug,
+  ExternalLink,
   ListOrdered,
   Loader2,
   MessageSquareWarning,
+  Plus,
   Printer,
   Settings2,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SERVICES } from "@/config/services";
+import { CATALOG_PRINT_SIZES } from "@/config/catalog-print-sizes";
 import type { AppEnvironmentMode } from "@/config/environment";
+import { SERVICES, type ServiceDefinition } from "@/config/services";
 import { ServiceIcon } from "@/components/ServiceIcon";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { MenuLayoutSettings } from "@/components/settings/MenuLayoutSettings";
 import { Button } from "@/components/ui/button";
 import { listPrinters, type PrinterInfo } from "@/lib/desktop-print";
+import { assignSizeToPrinter } from "@/lib/label-print-size";
 import {
   LANGUAGE_LABELS,
   SUPPORTED_LANGUAGES,
@@ -43,27 +48,39 @@ const PRINT_MODES: LabelPrintMode[] = ["instant", "system", "save"];
 const ENVIRONMENT_MODES: AppEnvironmentMode[] = ["production", "dev"];
 const GENERAL_SELECTION = "general" as const;
 const MENU_SELECTION = "menu" as const;
+/** Instant print prefs only apply to Shipping and WMS. */
+const PRINT_SETTINGS_SERVICE_IDS = new Set(["envia-shipping", "envia-wms"]);
+const PRINT_SETTINGS_SERVICES = SERVICES.filter((service) =>
+  PRINT_SETTINGS_SERVICE_IDS.has(service.id),
+);
 
 type SettingsSelection =
   | typeof GENERAL_SELECTION
   | typeof MENU_SELECTION
   | string;
 
+const SHIPPING_CARRIERS_PATH = "/settings/carriers";
+
 function isProductSelection(selection: SettingsSelection): boolean {
   return selection !== GENERAL_SELECTION && selection !== MENU_SELECTION;
 }
 
-export function DesktopSettings() {
+type DesktopSettingsProps = {
+  onOpenServicePath?: (service: ServiceDefinition, path: string) => void;
+};
+
+export function DesktopSettings({ onOpenServicePath }: DesktopSettingsProps) {
   const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [selection, setSelection] =
     useState<SettingsSelection>(GENERAL_SELECTION);
   const selectedServiceId = isProductSelection(selection)
     ? selection
-    : (SERVICES[0]?.id ?? "");
+    : (PRINT_SETTINGS_SERVICES[0]?.id ?? "");
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [printersLoading, setPrintersLoading] = useState(false);
   const [printersError, setPrintersError] = useState<string | null>(null);
+  const [addPrinterName, setAddPrinterName] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [pendingEnvironmentMode, setPendingEnvironmentMode] =
@@ -79,11 +96,24 @@ export function DesktopSettings() {
   const setLanguage = usePreferencesStore((s) => s.setLanguage);
   const setEnvironmentMode = usePreferencesStore((s) => s.setEnvironmentMode);
   const setLabelPrintMode = usePreferencesStore((s) => s.setLabelPrintMode);
-  const setLabelPrinter = usePreferencesStore((s) => s.setLabelPrinter);
+  const setLabelPrinterDefault = usePreferencesStore(
+    (s) => s.setLabelPrinterDefault,
+  );
+  const setLabelPrinterRules = usePreferencesStore(
+    (s) => s.setLabelPrinterRules,
+  );
   const storedPrefs = usePreferencesStore(
     (s) => s.servicePrefs[selectedServiceId],
   );
   const prefs = storedPrefs ?? DEFAULT_SERVICE_PREFERENCES;
+  const configuredPrinterNames = useMemo(
+    () => new Set(prefs.labelPrinterRules.map((rule) => rule.printer)),
+    [prefs.labelPrinterRules],
+  );
+  const availableToAdd = useMemo(
+    () => printers.filter((p) => !configuredPrinterNames.has(p.name)),
+    [printers, configuredPrinterNames],
+  );
 
   useEffect(() => {
     void loadPreferences();
@@ -109,8 +139,11 @@ export function DesktopSettings() {
 
   useEffect(() => {
     // Printer listing shells out to PowerShell on Windows — only load when a
-    // product tab needs the dropdown, not when opening General / Menu.
-    if (!isProductSelection(selection)) {
+    // print-settings product tab needs the dropdown.
+    if (
+      !isProductSelection(selection) ||
+      !PRINT_SETTINGS_SERVICE_IDS.has(selection)
+    ) {
       return;
     }
     let cancelled = false;
@@ -139,14 +172,16 @@ export function DesktopSettings() {
     };
   }, [selection, t]);
 
-  const selectedService = SERVICES.find((s) => s.id === selectedServiceId);
+  const selectedService = PRINT_SETTINGS_SERVICES.find(
+    (s) => s.id === selectedServiceId,
+  );
 
-  const handleTestPrint = async () => {
+  const handleTestPrint = async (printer?: string) => {
     setTestBusy(true);
     setTestMessage(null);
     try {
       const { printTestPage } = await import("@/lib/desktop-print");
-      await printTestPage(selectedServiceId);
+      await printTestPage(selectedServiceId, printer);
       setTestMessage(t("settings.testPrintSuccess"));
     } catch (err) {
       setTestMessage(
@@ -155,6 +190,47 @@ export function DesktopSettings() {
     } finally {
       setTestBusy(false);
     }
+  };
+
+  const handleAddPrinter = () => {
+    const name = addPrinterName.trim();
+    if (!name || configuredPrinterNames.has(name)) {
+      return;
+    }
+    void setLabelPrinterRules(selectedServiceId, [
+      ...prefs.labelPrinterRules,
+      { printer: name, sizeIds: [] },
+    ]);
+    setAddPrinterName("");
+    setTestMessage(null);
+  };
+
+  const handleRemovePrinter = (printer: string) => {
+    void setLabelPrinterRules(
+      selectedServiceId,
+      prefs.labelPrinterRules.filter((rule) => rule.printer !== printer),
+    );
+    setTestMessage(null);
+  };
+
+  const handleToggleSize = (
+    printer: string,
+    sizeId: string,
+    checked: boolean,
+  ) => {
+    void setLabelPrinterRules(
+      selectedServiceId,
+      assignSizeToPrinter(prefs.labelPrinterRules, printer, sizeId, checked),
+    );
+    setTestMessage(null);
+  };
+
+  const handleConfigurePrinting = () => {
+    const shipping = SERVICES.find((s) => s.id === "envia-shipping");
+    if (!shipping || !onOpenServicePath) {
+      return;
+    }
+    onOpenServicePath(shipping, SHIPPING_CARRIERS_PATH);
   };
 
   const handleConfirmEnvironmentSwitch = async () => {
@@ -265,7 +341,7 @@ export function DesktopSettings() {
             <p className="mb-1 mt-3 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t("settings.products")}
             </p>
-            {SERVICES.map((service) => {
+            {PRINT_SETTINGS_SERVICES.map((service) => {
               const active = selection === service.id;
               return (
                 <button
@@ -511,15 +587,29 @@ export function DesktopSettings() {
                 </fieldset>
 
                 <div className="space-y-3">
-                  <label
-                    htmlFor="label-printer"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    {t("settings.labelPrinter")}
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    {t("settings.labelPrinterHelp")}
-                  </p>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {t("settings.labelPrinterRules")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.labelPrinterRulesHelp")}
+                      </p>
+                    </div>
+                    {selectedServiceId === "envia-shipping" &&
+                      onOpenServicePath && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleConfigurePrinting}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          {t("settings.configurePrinting")}
+                        </Button>
+                      )}
+                  </div>
+
                   {printersLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -528,28 +618,183 @@ export function DesktopSettings() {
                   ) : printersError ? (
                     <p className="text-sm text-destructive">{printersError}</p>
                   ) : (
-                    <select
-                      id="label-printer"
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
-                      disabled={prefs.labelPrintMode !== "instant"}
-                      value={prefs.labelPrinter}
-                      onChange={(e) => {
-                        void setLabelPrinter(selectedServiceId, e.target.value);
-                        setTestMessage(null);
-                      }}
-                    >
-                      <option value="">
-                        {t("settings.systemDefaultPrinter")}
-                      </option>
-                      {printers.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.name}
-                          {p.isDefault
-                            ? ` (${t("settings.defaultBadge")})`
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="label-printer-default"
+                          className="text-xs font-medium text-muted-foreground"
+                        >
+                          {t("settings.labelPrinterDefault")}
+                        </label>
+                        <select
+                          id="label-printer-default"
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+                          disabled={prefs.labelPrintMode !== "instant"}
+                          value={prefs.labelPrinterDefault}
+                          onChange={(e) => {
+                            void setLabelPrinterDefault(
+                              selectedServiceId,
+                              e.target.value,
+                            );
+                            setTestMessage(null);
+                          }}
+                        >
+                          <option value="">
+                            {t("settings.systemDefaultPrinter")}
+                          </option>
+                          {printers.map((p) => (
+                            <option key={p.name} value={p.name}>
+                              {p.name}
+                              {p.isDefault
+                                ? ` (${t("settings.defaultBadge")})`
+                                : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.labelPrinterDefaultHelp")}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-[12rem] flex-1 space-y-1.5">
+                          <label
+                            htmlFor="add-printer"
+                            className="text-xs font-medium text-muted-foreground"
+                          >
+                            {t("settings.addPrinter")}
+                          </label>
+                          <select
+                            id="add-printer"
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+                            disabled={
+                              prefs.labelPrintMode !== "instant" ||
+                              availableToAdd.length === 0
+                            }
+                            value={addPrinterName}
+                            onChange={(e) => setAddPrinterName(e.target.value)}
+                          >
+                            <option value="">
+                              {availableToAdd.length === 0
+                                ? t("settings.noPrintersToAdd")
+                                : t("settings.selectPrinter")}
+                            </option>
+                            {availableToAdd.map((p) => (
+                              <option key={p.name} value={p.name}>
+                                {p.name}
+                                {p.isDefault
+                                  ? ` (${t("settings.defaultBadge")})`
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            prefs.labelPrintMode !== "instant" ||
+                            !addPrinterName
+                          }
+                          onClick={handleAddPrinter}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          {t("settings.addPrinter")}
+                        </Button>
+                      </div>
+
+                      {prefs.labelPrinterRules.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {t("settings.noConfiguredPrinters")}
+                        </p>
+                      ) : (
+                        prefs.labelPrinterRules.map((rule) => (
+                          <div
+                            key={rule.printer}
+                            className="space-y-3 rounded-lg border border-border p-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-foreground">
+                                {rule.printer}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={
+                                    testBusy ||
+                                    prefs.labelPrintMode === "save" ||
+                                    printersLoading
+                                  }
+                                  onClick={() =>
+                                    void handleTestPrint(rule.printer)
+                                  }
+                                >
+                                  {testBusy ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Printer className="mr-2 h-4 w-4" />
+                                  )}
+                                  {t("settings.testPrint")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={prefs.labelPrintMode !== "instant"}
+                                  onClick={() =>
+                                    handleRemovePrinter(rule.printer)
+                                  }
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {t("settings.removePrinter")}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                              {CATALOG_PRINT_SIZES.map((size) => {
+                                const checked = rule.sizeIds.includes(size.id);
+                                const inputId = `${rule.printer}-${size.id}`;
+                                return (
+                                  <label
+                                    key={size.id}
+                                    htmlFor={inputId}
+                                    className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-0.5 text-xs hover:bg-muted/50"
+                                  >
+                                    <input
+                                      id={inputId}
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      disabled={
+                                        prefs.labelPrintMode !== "instant"
+                                      }
+                                      checked={checked}
+                                      onChange={(e) =>
+                                        handleToggleSize(
+                                          rule.printer,
+                                          size.id,
+                                          e.target.checked,
+                                        )
+                                      }
+                                    />
+                                    <span>
+                                      <span className="block font-medium text-foreground">
+                                        {size.description}
+                                      </span>
+                                      <span className="block text-muted-foreground">
+                                        {size.id}
+                                      </span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -557,19 +802,22 @@ export function DesktopSettings() {
                   <Button
                     type="button"
                     size="sm"
+                    variant="outline"
                     disabled={
                       testBusy ||
                       prefs.labelPrintMode === "save" ||
                       printersLoading
                     }
-                    onClick={() => void handleTestPrint()}
+                    onClick={() =>
+                      void handleTestPrint(prefs.labelPrinterDefault || undefined)
+                    }
                   >
                     {testBusy ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <Printer className="mr-2 h-4 w-4" />
                     )}
-                    {t("settings.testPrint")}
+                    {t("settings.testPrintDefault")}
                   </Button>
                   {testMessage && (
                     <p className="text-sm text-muted-foreground">

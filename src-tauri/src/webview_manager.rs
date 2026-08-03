@@ -206,6 +206,7 @@ const OPEN_TARGET_IDS: &[&str] = &[
     "envia-shipping",
     "envia-cargo",
     "envia-fulfillment",
+    "envia-wms",
     "envia-returns",
     "parapaquetes",
     "ecart-pay",
@@ -264,7 +265,9 @@ const DESKTOP_BRIDGE_SCRIPT: &str = r#"
               fileName: payload.fileName || payload.file_name || 'label.pdf',
               mime: payload.mime || null,
               dataBase64: payload.dataBase64 || payload.data_base64 || null,
-              url: payload.url || null
+              url: payload.url || null,
+              printFormat: payload.printFormat || payload.print_format || null,
+              printSize: payload.printSize || payload.print_size || null
             }
           });
         }

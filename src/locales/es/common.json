@@ -227,7 +227,7 @@
     "modes": {
       "instant": {
         "label": "Impresión instantánea",
-        "description": "Envía directo a la impresora de abajo — sin diálogo del sistema."
+        "description": "Envía directo a la impresora mapeada para cada tamaño de Packages — sin diálogo del sistema."
       },
       "system": {
         "label": "Visor del sistema",
@@ -238,13 +238,22 @@
         "description": "Siempre descarga el archivo a Descargas en lugar de imprimir."
       }
     },
-    "labelPrinter": "Impresora de etiquetas predeterminada",
-    "labelPrinterHelp": "Se usa en impresión instantánea. Deja el valor predeterminado del sistema para usar la impresora del SO.",
+    "labelPrinterDefault": "Impresora predeterminada",
+    "labelPrinterDefaultHelp": "Se usa cuando el tamaño de impresión Instant no coincide con ninguna impresora configurada. Predeterminada del sistema usa el destino del SO.",
+    "labelPrinterRules": "Impresoras Instant",
+    "labelPrinterRulesHelp": "Agrega impresoras y asigna a cada una los tamaños de impresión de Shipping Packages (catalog_print_sizes).",
+    "configurePrinting": "Configurar impresión",
+    "addPrinter": "Agregar impresora",
+    "removePrinter": "Quitar",
+    "selectPrinter": "Selecciona una impresora…",
+    "noPrintersToAdd": "Todas las impresoras ya están agregadas",
+    "noConfiguredPrinters": "Aún no hay impresoras configuradas. Agrega una para mapear los tamaños de Packages.",
     "systemDefaultPrinter": "Predeterminada del sistema",
     "defaultBadge": "predeterminada",
     "loadingPrinters": "Cargando impresoras…",
     "printersError": "No se pudieron listar las impresoras de esta computadora.",
     "testPrint": "Impresión de prueba",
+    "testPrintDefault": "Probar predeterminada",
     "testPrintSuccess": "Página de prueba enviada.",
     "testPrintError": "Falló la impresión de prueba.",
     "language": "Idioma",

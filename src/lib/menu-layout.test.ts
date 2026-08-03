@@ -74,7 +74,7 @@ assert.deepEqual(
   assert.equal(composed[3]?.authMode, "unsupported");
 }
 
-// Compose: honor order, skip orphans, append new catalog ids
+// Compose: honor order, skip orphans, place new catalog ids after predecessors
 {
   const layout: MenuLayout = {
     order: ["custom-1", "b", "gone", "a"],
@@ -84,6 +84,26 @@ assert.deepEqual(
   assert.deepEqual(
     composed.map((s) => s.id),
     ["custom-1", "b", "a", "c"],
+  );
+}
+
+// Compose: new mid-catalog id slots after its predecessor, not after customs
+{
+  const midCatalog = [
+    fakeService("fulfillment"),
+    fakeService("wms"),
+    fakeService("returns"),
+  ];
+  const layout: MenuLayout = {
+    order: ["fulfillment", "returns", "custom-admon"],
+    customItems: [
+      { id: "custom-admon", name: "Admon", url: "https://admon.test/" },
+    ],
+  };
+  const composed = composeMenuServices(midCatalog, layout);
+  assert.deepEqual(
+    composed.map((s) => s.id),
+    ["fulfillment", "wms", "returns", "custom-admon"],
   );
 }
 

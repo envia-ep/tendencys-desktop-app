@@ -68,7 +68,9 @@ export function AppShell() {
             }}
           />
         )}
-        {shellView === "settings" && <DesktopSettings />}
+        {shellView === "settings" && (
+          <DesktopSettings onOpenServicePath={handleOpenServicePath} />
+        )}
         {shellView === "service" && (
           <NativeServiceArea
             service={activeService}

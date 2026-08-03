@@ -691,9 +691,18 @@ export function useProductSso() {
         syncHistoryButtons();
       }
 
+      // Leaving Home/Settings/Developers for the already-active service must
+      // still honor the pending path (e.g. Settings → Configure printing →
+      // /settings/carriers). showService() alone only flips the shell view.
       if (currentView !== "service" && service.id === prev.id) {
         selectInFlightRef.current = null;
+        shellHistoryRef.current.push({
+          serviceId: service.id,
+          url: targetUrl,
+        });
+        syncHistoryButtons();
         showService();
+        consumePendingDeepLink(service.id);
         return;
       }
 

@@ -14,11 +14,47 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Webview};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::label_print::{
+    catalog_size_from_pdf_bytes, is_image_label, is_raw_thermal_format, normalize_print_size_id,
+};
 use crate::process_util::output_hidden;
 
 const PREFERENCES_FILE: &str = "preferences.json";
 const SERVICE_PREFS_KEY: &str = "servicePrefs";
 const SVC_PREFIX: &str = "svc-";
+
+const THERMAL_4X6_SIZE_IDS: &[&str] = &[
+    "STOCK_4X6",
+    "PAPER_4X6",
+    "STOCK_4X5",
+    "STOCK_4X6.5",
+    "STOCK_4X6.75_LEADING_DOC_TAB",
+];
+const LETTER_SIZE_IDS: &[&str] = &[
+    "PAPER_LETTER",
+    "PAPER_8.5X11",
+    "PAPER_8.5X11_BOTTOM_HALF_LABEL",
+    "PAPER_85X11_TOP_HALF_LABEL",
+    "PAPER_8.27X11.67",
+];
+const THERMAL_OTHER_SIZE_IDS: &[&str] = &[
+    "PAPER_4X8",
+    "PAPER_7X4.75",
+    "STOCK_2.4X6",
+    "STOCK_2.9X5",
+    "STOCK_2X7",
+    "STOCK_3.8X4.2",
+    "STOCK_3.9X2.3",
+    "STOCK_3.9X3.9",
+    "STOCK_3.9X4.3",
+    "STOCK_3.9X7",
+    "STOCK_3X5",
+    "STOCK_4.2X4.4",
+    "STOCK_4X4",
+    "STOCK_4X7.5",
+    "STOCK_4X8",
+    "STOCK_4X9",
+];
 
 /// Minimal one-page PDF used by Settings → Test print.
 const TEST_PRINT_PDF: &[u8] = b"%PDF-1.4
@@ -65,22 +101,121 @@ impl Default for LabelPrintMode {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrinterRule {
+    pub printer: String,
+    #[serde(default)]
+    pub size_ids: Vec<String>,
+}
+
+/// Legacy size-family map (migration only). Keys must stay snake_case.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct LabelPrintersBySize {
+    #[serde(default, rename = "thermal_4x6")]
+    thermal_4x6: Option<String>,
+    #[serde(default, rename = "thermal_other")]
+    thermal_other: Option<String>,
+    #[serde(default)]
+    letter: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServicePreferences {
     #[serde(default)]
     pub label_print_mode: LabelPrintMode,
+    /// Instant fallback when no catalog size rule matches (empty = OS default).
+    #[serde(default, alias = "labelPrinter")]
+    pub label_printer_default: String,
     #[serde(default)]
-    pub label_printer: String,
+    pub label_printer_rules: Vec<PrinterRule>,
+    /// Present only when loading legacy prefs for migration.
+    #[serde(default, skip_serializing)]
+    label_printers_by_size: LabelPrintersBySize,
 }
 
 impl Default for ServicePreferences {
     fn default() -> Self {
         Self {
             label_print_mode: LabelPrintMode::System,
-            label_printer: String::new(),
+            label_printer_default: String::new(),
+            label_printer_rules: Vec::new(),
+            label_printers_by_size: LabelPrintersBySize::default(),
         }
     }
+}
+
+impl ServicePreferences {
+    fn migrate_legacy_rules(mut self, had_rules: bool, had_by_size: bool) -> Self {
+        if had_rules {
+            return self;
+        }
+        let mut by_size = self.label_printers_by_size.clone();
+        if !had_by_size
+            && by_size.thermal_4x6.as_deref().unwrap_or("").is_empty()
+            && !self.label_printer_default.is_empty()
+        {
+            by_size.thermal_4x6 = Some(self.label_printer_default.clone());
+        }
+        self.label_printer_rules = rules_from_legacy_by_size(&by_size);
+        self
+    }
+
+    /// Match catalog size id → configured printer; otherwise default.
+    fn printer_for_job(&self, size_id: Option<&str>) -> &str {
+        if let Some(normalized) = size_id.and_then(normalize_print_size_id) {
+            for rule in &self.label_printer_rules {
+                if rule.printer.is_empty() {
+                    continue;
+                }
+                if rule
+                    .size_ids
+                    .iter()
+                    .any(|id| normalize_print_size_id(id).as_deref() == Some(normalized.as_str()))
+                {
+                    return rule.printer.as_str();
+                }
+            }
+        }
+        self.label_printer_default.as_str()
+    }
+}
+
+fn push_sizes_for_printer(
+    by_printer: &mut std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    printer: Option<&str>,
+    sizes: &[&str],
+) {
+    let Some(name) = printer.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    let entry = by_printer.entry(name.to_string()).or_default();
+    for size in sizes {
+        entry.insert((*size).to_string());
+    }
+}
+
+fn rules_from_legacy_by_size(by_size: &LabelPrintersBySize) -> Vec<PrinterRule> {
+    let mut by_printer = std::collections::BTreeMap::new();
+    push_sizes_for_printer(
+        &mut by_printer,
+        by_size.thermal_4x6.as_deref(),
+        THERMAL_4X6_SIZE_IDS,
+    );
+    push_sizes_for_printer(
+        &mut by_printer,
+        by_size.thermal_other.as_deref(),
+        THERMAL_OTHER_SIZE_IDS,
+    );
+    push_sizes_for_printer(&mut by_printer, by_size.letter.as_deref(), LETTER_SIZE_IDS);
+    by_printer
+        .into_iter()
+        .map(|(printer, size_ids)| PrinterRule {
+            printer,
+            size_ids: size_ids.into_iter().collect(),
+        })
+        .collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,6 +227,8 @@ pub struct DeliverFileRequest {
     pub mime: Option<String>,
     pub data_base64: Option<String>,
     pub url: Option<String>,
+    pub print_format: Option<String>,
+    pub print_size: Option<String>,
 }
 
 fn preferences_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -112,11 +249,36 @@ fn load_service_prefs<R: Runtime>(app: &AppHandle<R>, service_id: &str) -> Servi
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return ServicePreferences::default();
     };
-    value
-        .get(SERVICE_PREFS_KEY)
-        .and_then(|m| m.get(service_id))
-        .and_then(|p| serde_json::from_value::<ServicePreferences>(p.clone()).ok())
-        .unwrap_or_default()
+    let Some(service_value) = value.get(SERVICE_PREFS_KEY).and_then(|m| m.get(service_id)) else {
+        return ServicePreferences::default();
+    };
+    let prefs = serde_json::from_value::<ServicePreferences>(service_value.clone())
+        .unwrap_or_default();
+    let had_rules = service_value
+        .get("labelPrinterRules")
+        .map(|v| v.is_array())
+        .unwrap_or(false);
+    let had_by_size = service_value.get("labelPrintersBySize").is_some();
+    prefs.migrate_legacy_rules(had_rules, had_by_size)
+}
+
+/// Prefer Packages `printSize`, else MediaBox → catalog id (or None → default).
+fn resolve_print_size_id(
+    print_size: Option<&str>,
+    bytes: &[u8],
+    is_pdf_file: bool,
+) -> Option<String> {
+    if let Some(size) = print_size.map(str::trim).filter(|s| !s.is_empty()) {
+        if let Some(normalized) = normalize_print_size_id(size) {
+            return Some(normalized);
+        }
+    }
+    if is_pdf_file {
+        if let Some(id) = catalog_size_from_pdf_bytes(bytes) {
+            return Some(id.to_string());
+        }
+    }
+    None
 }
 
 /// Product labels are `svc-<window>--<service_id>` (see webview_manager).
@@ -584,6 +746,56 @@ fn print_pdf_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
     }
 }
 
+/// Instant raw thermal print (ZPL / ZPLII / EPL).
+fn print_raw_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let mut cmd = Command::new("lp");
+        cmd.arg("-o").arg("raw");
+        if let Some(name) = printer.filter(|p| !p.is_empty()) {
+            cmd.arg("-d").arg(name);
+        }
+        cmd.arg(path);
+        let output = output_hidden(cmd).map_err(|e| format!("lp raw failed: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "lp raw failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let path_str = path.to_string_lossy();
+        let printer_name = printer
+            .filter(|p| !p.is_empty())
+            .ok_or_else(|| "raw Instant print requires a configured printer name on Windows".to_string())?;
+        // Binary copy to the shared printer queue (standard raw thermal path).
+        let dest = format!(r"\\localhost\{printer_name}");
+        let output = output_hidden({
+            let mut cmd = Command::new("cmd");
+            cmd.args(["/C", "copy", "/B", &path_str, &dest]);
+            cmd
+        })
+        .map_err(|e| format!("raw copy failed: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "raw copy failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = (path, printer);
+        Err("raw printing is not supported on this platform".into())
+    }
+}
+
 fn open_with_system(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -665,7 +877,10 @@ pub(crate) fn maybe_print_downloaded_label<R: Runtime>(
     if !is_pdf || prefs.label_print_mode == LabelPrintMode::Save {
         return Ok(());
     }
-    print_or_open_pdf(path, prefs.label_print_mode, &prefs.label_printer)
+    let bytes = fs::read(path).map_err(|e| format!("read downloaded label: {e}"))?;
+    let size_id = resolve_print_size_id(None, &bytes, true);
+    let printer = prefs.printer_for_job(size_id.as_deref());
+    print_or_open_pdf(path, prefs.label_print_mode, printer)
 }
 
 #[tauri::command]
@@ -706,7 +921,11 @@ pub async fn save_bytes(
 }
 
 #[tauri::command]
-pub fn print_test_page(app: AppHandle, service_id: String) -> Result<(), String> {
+pub fn print_test_page(
+    app: AppHandle,
+    service_id: String,
+    printer: Option<String>,
+) -> Result<(), String> {
     let prefs = load_service_prefs(&app, &service_id);
     let path = write_temp_file("tendencys-test-print.pdf", TEST_PRINT_PDF)?;
     match prefs.label_print_mode {
@@ -716,10 +935,14 @@ pub fn print_test_page(app: AppHandle, service_id: String) -> Result<(), String>
             Ok(())
         }
         LabelPrintMode::System => open_with_system(&path),
-        LabelPrintMode::Instant => print_pdf_silent(
-            &path,
-            Some(prefs.label_printer.as_str()).filter(|p| !p.is_empty()),
-        ),
+        LabelPrintMode::Instant => {
+            let destination = printer
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or(prefs.label_printer_default.as_str());
+            print_pdf_silent(&path, Some(destination).filter(|p| !p.is_empty()))
+        }
     }
 }
 
@@ -740,8 +963,10 @@ pub async fn desktop_deliver_file<R: Runtime>(
     let prefs = load_service_prefs(&app, &service_id);
     let intent = request.intent.to_ascii_lowercase();
     let pdf = is_pdf(mime, &file_name, &bytes);
+    let raw = is_raw_thermal_format(request.print_format.as_deref(), &file_name);
+    let image = is_image_label(mime, &file_name);
 
-    if intent == "save" || prefs.label_print_mode == LabelPrintMode::Save || !pdf {
+    if intent == "save" || prefs.label_print_mode == LabelPrintMode::Save {
         let path = save_to_downloads(&file_name, &bytes)?;
         log::info!(
             "[desktop-files] saved {} for {service_id} → {}",
@@ -751,12 +976,46 @@ pub async fn desktop_deliver_file<R: Runtime>(
         return Ok(());
     }
 
-    if intent == "print" {
-        let path = write_temp_file(&file_name, &bytes)?;
-        return print_or_open_pdf(&path, prefs.label_print_mode, &prefs.label_printer);
+    if intent != "print" {
+        return Err(format!("unknown intent: {}", request.intent));
     }
 
-    Err(format!("unknown intent: {}", request.intent))
+    let size_id = resolve_print_size_id(request.print_size.as_deref(), &bytes, pdf);
+    let printer = prefs.printer_for_job(size_id.as_deref()).to_string();
+    let path = write_temp_file(&file_name, &bytes)?;
+
+    match prefs.label_print_mode {
+        LabelPrintMode::Instant => {
+            if raw {
+                log::info!(
+                    "[desktop-files] Instant raw {} → {} ({})",
+                    file_name,
+                    printer,
+                    size_id.as_deref().unwrap_or("default")
+                );
+                return print_raw_silent(&path, Some(printer.as_str()).filter(|p| !p.is_empty()));
+            }
+            if pdf || image {
+                log::info!(
+                    "[desktop-files] Instant print {} → {} ({})",
+                    file_name,
+                    printer,
+                    size_id.as_deref().unwrap_or("default")
+                );
+                return print_pdf_silent(&path, Some(printer.as_str()).filter(|p| !p.is_empty()));
+            }
+            // Unknown binary: fall back to Downloads rather than a bad print job.
+            let saved = save_to_downloads(&file_name, &bytes)?;
+            log::info!(
+                "[desktop-files] Instant unknown type saved {} → {}",
+                file_name,
+                saved.display()
+            );
+            Ok(())
+        }
+        LabelPrintMode::System => open_with_system(&path),
+        LabelPrintMode::Save => Err("save mode should not print".into()),
+    }
 }
 
 #[cfg(test)]
@@ -778,5 +1037,95 @@ mod tests {
         assert!(!list[1].is_default);
         assert_eq!(list[2].name, "Brother");
         assert!(list[2].is_default);
+    }
+
+    #[test]
+    fn migrates_legacy_label_printer_into_rules() {
+        let prefs = ServicePreferences {
+            label_print_mode: LabelPrintMode::Instant,
+            label_printer_default: "DYMO_LabelWriter_4XL".into(),
+            label_printer_rules: Vec::new(),
+            label_printers_by_size: LabelPrintersBySize::default(),
+        }
+        .migrate_legacy_rules(false, false);
+        assert!(prefs
+            .label_printer_rules
+            .iter()
+            .any(|r| r.printer == "DYMO_LabelWriter_4XL"
+                && r.size_ids.iter().any(|s| s == "STOCK_4X6")));
+        assert_eq!(
+            prefs.printer_for_job(Some("STOCK_4X6")),
+            "DYMO_LabelWriter_4XL"
+        );
+        assert_eq!(
+            prefs.printer_for_job(Some("PAPER_LETTER")),
+            "DYMO_LabelWriter_4XL"
+        );
+    }
+
+    #[test]
+    fn resolve_print_size_prefers_print_size_then_mediabox() {
+        let pdf_4x6 = b"%PDF-1.4\n/MediaBox [0 0 288 432]\n";
+        assert_eq!(
+            resolve_print_size_id(Some("PAPER_LETTER"), pdf_4x6, true).as_deref(),
+            Some("PAPER_LETTER")
+        );
+        assert_eq!(
+            resolve_print_size_id(Some("PAPER_8.27X11"), pdf_4x6, true).as_deref(),
+            Some("PAPER_8.27X11.67")
+        );
+        assert_eq!(
+            resolve_print_size_id(None, pdf_4x6, true).as_deref(),
+            Some("STOCK_4X6")
+        );
+        assert_eq!(resolve_print_size_id(None, b"not-a-pdf", false), None);
+    }
+
+    #[test]
+    fn shell_shaped_printer_rules_round_trip() {
+        let raw = serde_json::json!({
+            "labelPrintMode": "instant",
+            "labelPrinterDefault": "HP_Laser",
+            "labelPrinterRules": [
+                { "printer": "DYMO_LabelWriter_4XL", "sizeIds": ["STOCK_4X6"] },
+                { "printer": "Brother_DCP_T520W", "sizeIds": ["PAPER_8.27X11.67"] }
+            ]
+        });
+        let prefs: ServicePreferences =
+            serde_json::from_value(raw).expect("shell-shaped prefs deserialize");
+        assert_eq!(
+            prefs.printer_for_job(Some("STOCK_4X6")),
+            "DYMO_LabelWriter_4XL"
+        );
+        assert_eq!(
+            prefs.printer_for_job(Some("PAPER_8.27X11")),
+            "Brother_DCP_T520W"
+        );
+        assert_eq!(prefs.printer_for_job(Some("STOCK_4X9")), "HP_Laser");
+        let encoded = serde_json::to_value(&prefs).expect("serialize");
+        assert_eq!(encoded["labelPrinterDefault"], "HP_Laser");
+        assert!(encoded["labelPrinterRules"].is_array());
+    }
+
+    #[test]
+    fn migrates_legacy_by_size_map() {
+        let raw = serde_json::json!({
+            "labelPrintMode": "instant",
+            "labelPrinter": "fallback",
+            "labelPrintersBySize": {
+                "thermal_4x6": "DYMO_LabelWriter_4XL",
+                "letter": "HP_Laser"
+            }
+        });
+        let service_value = raw;
+        let prefs = serde_json::from_value::<ServicePreferences>(service_value.clone())
+            .unwrap()
+            .migrate_legacy_rules(false, true);
+        assert_eq!(
+            prefs.printer_for_job(Some("STOCK_4X6")),
+            "DYMO_LabelWriter_4XL"
+        );
+        assert_eq!(prefs.printer_for_job(Some("PAPER_LETTER")), "HP_Laser");
+        assert_eq!(prefs.label_printer_default, "fallback");
     }
 }

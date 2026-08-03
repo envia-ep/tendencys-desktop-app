@@ -1,3 +1,8 @@
+import {
+  migrateToLabelPrinterRules,
+  normalizePrinterRules,
+  type PrinterRule,
+} from "./label-print-size";
 import { isSupportedLanguage, type SupportedLanguage } from "./locale";
 import {
   DEFAULT_MENU_LAYOUT,
@@ -6,6 +11,7 @@ import {
 } from "./menu-layout";
 import { isTauri } from "./tauri";
 
+export type { PrinterRule } from "./label-print-size";
 export type LabelPrintMode = "instant" | "system" | "save";
 
 /**
@@ -56,13 +62,16 @@ export function normalizeShellZoom(value: unknown): ShellZoom {
 
 export type ServicePreferences = {
   labelPrintMode: LabelPrintMode;
-  /** Empty string = OS default printer when mode is instant. */
-  labelPrinter: string;
+  /** Instant fallback when no catalog size rule matches (empty = OS default). */
+  labelPrinterDefault: string;
+  /** Instant print: unbounded OS printers with assigned catalog_print_sizes. */
+  labelPrinterRules: PrinterRule[];
 };
 
 export const DEFAULT_SERVICE_PREFERENCES: ServicePreferences = {
   labelPrintMode: "system",
-  labelPrinter: "",
+  labelPrinterDefault: "",
+  labelPrinterRules: [],
 };
 
 export type { CustomMenuItem, MenuLayout } from "./menu-layout";
@@ -86,9 +95,31 @@ async function getPreferencesStore() {
   return load(PREFERENCES_FILE, { autoSave: true, defaults: {} });
 }
 
-function normalizePrefs(raw: unknown): ServicePreferences {
+function normalizeLegacyBySize(
+  raw: unknown,
+): Partial<Record<"thermal_4x6" | "thermal_other" | "letter", string>> {
   if (!raw || typeof raw !== "object") {
-    return { ...DEFAULT_SERVICE_PREFERENCES };
+    return {};
+  }
+  const obj = raw as Record<string, unknown>;
+  const out: Partial<
+    Record<"thermal_4x6" | "thermal_other" | "letter", string>
+  > = {};
+  for (const key of ["thermal_4x6", "thermal_other", "letter"] as const) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+export function normalizePrefs(raw: unknown): ServicePreferences {
+  if (!raw || typeof raw !== "object") {
+    return {
+      ...DEFAULT_SERVICE_PREFERENCES,
+      labelPrinterRules: [],
+    };
   }
   const obj = raw as Record<string, unknown>;
   const mode = obj.labelPrintMode;
@@ -96,11 +127,28 @@ function normalizePrefs(raw: unknown): ServicePreferences {
     mode === "instant" || mode === "system" || mode === "save"
       ? mode
       : DEFAULT_SERVICE_PREFERENCES.labelPrintMode;
-  const labelPrinter =
-    typeof obj.labelPrinter === "string"
-      ? obj.labelPrinter
-      : DEFAULT_SERVICE_PREFERENCES.labelPrinter;
-  return { labelPrintMode, labelPrinter };
+
+  const legacyPrinter =
+    typeof obj.labelPrinter === "string" ? obj.labelPrinter : "";
+  const labelPrinterDefault =
+    typeof obj.labelPrinterDefault === "string"
+      ? obj.labelPrinterDefault
+      : legacyPrinter;
+
+  const hadRules = Array.isArray(obj.labelPrinterRules);
+  const hadBySize =
+    obj.labelPrintersBySize != null && typeof obj.labelPrintersBySize === "object";
+
+  let labelPrinterRules = normalizePrinterRules(obj.labelPrinterRules);
+  if (!hadRules) {
+    labelPrinterRules = migrateToLabelPrinterRules(
+      normalizeLegacyBySize(obj.labelPrintersBySize),
+      legacyPrinter || labelPrinterDefault,
+      hadBySize,
+    );
+  }
+
+  return { labelPrintMode, labelPrinterDefault, labelPrinterRules };
 }
 
 export async function loadAllServicePreferences(): Promise<

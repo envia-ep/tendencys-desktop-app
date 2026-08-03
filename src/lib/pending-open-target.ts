@@ -6,6 +6,7 @@ export const OPEN_SERVICE_IDS = [
   "envia-shipping",
   "envia-cargo",
   "envia-fulfillment",
+  "envia-wms",
   "envia-returns",
   "parapaquetes",
   "ecart-pay",

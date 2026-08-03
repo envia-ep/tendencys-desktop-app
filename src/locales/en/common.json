@@ -227,7 +227,7 @@
     "modes": {
       "instant": {
         "label": "Instant print",
-        "description": "Send straight to the printer below — no system dialog."
+        "description": "Send straight to the printer mapped for each Packages print size — no system dialog."
       },
       "system": {
         "label": "System viewer",
@@ -238,13 +238,22 @@
         "description": "Always download the file to Downloads instead of printing."
       }
     },
-    "labelPrinter": "Default label printer",
-    "labelPrinterHelp": "Used for Instant print. Leave as system default to use the OS default printer.",
+    "labelPrinterDefault": "Default printer",
+    "labelPrinterDefaultHelp": "Used when Instant print size does not match any configured printer. System default uses the OS destination.",
+    "labelPrinterRules": "Instant printers",
+    "labelPrinterRulesHelp": "Add printers and assign Shipping Packages print sizes (catalog_print_sizes) to each one.",
+    "configurePrinting": "Configure printing",
+    "addPrinter": "Add printer",
+    "removePrinter": "Remove",
+    "selectPrinter": "Select a printer…",
+    "noPrintersToAdd": "All printers are already added",
+    "noConfiguredPrinters": "No printers configured yet. Add one to map Packages print sizes.",
     "systemDefaultPrinter": "System default",
     "defaultBadge": "default",
     "loadingPrinters": "Loading printers…",
     "printersError": "Could not list printers on this computer.",
     "testPrint": "Test print",
+    "testPrintDefault": "Test default",
     "testPrintSuccess": "Test page sent.",
     "testPrintError": "Test print failed.",
     "language": "Language",

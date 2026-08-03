@@ -42,6 +42,7 @@ import {
   saveUiDensity,
   type AppEnvironmentMode,
   type LabelPrintMode,
+  type PrinterRule,
   type ServicePreferences,
   type ShellZoom,
   type ThemeMode,
@@ -64,7 +65,11 @@ type PreferencesState = {
     serviceId: string,
     mode: LabelPrintMode,
   ) => Promise<void>;
-  setLabelPrinter: (serviceId: string, printer: string) => Promise<void>;
+  setLabelPrinterDefault: (serviceId: string, printer: string) => Promise<void>;
+  setLabelPrinterRules: (
+    serviceId: string,
+    rules: PrinterRule[],
+  ) => Promise<void>;
   /** Persists the mode only — callers own the session-reset + restart flow. */
   setEnvironmentMode: (mode: AppEnvironmentMode) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
@@ -166,9 +171,18 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     }));
   },
 
-  setLabelPrinter: async (serviceId, printer) => {
+  setLabelPrinterDefault: async (serviceId, printer) => {
     const current = prefsForService(get().servicePrefs, serviceId);
-    const next = { ...current, labelPrinter: printer };
+    const next = { ...current, labelPrinterDefault: printer };
+    await saveServicePreferences(serviceId, next);
+    set((state) => ({
+      servicePrefs: { ...state.servicePrefs, [serviceId]: next },
+    }));
+  },
+
+  setLabelPrinterRules: async (serviceId, rules) => {
+    const current = prefsForService(get().servicePrefs, serviceId);
+    const next = { ...current, labelPrinterRules: rules };
     await saveServicePreferences(serviceId, next);
     set((state) => ({
       servicePrefs: { ...state.servicePrefs, [serviceId]: next },

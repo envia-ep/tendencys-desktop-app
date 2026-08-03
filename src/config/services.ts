@@ -102,6 +102,19 @@ export const SERVICES: ServiceDefinition[] = [
     ],
   },
   {
+    id: "envia-wms",
+    name: "Envia WMS",
+    url: import.meta.env.VITE_ENVIA_WMS_URL || "https://wms.envia.com",
+    siteId:
+      import.meta.env.VITE_ENVIA_WMS_SITE_ID || "65315c26d794a975c9948c6f",
+    icon: "wms",
+    accentColor: "#3182CE",
+    // WMS uses its own email/password JWT — no Accounts SSO handoff yet.
+    authMode: "unsupported",
+    authCallbackPath: "",
+    quickLinks: [{ label: "Dashboard", path: "/" }],
+  },
+  {
     id: "envia-returns",
     name: "Envia Returns",
     url: import.meta.env.VITE_ENVIA_RETURNS_URL || "https://returns.envia.com",
