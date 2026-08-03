@@ -60,6 +60,26 @@ fn resolve_accounts_base(accounts_base_url: &str) -> Result<String, String> {
     Ok(base.as_str().trim_end_matches('/').to_string())
 }
 
+/// Resolve the system `curl` binary. Windows PATH can omit System32 for some
+/// packaged launches, so prefer the known absolute path there.
+fn curl_binary() -> PathBuf {
+    #[cfg(windows)]
+    {
+        let system_root = std::env::var_os("SystemRoot")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows"));
+        let system32 = system_root.join("System32").join("curl.exe");
+        if system32.is_file() {
+            return system32;
+        }
+        return PathBuf::from("curl.exe");
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from("curl")
+    }
+}
+
 /// Accounts' Cloudflare zone challenges `reqwest`'s TLS/HTTP2 fingerprint on
 /// `/api/device-keys/*` (curl is never challenged, even with identical
 /// headers), so this shells out to the system `curl` binary for that one
@@ -69,6 +89,7 @@ fn resolve_accounts_base(accounts_base_url: &str) -> Result<String, String> {
 fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value) -> Result<(u16, String), String> {
     use std::io::Write;
 
+    let curl = curl_binary();
     let body_path = std::env::temp_dir().join(format!("tdk-body-{}.json", Uuid::new_v4()));
     fs::write(&body_path, body.to_string()).map_err(|e| format!("curl body write: {e}"))?;
     #[cfg(unix)]
@@ -107,7 +128,7 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
             .map_err(|e| format!("curl cfg write: {e}"))?;
     }
 
-    let output = std::process::Command::new("curl")
+    let output = std::process::Command::new(&curl)
         .arg("-K")
         .arg(&cfg_path)
         .output();
@@ -115,7 +136,12 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
     let _ = fs::remove_file(&cfg_path);
     let _ = fs::remove_file(&body_path);
 
-    let output = output.map_err(|e| format!("curl exec: {e}"))?;
+    let output = output.map_err(|e| {
+        format!(
+            "curl exec: {e} (binary={}). Device linking needs system curl.",
+            curl.display()
+        )
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let mut lines: Vec<&str> = stdout.lines().collect();
     let status_line = lines.pop().unwrap_or("0");

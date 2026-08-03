@@ -25,6 +25,10 @@
     "description": "Right-click the Envia.com icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
     "gotIt": "Got it"
   },
+  "deviceKeyWarning": {
+    "title": "Silent sign-in was not set up",
+    "dismiss": "Dismiss"
+  },
   "devModeBanner": {
     "label": "Dev environment — not connected to production"
   },

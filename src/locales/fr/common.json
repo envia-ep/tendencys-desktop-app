@@ -25,6 +25,10 @@
     "description": "Cliquez avec le bouton droit sur l’icône Envia.com dans le Dock, puis choisissez Options → Garder dans le Dock pour la rouvrir après avoir quitté.",
     "gotIt": "Compris"
   },
+  "deviceKeyWarning": {
+    "title": "La connexion silencieuse n’a pas été configurée",
+    "dismiss": "Fermer"
+  },
   "devModeBanner": {
     "label": "Environnement de développement — non connecté à la production"
   },

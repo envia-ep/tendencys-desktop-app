@@ -27,13 +27,14 @@ export function ssoLog(message: string, ...args: unknown[]): void {
 export function ssoCaptureFailure(
   message: string,
   extra?: Record<string, unknown>,
+  tags?: Record<string, string>,
 ): void {
   if (DEBUG) {
     console.warn(`[sso] ${message}`, extra ?? "");
   }
   Sentry.captureMessage(`[sso] ${message}`, {
     level: "warning",
-    tags: { area: "sso" },
+    tags: { area: "sso", ...tags },
     extra,
   });
 }

@@ -222,10 +222,15 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_process::init())?;
             }
 
-            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            // Linux always needs runtime registration. Windows release builds also
+            // call register_all so tendencys:// stays associated even if the NSIS
+            // protocol write is missing or overwritten after install.
+            #[cfg(any(target_os = "linux", windows))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                app.deep_link().register_all()?;
+                if let Err(err) = app.deep_link().register_all() {
+                    log::warn!("[sso] deep_link register_all failed: {err}");
+                }
             }
 
             // System-browser login returns via tendencys:// — handle in Rust so

@@ -109,6 +109,12 @@ type AuthState = {
   isInitialized: boolean;
   error: string | null;
   /**
+   * Non-blocking warning when interactive login succeeded but device-key
+   * registration failed (silent remint will not work until fixed).
+   */
+  deviceKeyWarning: string | null;
+  clearDeviceKeyWarning: () => void;
+  /**
    * Transient (not persisted): true only right after a fresh interactive login
    * or successful account switch, when the shared Accounts `_atid` is guaranteed
    * present. Product SSO resets mount state from this. Consumed once.
@@ -160,6 +166,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   error: null,
+  deviceKeyWarning: null,
+  clearDeviceKeyWarning: () => set({ deviceKeyWarning: null }),
   justAuthenticated: false,
   silentLoginAttempted: false,
   isAddingAccount: false,
@@ -362,13 +370,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: session.account.id,
       isLoading: false,
       error: null,
+      deviceKeyWarning: null,
       justAuthenticated: true,
       isAddingAccount: false,
     });
 
     // Await so cold-start remint works after this interactive login.
     resetDeviceKeyLoginCache();
-    await registerDeviceKey(session.token, session.account.id);
+    const registerResult = await registerDeviceKey(
+      session.token,
+      session.account.id,
+    );
+    if (!registerResult.ok) {
+      set({ deviceKeyWarning: registerResult.message });
+    }
 
     // Sibling shells share the plugin store — tell them to hydrate.
     void emitShellSessionUpdated();
@@ -523,6 +538,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accounts: [],
         activeAccountId: null,
         error: null,
+        deviceKeyWarning: null,
         silentLoginAttempted: true,
         isAddingAccount: false,
         justAuthenticated: false,
@@ -558,6 +574,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accounts: [],
       activeAccountId: null,
       error: null,
+      deviceKeyWarning: null,
       silentLoginAttempted: true,
       isAddingAccount: false,
     });
@@ -579,6 +596,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accounts: [],
       activeAccountId: null,
       error: null,
+      deviceKeyWarning: null,
       silentLoginAttempted: true,
       isAddingAccount: false,
       justAuthenticated: false,
