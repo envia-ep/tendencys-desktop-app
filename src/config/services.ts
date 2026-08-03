@@ -219,8 +219,6 @@ export const SERVICES: ServiceDefinition[] = [
     accentColor: "#6B46C1",
     authMode: "login-sites",
     authCallbackPath: "/authentication",
-    // Temporarily hide from the rail / login showcase until Partners is ready.
-    hidden: true,
     // No sandbox deployment to test against — disabled in Dev mode.
     disabledInDev: true,
     quickLinks: [
