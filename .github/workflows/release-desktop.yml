@@ -39,6 +39,11 @@ jobs:
     needs: create-release
     strategy:
       fail-fast: false
+      # tauri-action merges latest.json with a non-atomic delete+upload. Parallel
+      # matrix jobs race (404 on update-a-release-asset) and can drop platform
+      # keys — v0.4.17 lost both darwin-* entries. Serialize uploads.
+      # See https://github.com/tauri-apps/tauri-action/issues/1270
+      max-parallel: 1
       matrix:
         include:
           - platform: macos-latest
@@ -192,6 +197,8 @@ jobs:
           tauriScript: npx tauri
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+          # Extra retries if GitHub asset API flakes after the serialize above.
+          retryAttempts: 5
 
       # Symbolicate native minidumps. Skips cleanly when SENTRY_AUTH_TOKEN is unset.
       - name: Upload Sentry debug files
