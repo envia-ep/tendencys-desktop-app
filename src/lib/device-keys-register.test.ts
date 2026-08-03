@@ -27,4 +27,15 @@ assert.match(
   "registerDeviceKey must return a result (not void)",
 );
 
+const rust = readFileSync(
+  join(here, "../../src-tauri/src/device_key.rs"),
+  "utf8",
+);
+assert.match(
+  rust,
+  /fn curl_config_path/,
+  "Windows curl -K paths must be slash-normalized",
+);
+assert.match(rust, /envia-dk-body-/);
+
 console.log("device-keys-register: ok");

@@ -80,6 +80,14 @@ fn curl_binary() -> PathBuf {
     }
 }
 
+/// curl `-K` config treats `\` as an escape. Windows `Path::display()` uses
+/// `\`, so a temp path like `...\Temp\tdk-body-….json` becomes `...\Temp` + TAB
+/// (`\t`) + `dk-body-…` and the body file is never uploaded. Always emit
+/// forward slashes inside the config (curl accepts them on Windows).
+fn curl_config_path(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 /// Accounts' Cloudflare zone challenges `reqwest`'s TLS/HTTP2 fingerprint on
 /// `/api/device-keys/*` (curl is never challenged, even with identical
 /// headers), so this shells out to the system `curl` binary for that one
@@ -90,7 +98,9 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
     use std::io::Write;
 
     let curl = curl_binary();
-    let body_path = std::env::temp_dir().join(format!("tdk-body-{}.json", Uuid::new_v4()));
+    // Avoid filenames starting with `t` after `\Temp\` — even with slash
+    // normalization, keep names free of curl escape trigraphs.
+    let body_path = std::env::temp_dir().join(format!("envia-dk-body-{}.json", Uuid::new_v4()));
     fs::write(&body_path, body.to_string()).map_err(|e| format!("curl body write: {e}"))?;
     #[cfg(unix)]
     {
@@ -111,12 +121,12 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
     }
     cfg.push_str(&format!(
         "data-binary = \"@{}\"\n",
-        body_path.display()
+        curl_config_path(&body_path)
     ));
     cfg.push_str("silent\nshow-error\n");
     cfg.push_str("write-out = \"\\n%{http_code}\"\n");
 
-    let cfg_path = std::env::temp_dir().join(format!("tdk-curl-{}.cfg", Uuid::new_v4()));
+    let cfg_path = std::env::temp_dir().join(format!("envia-dk-curl-{}.cfg", Uuid::new_v4()));
     {
         let mut f = fs::File::create(&cfg_path).map_err(|e| format!("curl cfg write: {e}"))?;
         #[cfg(unix)]
@@ -142,6 +152,16 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
             curl.display()
         )
     })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "curl failed (exit={}): stderr={} stdout={}",
+            output.status.code().unwrap_or(-1),
+            stderr.chars().take(400).collect::<String>(),
+            stdout.chars().take(200).collect::<String>(),
+        ));
+    }
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let mut lines: Vec<&str> = stdout.lines().collect();
     let status_line = lines.pop().unwrap_or("0");
@@ -572,4 +592,25 @@ pub async fn register_device_key(
         set_device_key_method_id(app, id, mid)?;
     }
     Ok(updated)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::curl_config_path;
+    use std::path::PathBuf;
+
+    #[test]
+    fn curl_config_path_uses_forward_slashes() {
+        let windows_like = PathBuf::from(r"C:\Users\x\AppData\Local\Temp\tdk-body-1.json");
+        let formatted = curl_config_path(&windows_like);
+        assert!(
+            !formatted.contains('\\'),
+            "backslashes escape in curl -K: {formatted}"
+        );
+        assert!(
+            !formatted.contains('\t'),
+            "\\t must not become a tab: {formatted:?}"
+        );
+        assert!(formatted.contains("tdk-body-1.json"));
+    }
 }
