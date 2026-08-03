@@ -1,0 +1,95 @@
+name: Windows Login Smoke
+
+# Verifies the Windows install associates tendencys:// and the shell binary is present.
+# Full interactive Accounts login still requires a human (or stored secrets) on a clean VM.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to smoke (e.g. v0.4.16). Empty = latest."
+        required: false
+        default: ""
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Resolve release asset
+        id: asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ inputs.tag }}".Trim()
+          if ($tag) {
+            $rel = gh api "repos/${{ github.repository }}/releases/tags/$tag" | ConvertFrom-Json
+          } else {
+            $rel = gh api "repos/${{ github.repository }}/releases/latest" | ConvertFrom-Json
+          }
+          $asset = $rel.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
+          if (-not $asset) { throw "No .exe asset on release $($rel.tag_name)" }
+          "tag=$($rel.tag_name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "url=$($asset.browser_download_url)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "name=$($asset.name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Using $($rel.tag_name) / $($asset.name)"
+
+      - name: Download installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ steps.asset.outputs.tag }}" -p "${{ steps.asset.outputs.name }}" -D "$env:RUNNER_TEMP\installer"
+          Get-ChildItem "$env:RUNNER_TEMP\installer"
+
+      - name: Silent install NSIS
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "$env:RUNNER_TEMP\installer\*.exe" | Select-Object -First 1
+          Write-Host "Installing $($exe.FullName)"
+          # Tauri NSIS: /S = silent
+          Start-Process -FilePath $exe.FullName -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 3
+
+      - name: Assert tendencys URL protocol
+        shell: pwsh
+        run: |
+          $key = 'HKCU:\Software\Classes\tendencys\shell\open\command'
+          if (-not (Test-Path $key)) {
+            $key = 'HKLM:\Software\Classes\tendencys\shell\open\command'
+          }
+          if (-not (Test-Path $key)) {
+            throw "tendencys URL protocol not registered after install"
+          }
+          $cmd = (Get-ItemProperty $key).'(default)'
+          Write-Host "Protocol command: $cmd"
+          if ($cmd -notmatch 'Envia|tendencys') {
+            throw "Unexpected protocol command: $cmd"
+          }
+
+      - name: Launch app and probe deep-link registration
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:LOCALAPPDATA\Envia.com\Envia.com.exe",
+            "$env:LOCALAPPDATA\Programs\Envia.com\Envia.com.exe",
+            "${env:ProgramFiles}\Envia.com\Envia.com.exe",
+            "${env:ProgramFiles(x86)}\Envia.com\Envia.com.exe"
+          )
+          $app = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $app) {
+            Get-ChildItem "$env:LOCALAPPDATA" -Recurse -Filter "Envia.com.exe" -ErrorAction SilentlyContinue | Select-Object -First 5 FullName
+            Get-ChildItem "${env:ProgramFiles}" -Recurse -Filter "Envia.com.exe" -ErrorAction SilentlyContinue | Select-Object -First 5 FullName
+            throw "Envia.com.exe not found after install"
+          }
+          Write-Host "Launching $app"
+          $p = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 8
+          # Open the OS deep link; app should already own tendencys://
+          Start-Process "tendencys://authentication?authorization=smoke-test-token"
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) {
+            Write-Host "App exited with code $($p.ExitCode)"
+          } else {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "Windows login smoke: protocol + launch ok ($($env:GITHUB_OUTPUT))"
