@@ -38,8 +38,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "${{ steps.asset.outputs.tag }}" -p "${{ steps.asset.outputs.name }}" -D "$env:RUNNER_TEMP\installer"
-          Get-ChildItem "$env:RUNNER_TEMP\installer"
+          $dir = Join-Path $env:RUNNER_TEMP "installer"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $out = Join-Path $dir "${{ steps.asset.outputs.name }}"
+          # Prefer the resolved CDN URL; gh release download needs a git checkout.
+          Invoke-WebRequest -Uri "${{ steps.asset.outputs.url }}" -OutFile $out -Headers @{ Authorization = "Bearer $env:GH_TOKEN" }
+          Get-ChildItem $dir
 
       - name: Silent install NSIS
         shell: pwsh
