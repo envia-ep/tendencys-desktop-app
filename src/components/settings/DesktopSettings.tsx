@@ -62,7 +62,7 @@ export function DesktopSettings() {
     ? selection
     : (SERVICES[0]?.id ?? "");
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
-  const [printersLoading, setPrintersLoading] = useState(true);
+  const [printersLoading, setPrintersLoading] = useState(false);
   const [printersError, setPrintersError] = useState<string | null>(null);
   const [testBusy, setTestBusy] = useState(false);
   const [testMessage, setTestMessage] = useState<string | null>(null);
@@ -108,6 +108,11 @@ export function DesktopSettings() {
   }, []);
 
   useEffect(() => {
+    // Printer listing shells out to PowerShell on Windows — only load when a
+    // product tab needs the dropdown, not when opening General / Menu.
+    if (!isProductSelection(selection)) {
+      return;
+    }
     let cancelled = false;
     setPrintersLoading(true);
     setPrintersError(null);
@@ -132,7 +137,7 @@ export function DesktopSettings() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [selection, t]);
 
   const selectedService = SERVICES.find((s) => s.id === selectedServiceId);
 

@@ -1,6 +1,7 @@
 mod desktop_files;
 mod device_key;
 mod machine_fingerprint;
+mod process_util;
 mod webview_manager;
 
 use std::sync::Arc;

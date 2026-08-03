@@ -5605,7 +5605,7 @@ dependencies = [
 
 [[package]]
 name = "tendencys-desktop"
-version = "0.4.16"
+version = "0.4.17"
 dependencies = [
  "base64 0.22.1",
  "cookie",
@@ -5634,6 +5634,7 @@ dependencies = [
  "tauri-plugin-updater",
  "urlencoding",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

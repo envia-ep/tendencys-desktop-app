@@ -4,7 +4,10 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use uuid::Uuid;
+
+use crate::process_util::output_hidden;
 
 /// Device keys are stored as local files (not the OS Keychain/Credential
 /// Manager). The OS Keychain requires a per-item "Always Allow" consent
@@ -138,10 +141,11 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
             .map_err(|e| format!("curl cfg write: {e}"))?;
     }
 
-    let output = std::process::Command::new(&curl)
-        .arg("-K")
-        .arg(&cfg_path)
-        .output();
+    let output = output_hidden({
+        let mut cmd = Command::new(&curl);
+        cmd.arg("-K").arg(&cfg_path);
+        cmd
+    });
 
     let _ = fs::remove_file(&cfg_path);
     let _ = fs::remove_file(&body_path);

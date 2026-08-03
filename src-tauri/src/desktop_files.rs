@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Webview};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::process_util::output_hidden;
+
 const PREFERENCES_FILE: &str = "preferences.json";
 const SERVICE_PREFS_KEY: &str = "servicePrefs";
 const SVC_PREFIX: &str = "svc-";
@@ -314,25 +316,172 @@ fn save_to_downloads(file_name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Parse `name\\tisDefault` lines from the Windows CIM fallback script.
+fn parse_printer_tsv(stdout: &str) -> Vec<PrinterInfo> {
+    let mut printers = Vec::new();
+    for line in stdout.lines() {
+        let mut parts = line.splitn(2, '\t');
+        let name = parts.next().unwrap_or("").trim().to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let is_default = parts.next().unwrap_or("false").trim().eq_ignore_ascii_case("true");
+        printers.push(PrinterInfo { name, is_default });
+    }
+    printers
+}
+
+#[cfg(target_os = "windows")]
+fn wide_ptr_to_string(ptr: *const u16) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let mut len = 0usize;
+    // Bound scan so a corrupt buffer cannot hang the Settings UI.
+    while len < 4096 && unsafe { *ptr.add(len) } != 0 {
+        len += 1;
+    }
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(ptr, len) })
+}
+
+#[cfg(target_os = "windows")]
+fn default_printer_name_win32() -> String {
+    use windows_sys::Win32::Graphics::Printing::GetDefaultPrinterW;
+
+    let mut size: u32 = 0;
+    unsafe {
+        GetDefaultPrinterW(std::ptr::null_mut(), &mut size);
+    }
+    if size == 0 {
+        return String::new();
+    }
+    let mut buf = vec![0u16; size as usize];
+    let ok = unsafe { GetDefaultPrinterW(buf.as_mut_ptr(), &mut size) };
+    if ok == 0 {
+        return String::new();
+    }
+    let len = buf
+        .iter()
+        .position(|&c| c == 0)
+        .unwrap_or((size as usize).saturating_sub(1));
+    String::from_utf16_lossy(&buf[..len])
+}
+
+/// Prefer Winspool — no console, no PrintManagement module, works on Home/Pro.
+#[cfg(target_os = "windows")]
+fn list_printers_win32() -> Result<Vec<PrinterInfo>, String> {
+    use std::mem::size_of;
+    use windows_sys::Win32::Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER};
+    use windows_sys::Win32::Graphics::Printing::{
+        EnumPrintersW, PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_4W,
+    };
+
+    let flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS;
+    let mut needed: u32 = 0;
+    let mut returned: u32 = 0;
+
+    let probe = unsafe {
+        EnumPrintersW(
+            flags,
+            std::ptr::null(),
+            4,
+            std::ptr::null_mut(),
+            0,
+            &mut needed,
+            &mut returned,
+        )
+    };
+    if probe != 0 {
+        // Unexpected success with a null buffer — treat as empty.
+        return Ok(Vec::new());
+    }
+    let err = unsafe { GetLastError() };
+    if err != ERROR_INSUFFICIENT_BUFFER {
+        return Err(format!("EnumPrintersW size probe failed: {err}"));
+    }
+    if needed == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut buffer = vec![0u8; needed as usize];
+    let ok = unsafe {
+        EnumPrintersW(
+            flags,
+            std::ptr::null(),
+            4,
+            buffer.as_mut_ptr(),
+            needed,
+            &mut needed,
+            &mut returned,
+        )
+    };
+    if ok == 0 {
+        let err = unsafe { GetLastError() };
+        return Err(format!("EnumPrintersW failed: {err}"));
+    }
+
+    let default_name = default_printer_name_win32();
+    let info_size = size_of::<PRINTER_INFO_4W>();
+    let mut printers = Vec::with_capacity(returned as usize);
+    for i in 0..returned as usize {
+        let info = unsafe {
+            std::ptr::read_unaligned(
+                buffer.as_ptr().add(i * info_size) as *const PRINTER_INFO_4W,
+            )
+        };
+        let name = wide_ptr_to_string(info.pPrinterName);
+        if name.is_empty() {
+            continue;
+        }
+        let is_default = !default_name.is_empty() && default_name == name;
+        printers.push(PrinterInfo { name, is_default });
+    }
+    Ok(printers)
+}
+
+/// Fallback when Winspool is unavailable. Uses CIM only — never `Get-Printer`
+/// (PrintManagement module is missing on many machines).
+#[cfg(target_os = "windows")]
+fn list_printers_cim_fallback() -> Result<Vec<PrinterInfo>, String> {
+    let script = "Get-CimInstance Win32_Printer | ForEach-Object { Write-Output ($_.Name + \"`t\" + ($(if ($_.Default) {'true'} else {'false'}))) }";
+    let output = output_hidden({
+        let mut cmd = Command::new("powershell");
+        cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+        cmd
+    })
+    .map_err(|e| format!("powershell failed: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Win32_Printer query failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(parse_printer_tsv(&String::from_utf8_lossy(&output.stdout)))
+}
+
 fn list_printers_os() -> Result<Vec<PrinterInfo>, String> {
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        let default_name = Command::new("lpstat")
-            .arg("-d")
-            .output()
-            .ok()
-            .and_then(|o| {
-                let s = String::from_utf8_lossy(&o.stdout);
-                s.split(':')
-                    .nth(1)
-                    .map(|p| p.trim().to_string())
-                    .filter(|p| !p.is_empty())
-            });
+        let default_name = output_hidden({
+            let mut cmd = Command::new("lpstat");
+            cmd.arg("-d");
+            cmd
+        })
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout);
+            s.split(':')
+                .nth(1)
+                .map(|p| p.trim().to_string())
+                .filter(|p| !p.is_empty())
+        });
 
-        let output = Command::new("lpstat")
-            .arg("-a")
-            .output()
-            .map_err(|e| format!("lpstat failed: {e}"))?;
+        let output = output_hidden({
+            let mut cmd = Command::new("lpstat");
+            cmd.arg("-a");
+            cmd
+        })
+        .map_err(|e| format!("lpstat failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "lpstat: {}",
@@ -353,35 +502,24 @@ fn list_printers_os() -> Result<Vec<PrinterInfo>, String> {
 
     #[cfg(target_os = "windows")]
     {
-        let script = r#"
-$ErrorActionPreference = 'Stop'
-$default = (Get-CimInstance Win32_Printer | Where-Object { $_.Default }).Name
-Get-Printer | ForEach-Object {
-  $isDefault = if ($default -and $_.Name -eq $default) { 'true' } else { 'false' }
-  Write-Output ($_.Name + "`t" + $isDefault)
-}
-"#;
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-Command", script])
-            .output()
-            .map_err(|e| format!("powershell failed: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "Get-Printer failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        let mut printers = Vec::new();
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            let mut parts = line.splitn(2, '\t');
-            let name = parts.next().unwrap_or("").trim().to_string();
-            if name.is_empty() {
-                continue;
+        match list_printers_win32() {
+            Ok(list) if !list.is_empty() => return Ok(list),
+            Ok(_) => {
+                // Empty can be legitimate; still try CIM in case Winspool
+                // filtered oddly on this host.
+                if let Ok(fallback) = list_printers_cim_fallback() {
+                    if !fallback.is_empty() {
+                        return Ok(fallback);
+                    }
+                }
+                return Ok(Vec::new());
             }
-            let is_default = parts.next().unwrap_or("false").trim() == "true";
-            printers.push(PrinterInfo { name, is_default });
+            Err(win32_err) => {
+                log::warn!("[desktop-files] Winspool list failed: {win32_err}; trying CIM");
+                return list_printers_cim_fallback()
+                    .map_err(|cim_err| format!("{win32_err}; CIM fallback: {cim_err}"));
+            }
         }
-        return Ok(printers);
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -398,7 +536,7 @@ fn print_pdf_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
             cmd.arg("-d").arg(name);
         }
         cmd.arg(path);
-        let output = cmd.output().map_err(|e| format!("lp failed: {e}"))?;
+        let output = output_hidden(cmd).map_err(|e| format!("lp failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "lp failed: {}",
@@ -424,10 +562,12 @@ fn print_pdf_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
                 path_str = path_str
             )
         };
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-Command", &script])
-            .output()
-            .map_err(|e| format!("powershell print failed: {e}"))?;
+        let output = output_hidden({
+            let mut cmd = Command::new("powershell");
+            cmd.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+            cmd
+        })
+        .map_err(|e| format!("powershell print failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "print failed: {}",
@@ -447,10 +587,12 @@ fn print_pdf_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
 fn open_with_system(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("open")
-            .arg(path)
-            .output()
-            .map_err(|e| format!("open failed: {e}"))?;
+        let output = output_hidden({
+            let mut cmd = Command::new("open");
+            cmd.arg(path);
+            cmd
+        })
+        .map_err(|e| format!("open failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "open failed: {}",
@@ -461,10 +603,12 @@ fn open_with_system(path: &Path) -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
-        let output = Command::new("xdg-open")
-            .arg(path)
-            .output()
-            .map_err(|e| format!("xdg-open failed: {e}"))?;
+        let output = output_hidden({
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(path);
+            cmd
+        })
+        .map_err(|e| format!("xdg-open failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "xdg-open failed: {}",
@@ -475,10 +619,12 @@ fn open_with_system(path: &Path) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("cmd")
-            .args(["/C", "start", "", &path.to_string_lossy()])
-            .output()
-            .map_err(|e| format!("start failed: {e}"))?;
+        let output = output_hidden({
+            let mut cmd = Command::new("cmd");
+            cmd.args(["/C", "start", "", &path.to_string_lossy()]);
+            cmd
+        })
+        .map_err(|e| format!("start failed: {e}"))?;
         if !output.status.success() {
             return Err(format!(
                 "start failed: {}",
@@ -504,9 +650,30 @@ fn print_or_open_pdf(path: &Path, mode: LabelPrintMode, printer: &str) -> Result
     }
 }
 
+/// If Instant/System print is configured, print a just-downloaded PDF label.
+pub(crate) fn maybe_print_downloaded_label<R: Runtime>(
+    app: &AppHandle<R>,
+    service_id: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let prefs = load_service_prefs(app, service_id);
+    let is_pdf = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false);
+    if !is_pdf || prefs.label_print_mode == LabelPrintMode::Save {
+        return Ok(());
+    }
+    print_or_open_pdf(path, prefs.label_print_mode, &prefs.label_printer)
+}
+
 #[tauri::command]
-pub fn list_printers() -> Result<Vec<PrinterInfo>, String> {
-    list_printers_os()
+pub async fn list_printers() -> Result<Vec<PrinterInfo>, String> {
+    // PowerShell / lpstat can take hundreds of ms — keep it off the async runtime.
+    tauri::async_runtime::spawn_blocking(list_printers_os)
+        .await
+        .map_err(|e| format!("list_printers task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -590,4 +757,26 @@ pub async fn desktop_deliver_file<R: Runtime>(
     }
 
     Err(format!("unknown intent: {}", request.intent))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_printer_tsv_reads_name_and_default() {
+        let list = parse_printer_tsv(
+            "HP LaserJet\ttrue\n\
+             Microsoft Print to PDF\tfalse\n\
+             \n\
+             Brother\tTRUE\n",
+        );
+        assert_eq!(list.len(), 3);
+        assert_eq!(list[0].name, "HP LaserJet");
+        assert!(list[0].is_default);
+        assert_eq!(list[1].name, "Microsoft Print to PDF");
+        assert!(!list[1].is_default);
+        assert_eq!(list[2].name, "Brother");
+        assert!(list[2].is_default);
+    }
 }

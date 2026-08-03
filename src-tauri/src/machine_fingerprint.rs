@@ -9,6 +9,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use crate::process_util::output_hidden;
+
 const FINGERPRINT_VERSION: &str = "v1";
 const MACHINE_FILE: &str = "machine.json";
 
@@ -70,15 +73,17 @@ fn hardware_id() -> String {
 
 #[cfg(target_os = "windows")]
 fn hardware_id() -> String {
-    let output = Command::new("reg")
-        .args([
+    let output = output_hidden({
+        let mut cmd = Command::new("reg");
+        cmd.args([
             "query",
             r"HKLM\SOFTWARE\Microsoft\Cryptography",
             "/v",
             "MachineGuid",
-        ])
-        .output()
-        .ok();
+        ]);
+        cmd
+    })
+    .ok();
     let Some(output) = output else {
         return String::new();
     };

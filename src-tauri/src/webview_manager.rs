@@ -56,7 +56,7 @@ const MAX_SHELL_WINDOWS: usize = 6;
 const MAX_AUX_TABS: usize = 6;
 
 
-use crate::desktop_files::unique_download_path;
+use crate::desktop_files::{maybe_print_downloaded_label, unique_download_path};
 
 #[derive(Clone, Serialize)]
 struct ServiceNavigatedPayload {
@@ -1098,6 +1098,8 @@ fn build_service_webview(
     let app_for_new_window = app.clone();
     let win_for_new_window = window_label.to_string();
     let opener_for_new_window = service_id.to_string();
+    let app_for_download = app.clone();
+    let service_id_for_download = service_id.to_string();
     let builder = builder
         .on_download(move |_webview, event| {
             match event {
@@ -1134,6 +1136,19 @@ fn build_service_webview(
                         "[desktop-files] download finished success={success} url={url} path={:?}",
                         path.as_ref().map(|p| p.display().to_string())
                     );
+                    if success {
+                        if let Some(path) = path.as_ref() {
+                            if let Err(e) = maybe_print_downloaded_label(
+                                &app_for_download,
+                                &service_id_for_download,
+                                path,
+                            ) {
+                                log::warn!(
+                                    "[desktop-files] print after download failed: {e}"
+                                );
+                            }
+                        }
+                    }
                     true
                 }
                 _ => true,
