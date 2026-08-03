@@ -24,7 +24,7 @@ const TEST_PRINT_PDF: &[u8] = b"%PDF-1.4
 2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
 3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
 4 0 obj<< /Length 55 >>stream
-BT /F1 18 Tf 72 720 Td (Tendencys desktop test print) Tj ET
+BT /F1 18 Tf 72 720 Td (Envia.com desktop test print) Tj ET
 endstream
 endobj
 5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj

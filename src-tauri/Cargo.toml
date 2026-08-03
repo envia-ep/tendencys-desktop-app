@@ -1,8 +1,8 @@
 [package]
 name = "tendencys-desktop"
 version = "0.4.13"
-description = "Tendencys Multi-Service Desktop App"
-authors = ["Tendencys"]
+description = "Envia.com Multi-Service Desktop App"
+authors = ["Envia.com"]
 edition = "2021"
 
 [lib]

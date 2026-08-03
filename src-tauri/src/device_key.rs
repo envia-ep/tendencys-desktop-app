@@ -192,7 +192,7 @@ fn device_label() -> String {
     hostname::get()
         .ok()
         .and_then(|h| h.into_string().ok())
-        .unwrap_or_else(|| "Tendencys Desktop".into())
+        .unwrap_or_else(|| "Envia.com".into())
 }
 
 /// Pre-multi-account (and pre-file-storage) legacy device key can only have

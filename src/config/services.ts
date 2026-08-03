@@ -208,7 +208,7 @@ export const SERVICES: ServiceDefinition[] = [
   },
   {
     id: "tendencys-partners",
-    name: "Tendencys Partners",
+    name: "Partners",
     url:
       import.meta.env.VITE_TENDENCYS_PARTNERS_URL ||
       "https://partners.tendencys.com",
@@ -281,7 +281,7 @@ export function getDefaultService(): ServiceDefinition {
 }
 
 /**
- * OS deep link that focuses Tendencys Desktop and opens a product tab or shell section.
+ * OS deep link that focuses Envia.com and opens a product tab or shell section.
  * Format: `tendencys://open/<target>` — see `OPEN_DEEP_LINKS` in `pending-open-target.ts`.
  */
 export function buildOpenServiceDeepLink(serviceId: string): string {

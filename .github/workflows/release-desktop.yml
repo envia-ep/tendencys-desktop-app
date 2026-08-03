@@ -29,7 +29,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: '${{ steps.tag.outputs.version }}',
-              name: 'Tendencys Desktop ${{ steps.tag.outputs.version }}',
+              name: 'Envia.com ${{ steps.tag.outputs.version }}',
               draft: true,
               prerelease: false,
             });
@@ -161,8 +161,8 @@ jobs:
           CLI_WIN="$(cygpath -w "$CLI")"
           echo "Using trusted-signing-cli at: $CLI_WIN"
           "$CLI" --help >/dev/null
-          SIGN_CMD="$CLI_WIN -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Tendencys %1"
-          echo "Injected signCommand: $CLI_WIN -e <endpoint> -a <account> -c <profile> -d Tendencys %1"
+          SIGN_CMD="$CLI_WIN -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Envia.com %1"
+          echo "Injected signCommand: $CLI_WIN -e <endpoint> -a <account> -c <profile> -d Envia.com %1"
           jq --arg cmd "$SIGN_CMD" '.bundle.windows += {"signCommand": $cmd}' src-tauri/tauri.conf.json > src-tauri/tauri.conf.tmp.json
           mv src-tauri/tauri.conf.tmp.json src-tauri/tauri.conf.json
 

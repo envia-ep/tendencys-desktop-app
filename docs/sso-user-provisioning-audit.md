@@ -1,10 +1,10 @@
 # SSO First-Sign-In User-Provisioning Audit
 
-How every platform hosted by the Tendencys desktop shell provisions a **local user** the first time a customer signs in through Accounts SSO, the inconsistencies found, and the standard all platforms are being aligned to.
+How every platform hosted by the Envia.com desktop shell provisions a **local user** the first time a customer signs in through Accounts SSO, the inconsistencies found, and the standard all platforms are being aligned to.
 
 ## Context
 
-The Tendencys desktop app (`tendencys-desktop-app`) is a thin shell. It has **zero user-creation logic**. It:
+The Envia.com desktop app (`tendencys-desktop-app`) is a thin shell. It has **zero user-creation logic**. It:
 
 1. Authenticates once against Accounts (`accounts.envia.com`).
 2. Stores the Accounts session cookie (`_atid`) in a shared WKWebView cookie jar.
@@ -48,7 +48,7 @@ flowchart TD
 | Accounts (IdP) | `accounts` | n/a (source of truth) | Mongo `accounts` | n/a | n/a | Source |
 | Ecart Pay | `ecart-payment` (BE) / `ecartpay-platform` (FE) | `/authentication` | Mongo `accounts` | account_id -> email -> create | Yes | Compliant |
 | Ecart Banking | `ecart-banking` | `/api/auth/callback` | Supabase `users` | account_id only | n/a (keyed on account_id) | Compliant |
-| Tendencys Partners | `tendencys-partners` | `/authentication` | MySQL `partners2.partners` | `accounts_account_id` only (unique) | n/a (greenfield) | Compliant |
+| Partners | `tendencys-partners` | `/authentication` | MySQL `partners2.partners` | `accounts_account_id` only (unique) | n/a (greenfield) | Compliant |
 | Ecart API | `ecartapi-dashboard` | `/authentication` -> `POST /api/auth/validate` | Mongo `users` | email only | No | Fixed |
 | Envia Shipping | `envia` (PHP) | `/authentication` | MySQL `users`/`companies` | email only | Only if null | Fixed |
 | Envia Returns | `envia` (same code, diff deploy) | `/authentication` | MySQL `users`/`companies` | email only | Only if null | Fixed |
@@ -93,7 +93,7 @@ Where the browser lands and the exact site of the local-DB write (file:line at t
 | Ecart Pay (`ecart-payment`) | `GET /authentication` -> `main.controller.js:107` | `createFromAccounts` -> `create()` -> `new Accounts(data).save()` (`accounts.util.js:32` / `108-155`) | `_tid`/`_exp` cookies -> `/dashboard/home`, new -> `/setup` |
 | Ecart Banking (`ecart-banking`) | `GET /api/auth/callback` -> `auth.controller.ts:55` | `supabase.from('users').insert(...)` (`auth.controller.ts:105-124`) | encrypted `_tid` cookie -> `/dashboard` |
 | Ecart API (`ecartapi-dashboard`) | Nuxt `/authentication` page -> `POST /api/auth/validate` -> `authenticateLogin` | `new Users(...).save()` (`users.controller.ts:333-345`) | `__Host-ecart_token` cookie -> `/dashboard` |
-| Tendencys Partners (`tendencys-partners`) | `/authentication` (React) -> `POST /api/authentication` | `INSERT INTO partners …` via `upsertByAccountsId` (`partner.repository.ts:278-287`) | `_tps` cookie -> `/welcome` |
+| Partners (`tendencys-partners`) | `/authentication` (React) -> `POST /api/authentication` | `INSERT INTO partners …` via `upsertByAccountsId` (`partner.repository.ts:278-287`) | `_tps` cookie -> `/welcome` |
 | Parapaquetes | none (`authMode: unsupported`) | — | — |
 
 ### Behavioral gap: Envia Cargo is the only non-silent first sign-in
@@ -103,7 +103,7 @@ Every product auto-creates on the first callback **except Envia Cargo**. In `ten
 Two smaller notes:
 
 - **Envia Shipping / Returns** is the only product whose insert lives in a *different* service (`queries` repo via `/sing-up`), which is not in this workspace.
-- **Tendencys Partners** matches strictly on `accounts_account_id` (no email fallback) — fine for greenfield, but a pre-existing email-only partner row would not be linked.
+- **Partners** matches strictly on `accounts_account_id` (no email fallback) — fine for greenfield, but a pre-existing email-only partner row would not be linked.
 
 ## Inconsistencies / risks found
 
@@ -125,7 +125,7 @@ Two smaller notes:
 
 - **Ecart Pay** (`ecart-payment`): `getAccount()` already does account_id -> email -> create + backfill.
 - **Ecart Banking** (`ecart-banking`): matches `users.account_id` and updates email each login.
-- **Tendencys Partners** (`tendencys-partners`): `upsertByAccountsId` keys on unique `accounts_account_id`; greenfield, so no legacy email-only rows exist and no email fallback is needed.
+- **Partners** (`tendencys-partners`): `upsertByAccountsId` keys on unique `accounts_account_id`; greenfield, so no legacy email-only rows exist and no email fallback is needed.
 
 ## Notes
 

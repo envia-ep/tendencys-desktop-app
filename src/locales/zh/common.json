@@ -21,8 +21,8 @@
     "dismiss": "稍后"
   },
   "dockTip": {
-    "title": "将 Tendencys 保留在程序坞",
-    "description": "按住 Control 键并点按程序坞中的 Tendencys 图标，然后选择“选项”→“在程序坞中保留”，以便退出后仍可重新打开。",
+    "title": "将 Envia.com 保留在程序坞",
+    "description": "按住 Control 键并点按程序坞中的 Envia.com 图标，然后选择“选项”→“在程序坞中保留”，以便退出后仍可重新打开。",
     "gotIt": "知道了"
   },
   "devModeBanner": {
@@ -135,14 +135,14 @@
       },
       "tendencys-partners": {
         "label": "合作伙伴",
-        "pitch": "在一个门户销售八款 Tendencys 产品 — 首次推荐即享经常性佣金、现成材料与月度奖项。"
+        "pitch": "在一个门户销售八款 Envia.com 产品 — 首次推荐即享经常性佣金、现成材料与月度奖项。"
       }
     }
   },
   "developers": {
     "menuLabel": "开发者",
     "title": "开发者与 API",
-    "subtitle": "Tendencys 产品的文档与 API 访问。可用入口会在浏览器打开文档，或进入产品管理密钥。",
+    "subtitle": "Envia.com 产品的文档与 API 访问。可用入口会在浏览器打开文档，或进入产品管理密钥。",
     "documentation": "文档",
     "manageKeys": "API 密钥",
     "openDashboard": "打开控制台",
@@ -183,7 +183,7 @@
     "subtitle": "物流、履约、支付与银行服务 — 已获 10+ 个国家 20,000+ 家公司信赖。",
     "signIn": "登录",
     "createAccount": "创建账户",
-    "secureNote": "登录会在浏览器中打开以完成安全验证，然后返回 Tendencys。",
+    "secureNote": "登录会在浏览器中打开以完成安全验证，然后返回 Envia.com。",
     "showcaseHeading": "一切尽在一处",
     "showcaseTagline": "一次登录。经营业务所需的全部工具。",
     "featuredLabel": "精选",
@@ -213,14 +213,14 @@
     "menuLabel": "设置",
     "badge": "桌面",
     "title": "桌面设置",
-    "subtitle": "选择每个产品在 Tendencys Desktop 中如何打印和保存标签。",
+    "subtitle": "选择每个产品在 Envia.com 中如何打印和保存标签。",
     "version": "版本 {{version}}",
     "language": "语言",
-    "languageHelp": "选择 Tendencys Desktop 界面语言。",
+    "languageHelp": "选择 Envia.com 界面语言。",
     "general": "常规",
     "appearance": {
       "title": "外观",
-      "help": "这些选项仅适用于 Tendencys Desktop 外壳，不影响产品页面。",
+      "help": "这些选项仅适用于 Envia.com 外壳，不影响产品页面。",
       "theme": "主题",
       "themeHelp": "浅色、深色或跟随操作系统。",
       "themeModes": {
@@ -235,12 +235,12 @@
         "compact": "紧凑"
       },
       "zoom": "文字大小",
-      "zoomHelp": "缩放 Tendencys Desktop 文字。布局仍占满窗口。",
+      "zoomHelp": "缩放 Envia.com 文字。布局仍占满窗口。",
       "zoomPercent": "{{percent}}%"
     },
     "environment": {
       "title": "环境",
-      "help": "切换 Tendencys Desktop 连接的后端。切换会注销并重启应用。",
+      "help": "切换 Envia.com 连接的后端。切换会注销并重启应用。",
       "modes": {
         "production": "生产环境",
         "dev": "开发环境"

@@ -31,7 +31,7 @@ export function WelcomeScreen({ onSignIn, onCreateAccount }: WelcomeScreenProps)
         >
           {/* Dark wordmark stays on a light plate so brand colors survive dark mode. */}
           <span className="flex w-fit items-center rounded-lg dark:bg-white dark:px-2.5 dark:py-2">
-            <img src={accountsLogo} alt="Tendencys" className="h-8 w-auto" />
+            <img src={accountsLogo} alt="Envia.com" className="h-8 w-auto" />
           </span>
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold leading-tight text-foreground">

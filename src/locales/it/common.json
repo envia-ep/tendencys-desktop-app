@@ -21,8 +21,8 @@
     "dismiss": "Più tardi"
   },
   "dockTip": {
-    "title": "Tieni Tendencys nel Dock",
-    "description": "Fai clic con il tasto destro sull’icona Tendencys nel Dock, poi scegli Opzioni → Tieni nel Dock per riaprirla dopo aver uscito.",
+    "title": "Tieni Envia.com nel Dock",
+    "description": "Fai clic con il tasto destro sull’icona Envia.com nel Dock, poi scegli Opzioni → Tieni nel Dock per riaprirla dopo aver uscito.",
     "gotIt": "Ho capito"
   },
   "devModeBanner": {
@@ -135,14 +135,14 @@
       },
       "tendencys-partners": {
         "label": "Partner",
-        "pitch": "Vendi otto prodotti Tendencys da un portale — commissioni ricorrenti dalla prima segnalazione, materiali pronti e premi mensili."
+        "pitch": "Vendi otto prodotti Envia.com da un portale — commissioni ricorrenti dalla prima segnalazione, materiali pronti e premi mensili."
       }
     }
   },
   "developers": {
     "menuLabel": "Sviluppatori",
     "title": "Sviluppatori e API",
-    "subtitle": "Documentazione e accesso API ai prodotti Tendencys. Le superfici attive aprono la documentazione nel browser o il prodotto per gestire le chiavi.",
+    "subtitle": "Documentazione e accesso API ai prodotti Envia.com. Le superfici attive aprono la documentazione nel browser o il prodotto per gestire le chiavi.",
     "documentation": "Documentazione",
     "manageKeys": "Chiavi API",
     "openDashboard": "Apri dashboard",
@@ -183,7 +183,7 @@
     "subtitle": "Spedizioni, fulfillment, pagamenti e banking — scelti da oltre 20.000 aziende in più di 10 paesi.",
     "signIn": "Accedi",
     "createAccount": "Crea un account",
-    "secureNote": "L’accesso si apre nel browser per i controlli di sicurezza, poi ti riporta a Tendencys.",
+    "secureNote": "L’accesso si apre nel browser per i controlli di sicurezza, poi ti riporta a Envia.com.",
     "showcaseHeading": "Tutto in un unico posto",
     "showcaseTagline": "Un accesso. Ogni strumento per gestire il business.",
     "featuredLabel": "In evidenza",
@@ -213,14 +213,14 @@
     "menuLabel": "Impostazioni",
     "badge": "Desktop",
     "title": "Impostazioni desktop",
-    "subtitle": "Scegli come ogni prodotto stampa e salva le etichette in Tendencys Desktop.",
+    "subtitle": "Scegli come ogni prodotto stampa e salva le etichette in Envia.com.",
     "version": "Versione {{version}}",
     "language": "Lingua",
-    "languageHelp": "Scegli la lingua dell’interfaccia di Tendencys Desktop.",
+    "languageHelp": "Scegli la lingua dell’interfaccia di Envia.com.",
     "general": "Generale",
     "appearance": {
       "title": "Aspetto",
-      "help": "Queste opzioni si applicano solo al chrome di Tendencys Desktop — non alle pagine prodotto.",
+      "help": "Queste opzioni si applicano solo al chrome di Envia.com — non alle pagine prodotto.",
       "theme": "Tema",
       "themeHelp": "Chiaro, scuro o in base al sistema operativo.",
       "themeModes": {
@@ -235,12 +235,12 @@
         "compact": "Compatta"
       },
       "zoom": "Dimensione testo",
-      "zoomHelp": "Scala il testo di Tendencys Desktop. Il layout resta a tutto schermo.",
+      "zoomHelp": "Scala il testo di Envia.com. Il layout resta a tutto schermo.",
       "zoomPercent": "{{percent}}%"
     },
     "environment": {
       "title": "Ambiente",
-      "help": "Cambia il backend a cui si connette Tendencys Desktop. Il cambio disconnette e riavvia l’app.",
+      "help": "Cambia il backend a cui si connette Envia.com. Il cambio disconnette e riavvia l’app.",
       "modes": {
         "production": "Produzione",
         "dev": "Dev"

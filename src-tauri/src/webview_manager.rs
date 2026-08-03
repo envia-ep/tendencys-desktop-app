@@ -1039,7 +1039,7 @@ pub async fn create_shell_window(app: AppHandle) -> Result<String, String> {
         .with_window_mut(&label, |_| ());
 
     let built = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
-        .title("Tendencys")
+        .title("Envia.com")
         .inner_size(1280.0, 800.0)
         .min_inner_size(1024.0, 768.0)
         .resizable(true)

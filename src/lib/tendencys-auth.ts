@@ -14,7 +14,7 @@ const PROD_TENDENCYS_BASE_URL =
   import.meta.env.VITE_TENDENCYS_BASE_URL ||
   "https://accounts-sandbox.envia.com";
 
-/** Tendencys Desktop site_id (accountsdb / ecartdb). Override via VITE_SHELL_SITE_ID. */
+/** Envia.com desktop site_id (accountsdb / ecartdb). Override via VITE_SHELL_SITE_ID. */
 const PROD_SHELL_SITE_ID =
   import.meta.env.VITE_SHELL_SITE_ID || "6a51478d752f0077b7d9b356";
 
@@ -29,7 +29,7 @@ export function getTendencysBaseUrl(): string {
     : PROD_TENDENCYS_BASE_URL;
 }
 
-/** Tendencys Desktop site_id for the active environment mode. */
+/** Envia.com desktop site_id for the active environment mode. */
 export function getShellSiteId(): string {
   return getEnvironmentMode() === "dev" ? DEV_SHELL_SITE_ID : PROD_SHELL_SITE_ID;
 }

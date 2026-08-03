@@ -15,14 +15,14 @@
     "dismiss": "Dismiss"
   },
   "dockTip": {
-    "title": "Keep Tendencys in the Dock",
-    "description": "Right-click the Tendencys icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
+    "title": "Keep Envia.com in the Dock",
+    "description": "Right-click the Envia.com icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
     "gotIt": "Got it"
   },
   "topBar": {
     "back": "Go back",
     "forward": "Go forward",
-    "searchPlaceholder": "Search Tendencys",
+    "searchPlaceholder": "Search Envia.com",
     "openInBrowser": "Open in browser",
     "signInToService": "Sign in to service",
     "help": "Help",
@@ -52,7 +52,7 @@
   "developers": {
     "menuLabel": "Developers",
     "title": "Developers & APIs",
-    "subtitle": "Documentation and API access for Tendencys products. Live surfaces open docs in your browser or jump into the product to manage keys.",
+    "subtitle": "Documentation and API access for Envia.com products. Live surfaces open docs in your browser or jump into the product to manage keys.",
     "documentation": "Documentation",
     "manageKeys": "API keys",
     "openDashboard": "Open dashboard",

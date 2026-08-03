@@ -286,15 +286,15 @@ pub fn run() {
                     Some("CmdOrCtrl+N"),
                 )?;
                 let quit_i =
-                    MenuItem::with_id(app, "quit", "Quit Tendencys", true, Some("CmdOrCtrl+Q"))?;
+                    MenuItem::with_id(app, "quit", "Quit Envia.com", true, Some("CmdOrCtrl+Q"))?;
                 let app_submenu = Submenu::with_items(
                     app,
-                    "Tendencys",
+                    "Envia.com",
                     true,
                     &[
                         &PredefinedMenuItem::about(
                             app,
-                            Some("About Tendencys"),
+                            Some("About Envia.com"),
                             Some(AboutMetadata::default()),
                         )?,
                         &PredefinedMenuItem::separator(app)?,
@@ -353,7 +353,7 @@ pub fn run() {
                     Some("CmdOrCtrl+N"),
                 )?;
                 let quit_i =
-                    MenuItem::with_id(app, "quit", "Quit Tendencys", true, Some("CmdOrCtrl+Q"))?;
+                    MenuItem::with_id(app, "quit", "Quit Envia.com", true, Some("CmdOrCtrl+Q"))?;
                 let file_submenu = Submenu::with_items(
                     app,
                     "File",
@@ -375,9 +375,9 @@ pub fn run() {
                     _ => {}
                 });
 
-                let show_i = MenuItem::with_id(app, "show", "Show Tendencys", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Show Envia.com", true, None::<&str>)?;
                 let tray_quit_i =
-                    MenuItem::with_id(app, "tray-quit", "Quit Tendencys", true, None::<&str>)?;
+                    MenuItem::with_id(app, "tray-quit", "Quit Envia.com", true, None::<&str>)?;
                 let tray_menu = Menu::with_items(app, &[&show_i, &tray_quit_i])?;
                 let icon = app
                     .default_window_icon()
@@ -386,7 +386,7 @@ pub fn run() {
                 let tray = TrayIconBuilder::with_id("main-tray")
                     .icon(icon)
                     .menu(&tray_menu)
-                    .tooltip("Tendencys")
+                    .tooltip("Envia.com")
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "show" => focus_main_window(app),
                         "tray-quit" => request_quit(app),

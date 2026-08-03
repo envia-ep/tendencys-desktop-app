@@ -1,6 +1,6 @@
-# Tendencys Desktop App
+# Envia.com
 
-Multi-service desktop shell for Tendencys platforms. Switch between Envia Shipping, Envia Cargo, Envia Fulfillment, Envia Returns, Ecart Pay, Ecart Banking, Ecart API, and Tendencys Partners from a single app with shared SSO via Accounts.
+Multi-service desktop shell for Envia.com platforms. Switch between Envia Shipping, Envia Cargo, Envia Fulfillment, Envia Returns, Ecart Pay, Ecart Banking, Ecart API, and Partners from a single app with shared SSO via Accounts.
 
 Inspired by the Slack desktop layout: a collapsible service rail on the left and, to the right, each product rendered as its own **native OS webview** (not an iframe) that overlays the content area.
 
@@ -21,7 +21,7 @@ The rest of this document explains each of these pieces in more detail.
 - **React 19 + TypeScript + Vite**
 - **Tailwind CSS + Radix UI**
 - **Zustand** — state management (`auth-store`, `service-store`)
-- **Tendencys SSO** via Accounts (`/login`, `/login-sites`, device keys)
+- **Accounts SSO** (`/login`, `/login-sites`, device keys)
 
 ## Architecture
 
@@ -105,7 +105,7 @@ Configured in `src/config/services.ts`, override any URL/site ID via `.env.local
 | Ecart Pay | `https://app.ecart.com` | `login-sites` | URL must equal live product `HOSTNAME` (JWT aud vs Referer). Do not use marketing `ecartpay.com` — its HOSTNAME is `pay.ecart.com`. |
 | Ecart Banking | `https://bank.ecart.com` | `login-sites` | callback is `/api/auth/callback` |
 | Ecart API | `https://app.ecartapi.com` | `login-sites` | URL must equal the dashboard's `API_BASE` (JWT aud vs Referer). Do not use marketing `ecartapi.com` — it 404s. Callback is `/authentication`. |
-| Tendencys Partners | `https://partners.tendencys.com` | `login-sites` | |
+| Partners | `https://partners.tendencys.com` | `login-sites` | |
 
 **Auth modes** (`ServiceAuthMode` in `src/config/services.ts`):
 - `login-sites` — Accounts `/login-sites` handoff using the shared session (current default for all products with a working callback route).
@@ -121,15 +121,15 @@ Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell sk
 
 ## Development
 
-Accounts shell login redirects to `tendencys://authentication` and macOS opens whichever app owns that URL scheme — the product bundle **Tendencys.app** (`productName: Tendencys` in `tauri.conf.json`), not the Cargo binary named `tendencys-desktop`.
+Accounts shell login redirects to `tendencys://authentication` and macOS opens whichever app owns that URL scheme — the product bundle **Envia.com.app** (`productName: Envia.com` in `tauri.conf.json`), not the Cargo binary named `tendencys-desktop`.
 
 **For sign-in / deep-link testing (recommended):**
 
 ```bash
 npm install
-# Quit any other Tendencys.app (release or older debug) so this build owns tendencys://
+# Quit any other Envia.com.app (release or older debug) so this build owns tendencys://
 npm run tauri build -- --debug
-open src-tauri/target/debug/bundle/macos/Tendencys.app
+open src-tauri/target/debug/bundle/macos/Envia.com.app
 ```
 
 **Hot-reload UI only** (no reliable Accounts deep-link handoff on macOS — `tauri:dev` runs the bare `target/debug/tendencys-desktop` binary, which does not register `tendencys://`):
@@ -138,7 +138,7 @@ open src-tauri/target/debug/bundle/macos/Tendencys.app
 npm run tauri:dev
 ```
 
-Keep a single Tendencys instance. If Accounts "Open app" lands on the wrong build, quit every Tendencys process and reopen the debug `Tendencys.app` above.
+Keep a single Envia.com instance. If Accounts "Open app" lands on the wrong build, quit every Envia.com process and reopen the debug `Envia.com.app` above.
 
 For frontend-only development (browser, no Tauri APIs — native webviews, device keys, and the updater are all no-ops outside Tauri):
 
@@ -287,7 +287,7 @@ Copy `.env.example` to `.env.local`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_TENDENCYS_BASE_URL` | Accounts SSO base URL | `https://accounts-sandbox.envia.com` |
-| `VITE_SHELL_SITE_ID` | Tendencys Desktop site ID | must match sandbox Accounts `sites` doc |
+| `VITE_SHELL_SITE_ID` | Envia.com desktop site ID | must match sandbox Accounts `sites` doc |
 | `VITE_ENVIA_SHIPPING_URL` / `VITE_ENVIA_SHIPPING_SITE_ID` | Envia Shipping URL + Accounts site ID | see `.env.example` |
 | `VITE_ENVIA_CARGO_URL` / `VITE_ENVIA_CARGO_SITE_ID` | Envia Cargo URL + Accounts site ID | see `.env.example` |
 | `VITE_ENVIA_FULFILLMENT_URL` / `VITE_ENVIA_FULFILLMENT_SITE_ID` | Envia Fulfillment URL + Accounts site ID | see `.env.example` |
@@ -295,7 +295,7 @@ Copy `.env.example` to `.env.local`:
 | `VITE_ECART_PAY_URL` / `VITE_ECART_PAY_SITE_ID` | Ecart Pay URL + Accounts site ID | see `.env.example` |
 | `VITE_ECART_BANKING_URL` / `VITE_ECART_BANKING_SITE_ID` | Ecart Banking URL + Accounts site ID | see `.env.example` |
 | `VITE_ECART_API_URL` / `VITE_ECART_API_SITE_ID` | Ecart API URL + Accounts site ID | see `.env.example` |
-| `VITE_TENDENCYS_PARTNERS_URL` / `VITE_TENDENCYS_PARTNERS_SITE_ID` | Tendencys Partners URL + Accounts site ID | see `.env.example` |
+| `VITE_TENDENCYS_PARTNERS_URL` / `VITE_TENDENCYS_PARTNERS_SITE_ID` | Partners URL + Accounts site ID | see `.env.example` |
 
 For local Accounts against `accountsdb`, set `VITE_TENDENCYS_BASE_URL=http://localhost:8080`.
 
@@ -309,7 +309,7 @@ Production still needs the same Desktop site mirrored in `ecartdb.sites` before 
 
 ## Deep links (products + shell sections)
 
-Open Tendencys Desktop to a product tab or shell hub with:
+Open Envia.com to a product tab or shell hub with:
 
 `tendencys://open/<target>`
 
@@ -325,7 +325,7 @@ Open Tendencys Desktop to a product tab or shell hub with:
 | Ecart Pay | `tendencys://open/ecart-pay` |
 | Ecart Banking | `tendencys://open/ecart-banking` |
 | Ecart API | `tendencys://open/ecart-api` |
-| Tendencys Partners | `tendencys://open/tendencys-partners` |
+| Partners | `tendencys://open/tendencys-partners` |
 
 ### Shell sections
 
@@ -339,4 +339,4 @@ Source of truth: `OPEN_DEEP_LINKS` in `src/lib/pending-open-target.ts` (also mir
 
 ## License
 
-Proprietary — Tendencys / Envia
+Proprietary — Envia.com

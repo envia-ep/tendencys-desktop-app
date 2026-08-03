@@ -21,8 +21,8 @@
     "dismiss": "Later"
   },
   "dockTip": {
-    "title": "Keep Tendencys in the Dock",
-    "description": "Right-click the Tendencys icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
+    "title": "Keep Envia.com in the Dock",
+    "description": "Right-click the Envia.com icon in the Dock, then choose Options → Keep in Dock so you can reopen it after quitting.",
     "gotIt": "Got it"
   },
   "devModeBanner": {
@@ -135,14 +135,14 @@
       },
       "tendencys-partners": {
         "label": "Partners",
-        "pitch": "Sell eight Tendencys products from one portal — recurring commissions from your first referral, ready-to-pitch materials, and monthly prizes."
+        "pitch": "Sell eight Envia.com products from one portal — recurring commissions from your first referral, ready-to-pitch materials, and monthly prizes."
       }
     }
   },
   "developers": {
     "menuLabel": "Developers",
     "title": "Developers & APIs",
-    "subtitle": "Documentation and API access for Tendencys products. Live surfaces open docs in your browser or jump into the product to manage keys.",
+    "subtitle": "Documentation and API access for Envia.com products. Live surfaces open docs in your browser or jump into the product to manage keys.",
     "documentation": "Documentation",
     "manageKeys": "API keys",
     "openDashboard": "Open dashboard",
@@ -183,7 +183,7 @@
     "subtitle": "Shipping, fulfillment, payments and banking — trusted by 20,000+ companies in 10+ countries.",
     "signIn": "Sign in",
     "createAccount": "Create an account",
-    "secureNote": "Sign-in opens in your browser so security checks can complete, then returns you to Tendencys.",
+    "secureNote": "Sign-in opens in your browser so security checks can complete, then returns you to Envia.com.",
     "showcaseHeading": "Everything in one place",
     "showcaseTagline": "One login. Every tool to run your business.",
     "featuredLabel": "Featured",
@@ -213,7 +213,7 @@
     "menuLabel": "Settings",
     "badge": "Desktop",
     "title": "Desktop settings",
-    "subtitle": "Choose how each product prints and saves labels inside Tendencys Desktop.",
+    "subtitle": "Choose how each product prints and saves labels inside Envia.com.",
     "version": "Version {{version}}",
     "products": "Products",
     "loading": "Loading preferences…",
@@ -244,7 +244,7 @@
     "testPrintSuccess": "Test page sent.",
     "testPrintError": "Test print failed.",
     "language": "Language",
-    "languageHelp": "Choose the language for the Tendencys Desktop interface.",
+    "languageHelp": "Choose the language for the Envia.com interface.",
     "reportProblem": {
       "title": "Report a problem",
       "help": "Tell us what went wrong in the app. Include what you were doing and what you expected.",
@@ -253,7 +253,7 @@
     "general": "General",
     "appearance": {
       "title": "Appearance",
-      "help": "These options apply to Tendencys Desktop chrome only — not product pages.",
+      "help": "These options apply to Envia.com chrome only — not product pages.",
       "theme": "Theme",
       "themeHelp": "Light, dark, or match your operating system.",
       "themeModes": {
@@ -268,12 +268,12 @@
         "compact": "Compact"
       },
       "zoom": "Text size",
-      "zoomHelp": "Scale text in Tendencys Desktop. Layout stays full-window.",
+      "zoomHelp": "Scale text in Envia.com. Layout stays full-window.",
       "zoomPercent": "{{percent}}%"
     },
     "environment": {
       "title": "Environment",
-      "help": "Switch which backend Tendencys Desktop connects to. Switching signs you out and restarts the app.",
+      "help": "Switch which backend Envia.com connects to. Switching signs you out and restarts the app.",
       "modes": {
         "production": "Production",
         "dev": "Dev"

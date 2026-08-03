@@ -16,7 +16,7 @@ import type { AppEnvironmentMode } from "@/lib/preferences";
 export type { AppEnvironmentMode } from "@/lib/preferences";
 export { DEFAULT_ENVIRONMENT_MODE } from "@/lib/preferences";
 
-/** Sandbox Accounts host + Tendencys Desktop site_id (accountsdb). */
+/** Sandbox Accounts host + Envia.com desktop site_id (accountsdb). */
 export const DEV_ACCOUNTS_BASE_URL = "https://accounts-sandbox.envia.com";
 export const DEV_SHELL_SITE_ID = "6a51478d752f0077b7d9b356";
 
@@ -30,7 +30,7 @@ export type DevServiceOverride = {
  * production, mirrored from the sandbox values already documented in
  * `.env.example`. Services not listed here (Parapaquetes) have no distinct
  * sandbox deployment and keep their production URL/site ID even in Dev mode.
- * Envia Cargo, Envia Returns, Ecart API, and Tendencys Partners have no
+ * Envia Cargo, Envia Returns, Ecart API, and Partners have no
  * sandbox override because they're disabled entirely in Dev mode — see
  * `ServiceDefinition.disabledInDev` in `services.ts`.
  */

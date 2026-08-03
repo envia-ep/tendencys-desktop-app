@@ -3,7 +3,7 @@ description: How to cut a desktop release (versioning, tagging, CI, auto-update)
 alwaysApply: false
 ---
 
-# Releasing the Tendencys Desktop app
+# Releasing the Envia.com desktop app
 
 Releases are automated by `.github/workflows/release-desktop.yml`. Pushing a `v*`
 tag builds every platform (macOS arm + Intel, Windows, Linux), code-signs +
