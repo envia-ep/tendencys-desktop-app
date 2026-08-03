@@ -25,6 +25,10 @@
     "description": "Haz clic derecho en el icono de Envia.com en el Dock y elige Opciones → Mantener en el Dock para poder reabrirlo después de salir.",
     "gotIt": "Entendido"
   },
+  "deviceKeyWarning": {
+    "title": "No se configuró el inicio de sesión silencioso",
+    "dismiss": "Cerrar"
+  },
   "devModeBanner": {
     "label": "Entorno de desarrollo — no conectado a producción"
   },

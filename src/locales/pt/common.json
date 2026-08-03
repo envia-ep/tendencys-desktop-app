@@ -25,6 +25,10 @@
     "description": "Clique com o botão direito no ícone do Envia.com no Dock e escolha Opções → Manter no Dock para reabri-lo depois de sair.",
     "gotIt": "Entendi"
   },
+  "deviceKeyWarning": {
+    "title": "O login silencioso não foi configurado",
+    "dismiss": "Dispensar"
+  },
   "devModeBanner": {
     "label": "Ambiente de desenvolvimento — não conectado à produção"
   },

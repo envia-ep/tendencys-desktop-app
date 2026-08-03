@@ -25,6 +25,10 @@
     "description": "Fai clic con il tasto destro sull’icona Envia.com nel Dock, poi scegli Opzioni → Tieni nel Dock per riaprirla dopo aver uscito.",
     "gotIt": "Ho capito"
   },
+  "deviceKeyWarning": {
+    "title": "Accesso silenzioso non configurato",
+    "dismiss": "Chiudi"
+  },
   "devModeBanner": {
     "label": "Ambiente di sviluppo — non connesso alla produzione"
   },

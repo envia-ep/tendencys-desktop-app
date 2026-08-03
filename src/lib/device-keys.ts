@@ -1,11 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./tauri";
 import { extractAudience } from "./accounts-api";
+import { ssoCaptureFailure } from "./sso-log";
 import {
   getTendencysBaseUrl,
   getShellSiteId,
   DEEP_LINK_SCHEME,
 } from "./tendencys-auth";
+
+export type RegisterDeviceKeyResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+/** User-visible copy when `register_device_key` fails after a successful handoff. */
+export function registerFailureUserMessage(message: string): string {
+  if (message.includes("maximum") && message.includes("linked devices")) {
+    return "This account already has the maximum number of linked devices. Unlink an old device in account settings, then sign in again.";
+  }
+  return "Could not link this computer for silent sign-in. You are signed in, but the next launch may ask you to sign in again.";
+}
 
 export type DeviceKeyMeta = {
   deviceId: string;
@@ -69,8 +82,10 @@ export async function deleteDeviceKey(accountId: string): Promise<void> {
 export async function registerDeviceKey(
   sessionToken: string,
   accountId: string,
-): Promise<void> {
-  if (!isTauri() || !sessionToken || !accountId) return;
+): Promise<RegisterDeviceKeyResult> {
+  if (!isTauri() || !sessionToken || !accountId) {
+    return { ok: true };
+  }
   // Accounts checks the session token's `aud` (= HOSTNAME) against the request
   // Referer; pass the decoded audience so the register POST is not rejected.
   const referer = extractAudience(sessionToken) || getTendencysBaseUrl();
@@ -83,18 +98,32 @@ export async function registerDeviceKey(
       referer,
     });
     console.info("[device-key] registered", accountId);
+    return { ok: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[device-key] register failed:", error);
 
-    // Accounts returns 429 for the device cap, but this is not a transient rate
-    // limit — it means the account has hit the 10-device maximum. Surface it
-    // clearly so the user (or support) knows to unlink an old device.
-    if (message.includes("maximum") && message.includes("linked devices")) {
+    const deviceLimit =
+      message.includes("maximum") && message.includes("linked devices");
+    if (deviceLimit) {
       console.error(
         "[device-key] device limit reached — unlink an old device in account settings",
       );
     }
+
+    // Status/body stay in `message` from Rust (`register failed (422): …`).
+    // Never put the session token in Sentry extras.
+    ssoCaptureFailure(
+      "device-key register failed",
+      {
+        accountId,
+        deviceLimit,
+        statusBody: message.slice(0, 500),
+      },
+      { "device_key.register": "failed" },
+    );
+
+    return { ok: false, message: registerFailureUserMessage(message) };
   }
 }
 

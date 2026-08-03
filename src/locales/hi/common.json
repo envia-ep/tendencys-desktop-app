@@ -25,6 +25,10 @@
     "description": "Dock में Envia.com आइकन पर राइट‑क्लिक करें, फिर Options → Keep in Dock चुनें ताकि बंद करने के बाद भी आप इसे फिर खोल सकें।",
     "gotIt": "समझ गया"
   },
+  "deviceKeyWarning": {
+    "title": "साइलेंट साइन-इन सेटअप नहीं हुआ",
+    "dismiss": "ठीक है"
+  },
   "devModeBanner": {
     "label": "डेव एनवायरनमेंट — प्रोडक्शन से कनेक्ट नहीं है"
   },

@@ -25,6 +25,10 @@
     "description": "按住 Control 键并点按程序坞中的 Envia.com 图标，然后选择“选项”→“在程序坞中保留”，以便退出后仍可重新打开。",
     "gotIt": "知道了"
   },
+  "deviceKeyWarning": {
+    "title": "未能设置静默登录",
+    "dismiss": "关闭"
+  },
   "devModeBanner": {
     "label": "开发环境 — 未连接到生产环境"
   },

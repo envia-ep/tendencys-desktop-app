@@ -2,6 +2,7 @@ import { AlertCircle, ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ServiceMenu } from "./ServiceMenu";
 import { Button } from "@/components/ui/button";
+import { DeviceKeyWarningBanner } from "@/components/DeviceKeyWarningBanner";
 import { DockTipBanner } from "@/components/DockTipBanner";
 import { HomeHub } from "@/components/home/HomeHub";
 import { DevelopersHub } from "@/components/developers/DevelopersHub";
@@ -37,6 +38,7 @@ export function AppShell() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <DockTipBanner />
+      <DeviceKeyWarningBanner />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <ServiceMenu
           activeService={activeService}
