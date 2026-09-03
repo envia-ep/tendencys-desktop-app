@@ -37,8 +37,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use serde::Serialize;
 use cookie::SameSite;
+use serde::Serialize;
 use tauri::{
     webview::{Cookie, DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder},
     AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Runtime, Webview,
@@ -54,7 +54,6 @@ static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
 const MAX_SHELL_WINDOWS: usize = 6;
 /// Cap auxiliary product tabs per shell window.
 const MAX_AUX_TABS: usize = 6;
-
 
 use crate::desktop_files::{maybe_print_downloaded_label, unique_download_path};
 
@@ -161,10 +160,7 @@ pub fn emit_deep_link(app: &AppHandle, urls: &[String]) {
             let _ = app.emit_to(
                 shell_target(&target),
                 "shell-auth-token",
-                ShellAuthPayload {
-                    token,
-                    atid: None,
-                },
+                ShellAuthPayload { token, atid: None },
             );
             return;
         }
@@ -217,6 +213,7 @@ const OPEN_TARGET_IDS: &[&str] = &[
     "home",
     "developers",
     "settings",
+    "jarvis",
 ];
 
 /// `tendencys://open/envia-shipping` → `Some("envia-shipping")` when the id is known.
@@ -353,9 +350,10 @@ fn emit_service_navigated<R: Runtime>(
     url: &str,
     replace: bool,
 ) {
-    app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
-        state.stuck_on_auth.remove(service_id);
-    });
+    app.state::<ServiceWebviews>()
+        .with_window_mut(window_label, |state| {
+            state.stuck_on_auth.remove(service_id);
+        });
     let _ = app.emit_to(
         shell_target(window_label),
         "service-navigated",
@@ -377,9 +375,8 @@ pub async fn desktop_report_nav<R: Runtime>(
     url: String,
 ) -> Result<(), String> {
     let label = webview.label().to_string();
-    let (window_label, service_id) = parse_svc_label(&label).ok_or_else(|| {
-        format!("desktop_report_nav only from product webviews, got {label}")
-    })?;
+    let (window_label, service_id) = parse_svc_label(&label)
+        .ok_or_else(|| format!("desktop_report_nav only from product webviews, got {label}"))?;
     let window_label = window_label.to_string();
     let service_id = service_id.to_string();
 
@@ -462,10 +459,15 @@ fn emit_verification_required_if_stepup(
     if !is_accounts_step_up(url) {
         return false;
     }
-    app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
-        state.stuck_on_auth.insert(service_id.to_string());
-    });
-    let _ = app.emit_to(shell_target(window_label), "verification-required", service_id);
+    app.state::<ServiceWebviews>()
+        .with_window_mut(window_label, |state| {
+            state.stuck_on_auth.insert(service_id.to_string());
+        });
+    let _ = app.emit_to(
+        shell_target(window_label),
+        "verification-required",
+        service_id,
+    );
     true
 }
 
@@ -756,12 +758,12 @@ fn destroy_shell_children(app: &AppHandle, window_label: &str) {
 }
 
 fn emit_product_tabs_changed(app: &AppHandle, window_label: &str) {
-    let payload = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        ProductTabsChangedPayload {
+    let payload = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| ProductTabsChangedPayload {
             tabs: s.tabs.clone(),
             active_tab_id: s.active_tab_id.clone(),
-        }
-    });
+        });
     let _ = app.emit_to(shell_target(window_label), "product-tabs-changed", payload);
 }
 
@@ -804,9 +806,7 @@ fn handle_new_window_url(
     let scheme = url.scheme();
     let host = url.host_str().unwrap_or("");
     let allowlisted = is_product_tab_host(url);
-    log::info!(
-        "[product-tabs] new-window scheme={scheme} url={url} opener={opener_service_id}"
-    );
+    log::info!("[product-tabs] new-window scheme={scheme} url={url} opener={opener_service_id}");
     if scheme != "http" && scheme != "https" {
         return;
     }
@@ -831,12 +831,14 @@ fn open_product_tab(
     url: &tauri::Url,
 ) -> Result<(), String> {
     // Reuse an existing tab with the same URL.
-    let existing = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        s.tabs
-            .iter()
-            .find(|t| t.url == url.as_str())
-            .map(|t| t.id.clone())
-    });
+    let existing = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            s.tabs
+                .iter()
+                .find(|t| t.url == url.as_str())
+                .map(|t| t.id.clone())
+        });
     if let Some(tab_id) = existing {
         return focus_product_tab_inner(app, window_label, Some(&tab_id));
     }
@@ -852,12 +854,14 @@ fn open_product_tab(
         .get_window(window_label)
         .ok_or_else(|| format!("shell window not found: {window_label}"))?;
 
-    let (tab_id, label) = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        let id = s.next_tab_seq.to_string();
-        s.next_tab_seq = s.next_tab_seq.saturating_add(1);
-        let label = tab_label(window_label, &id);
-        (id, label)
-    });
+    let (tab_id, label) = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            let id = s.next_tab_seq.to_string();
+            s.next_tab_seq = s.next_tab_seq.saturating_add(1);
+            let label = tab_label(window_label, &id);
+            (id, label)
+        });
 
     build_tab_webview(
         app,
@@ -876,10 +880,11 @@ fn open_product_tab(
         title: title_from_url(url),
         opener_service_id: opener_service_id.to_string(),
     };
-    app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        s.tabs.push(info);
-        s.active_tab_id = Some(tab_id.clone());
-    });
+    app.state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            s.tabs.push(info);
+            s.active_tab_id = Some(tab_id.clone());
+        });
 
     hide_window_product_children(app, window_label, Some(&label));
     if let Some(child) = app.get_webview(&label) {
@@ -926,13 +931,13 @@ fn focus_product_tab_inner(
     }
 
     // Focus primary service surface.
-    let active = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        s.active_tab_id = None;
-        s.active.clone()
-    });
-    let except = active
-        .as_ref()
-        .map(|svc| svc_label(window_label, svc));
+    let active = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            s.active_tab_id = None;
+            s.active.clone()
+        });
+    let except = active.as_ref().map(|svc| svc_label(window_label, svc));
     hide_window_product_children(app, window_label, except.as_deref());
     if let Some(svc) = active {
         if let Some(child) = app.get_webview(&svc_label(window_label, &svc)) {
@@ -952,14 +957,16 @@ fn close_product_tab_inner(
     window_label: &str,
     tab_id: &str,
 ) -> Result<(), String> {
-    let label = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        let idx = s.tabs.iter().position(|t| t.id == tab_id)?;
-        let removed = s.tabs.remove(idx);
-        if s.active_tab_id.as_deref() == Some(tab_id) {
-            s.active_tab_id = None;
-        }
-        Some(removed.label)
-    });
+    let label = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            let idx = s.tabs.iter().position(|t| t.id == tab_id)?;
+            let removed = s.tabs.remove(idx);
+            if s.active_tab_id.as_deref() == Some(tab_id) {
+                s.active_tab_id = None;
+            }
+            Some(removed.label)
+        });
     let Some(label) = label else {
         return Err(format!("tab not found: {tab_id}"));
     };
@@ -977,12 +984,14 @@ fn opener_service_from_label(app: &AppHandle, label: &str) -> Option<(String, St
         return Some((window.to_string(), service.to_string()));
     }
     if let Some((window, tab_id)) = parse_tab_label(label) {
-        let opener = app.state::<ServiceWebviews>().with_window_mut(window, |s| {
-            s.tabs
-                .iter()
-                .find(|t| t.id == tab_id)
-                .map(|t| t.opener_service_id.clone())
-        })?;
+        let opener = app
+            .state::<ServiceWebviews>()
+            .with_window_mut(window, |s| {
+                s.tabs
+                    .iter()
+                    .find(|t| t.id == tab_id)
+                    .map(|t| t.opener_service_id.clone())
+            })?;
         return Some((window.to_string(), opener));
     }
     None
@@ -1009,13 +1018,15 @@ pub fn attach_shell_window_events(app: &AppHandle, window_label: &str) {
                 destroy_shell_children(&handle, &label);
             }
         }
-        tauri::WindowEvent::Resized(_)
-        | tauri::WindowEvent::ScaleFactorChanged { .. } => {
+        tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
             reposition_window(&handle, &label);
         }
         tauri::WindowEvent::Focused(true) => {
-            *handle.state::<ServiceWebviews>().last_focused.lock().unwrap() =
-                Some(label.clone());
+            *handle
+                .state::<ServiceWebviews>()
+                .last_focused
+                .lock()
+                .unwrap() = Some(label.clone());
         }
         _ => {}
     });
@@ -1041,7 +1052,7 @@ pub async fn create_shell_window(app: AppHandle) -> Result<String, String> {
     app.state::<ServiceWebviews>()
         .with_window_mut(&label, |_| ());
 
-    let built = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
+    let built = WebviewWindowBuilder::new(&app, &label, crate::vite_dev::shell_webview_url())
         .title("Envia.com")
         .inner_size(1280.0, 800.0)
         .min_inner_size(1024.0, 768.0)
@@ -1146,9 +1157,7 @@ fn build_service_webview(
                                 &service_id_for_download,
                                 path,
                             ) {
-                                log::warn!(
-                                    "[desktop-files] print after download failed: {e}"
-                                );
+                                log::warn!("[desktop-files] print after download failed: {e}");
                             }
                         }
                     }
@@ -1179,8 +1188,7 @@ fn build_service_webview(
             // Same class of "not actually loaded" fallback as the check above,
             // but for a pending 2FA/terms/phone step-up rather than a dead
             // session — see `emit_verification_required_if_stepup`.
-            if emit_verification_required_if_stepup(&app_for_nav, &win_for_nav, &id_for_nav, url)
-            {
+            if emit_verification_required_if_stepup(&app_for_nav, &win_for_nav, &id_for_nav, url) {
                 return true;
             }
 
@@ -1299,31 +1307,29 @@ fn build_tab_webview(
     let builder = WebviewBuilder::new(label, WebviewUrl::External(parsed))
         .data_store_identifier(SHARED_DATA_STORE)
         .initialization_script(DESKTOP_BRIDGE_SCRIPT)
-        .on_download(move |_webview, event| {
-            match event {
-                DownloadEvent::Requested { url, destination } => {
-                    let from_webkit = destination
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .filter(|s| {
-                            !s.is_empty()
-                                && !s.eq_ignore_ascii_case("unknown")
-                                && !s.eq_ignore_ascii_case("download.bin")
-                        })
-                        .map(|s| s.to_string());
-                    let from_url = url
-                        .path_segments()
-                        .and_then(|mut s| s.next_back())
-                        .filter(|s| !s.is_empty() && !s.contains('='))
-                        .map(|s| s.to_string());
-                    let suggested = from_webkit
-                        .or(from_url)
-                        .unwrap_or_else(|| "download.bin".into());
-                    *destination = unique_download_path(&suggested);
-                    true
-                }
-                _ => true,
+        .on_download(move |_webview, event| match event {
+            DownloadEvent::Requested { url, destination } => {
+                let from_webkit = destination
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .filter(|s| {
+                        !s.is_empty()
+                            && !s.eq_ignore_ascii_case("unknown")
+                            && !s.eq_ignore_ascii_case("download.bin")
+                    })
+                    .map(|s| s.to_string());
+                let from_url = url
+                    .path_segments()
+                    .and_then(|mut s| s.next_back())
+                    .filter(|s| !s.is_empty() && !s.contains('='))
+                    .map(|s| s.to_string());
+                let suggested = from_webkit
+                    .or(from_url)
+                    .unwrap_or_else(|| "download.bin".into());
+                *destination = unique_download_path(&suggested);
+                true
             }
+            _ => true,
         })
         .on_new_window(move |nav_url, _features| {
             handle_new_window_url(
@@ -1438,13 +1444,13 @@ fn emit_auth_required_if_login(
     url: &tauri::Url,
 ) -> bool {
     let is_accounts_login = is_accounts_host(url) && url.path() == "/login";
-    let is_product_login = !is_accounts_host(url)
-        && url.path() == "/login"
-        && !is_temporal_token_relay(url);
+    let is_product_login =
+        !is_accounts_host(url) && url.path() == "/login" && !is_temporal_token_relay(url);
     if is_accounts_login || is_product_login {
-        app.state::<ServiceWebviews>().with_window_mut(window_label, |state| {
-            state.stuck_on_auth.insert(service_id.to_string());
-        });
+        app.state::<ServiceWebviews>()
+            .with_window_mut(window_label, |state| {
+                state.stuck_on_auth.insert(service_id.to_string());
+            });
         let _ = app.emit_to(shell_target(window_label), "auth-required", service_id);
         return true;
     }
@@ -1492,7 +1498,9 @@ pub async fn seed_accounts_session(
         .parse()
         .map_err(|e| format!("probe url: {e}"))?;
     let jar = webview.cookies_for_url(probe).unwrap_or_default();
-    let has_atid = jar.iter().any(|c| c.name() == "_atid" && !c.value().is_empty());
+    let has_atid = jar
+        .iter()
+        .any(|c| c.name() == "_atid" && !c.value().is_empty());
     log::info!("[sso] seed host={host} persisted={has_atid}");
     log_token_shape("seed", &token);
     if !has_atid {
@@ -1542,10 +1550,7 @@ pub async fn read_accounts_session(
 /// Remove the Accounts `_atid` from the shared product cookie jar so signing out
 /// truly disables silent SSO (not just closes the webviews).
 #[tauri::command]
-pub async fn clear_accounts_session(
-    app: AppHandle,
-    accounts_base: String,
-) -> Result<(), String> {
+pub async fn clear_accounts_session(app: AppHandle, accounts_base: String) -> Result<(), String> {
     let base = accounts_base.trim_end_matches('/');
     let accounts_url: tauri::Url = base
         .parse()
@@ -1655,9 +1660,9 @@ pub async fn select_service(
             let _ = child.set_size(size);
         }
         let _ = child.show();
-        let stuck = app.state::<ServiceWebviews>().with_window_mut(&window_label, |s| {
-            s.stuck_on_auth.contains(&service_id)
-        });
+        let stuck = app
+            .state::<ServiceWebviews>()
+            .with_window_mut(&window_label, |s| s.stuck_on_auth.contains(&service_id));
         if !stuck {
             let _ = app.emit_to(shell_target(&window_label), "service-loaded", &service_id);
         }
@@ -1685,9 +1690,11 @@ pub async fn navigate_service(
 
 /// Active surface webview: focused aux tab, or the active product service.
 fn active_service_webview(app: &AppHandle, window_label: &str) -> Result<tauri::Webview, String> {
-    let (active_tab, active_service) = app.state::<ServiceWebviews>().with_window_mut(window_label, |s| {
-        (s.active_tab_id.clone(), s.active.clone())
-    });
+    let (active_tab, active_service) = app
+        .state::<ServiceWebviews>()
+        .with_window_mut(window_label, |s| {
+            (s.active_tab_id.clone(), s.active.clone())
+        });
     if let Some(tab_id) = active_tab {
         return app
             .get_webview(&tab_label(window_label, &tab_id))

@@ -28,7 +28,7 @@ function loadMenuCollapsed(): boolean {
  * New hub sections must also be added to `OPEN_SHELL_SECTION_IDS`
  * (`src/lib/pending-open-target.ts`) and Rust `OPEN_TARGET_IDS`.
  */
-export type ShellView = "home" | "service" | "developers" | "settings";
+export type ShellView = "home" | "service" | "developers" | "settings" | "jarvis";
 
 type ServiceState = {
   activeService: ServiceDefinition;
@@ -48,6 +48,7 @@ type ServiceState = {
   setActiveService: (service: ServiceDefinition) => void;
   showHome: () => void;
   showDevelopers: () => void;
+  showJarvis: () => void;
   showSettings: () => void;
   showService: () => void;
   toggleMenuCollapsed: () => void;
@@ -91,6 +92,10 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
 
   showDevelopers: () => {
     set({ shellView: "developers" });
+  },
+
+  showJarvis: () => {
+    set({ shellView: "jarvis" });
   },
 
   showSettings: () => {

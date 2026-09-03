@@ -29,6 +29,7 @@ import {
   Plus,
   RotateCw,
   Settings2,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVisibleServices, type ServiceDefinition } from "@/config/services";
@@ -56,6 +57,7 @@ type ServiceMenuProps = {
   collapsed: boolean;
   onSelectService: (service: ServiceDefinition) => void;
   onShowHome: () => void;
+  onShowJarvis: () => void;
   onShowDevelopers: () => void;
   onShowSettings: () => void;
   onToggleCollapsed: () => void;
@@ -156,6 +158,7 @@ export function ServiceMenu({
   collapsed,
   onSelectService,
   onShowHome,
+  onShowJarvis,
   onShowDevelopers,
   onShowSettings,
   onToggleCollapsed,
@@ -190,6 +193,7 @@ export function ServiceMenu({
     }),
   );
   const onHome = shellView === "home";
+  const onJarvis = shellView === "jarvis";
   const onDevelopers = shellView === "developers";
   const onSettings = shellView === "settings";
   const onService = shellView === "service";
@@ -386,11 +390,13 @@ export function ServiceMenu({
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 {onHome
                   ? t("home.menuLabel")
-                  : onDevelopers
-                    ? t("developers.menuLabel")
-                    : onSettings
-                      ? t("settings.menuLabel")
-                      : activeService.name}
+                  : onJarvis
+                    ? t("jarvis.menuLabel")
+                    : onDevelopers
+                      ? t("developers.menuLabel")
+                      : onSettings
+                        ? t("settings.menuLabel")
+                        : activeService.name}
               </DropdownMenuLabel>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -470,6 +476,33 @@ export function ServiceMenu({
                 )}
               >
                 {t("home.menuLabel")}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onShowJarvis}
+            className={cn(
+              "flex items-center gap-2 rounded-lg transition-colors",
+              collapsed ? `${rowH} ${iconBox} justify-center` : `${rowH} w-full px-2`,
+              onJarvis
+                ? "bg-white text-primary"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+            aria-label={t("jarvis.menuLabel")}
+            aria-current={onJarvis ? "page" : undefined}
+            title={collapsed ? t("jarvis.menuLabel") : undefined}
+          >
+            <Sparkles className={cn("shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            {!collapsed && (
+              <span
+                className={cn(
+                  "truncate font-medium",
+                  compact ? "text-xs" : "text-sm",
+                )}
+              >
+                {t("jarvis.menuLabel")}
               </span>
             )}
           </button>

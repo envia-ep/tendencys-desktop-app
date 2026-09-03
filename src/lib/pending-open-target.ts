@@ -20,7 +20,7 @@ export const OPEN_SERVICE_IDS = [
  * Keep in sync with `ShellView` in `src/stores/service-store.ts` (minus `"service"`).
  * When adding a new ShellView section, add its id here and in Rust `OPEN_TARGET_IDS`.
  */
-export const OPEN_SHELL_SECTION_IDS = ["home", "developers", "settings"] as const;
+export const OPEN_SHELL_SECTION_IDS = ["home", "developers", "settings", "jarvis"] as const;
 
 export type OpenServiceId = (typeof OPEN_SERVICE_IDS)[number];
 export type OpenShellSectionId = (typeof OPEN_SHELL_SECTION_IDS)[number];

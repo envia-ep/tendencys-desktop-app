@@ -252,8 +252,8 @@ fn load_service_prefs<R: Runtime>(app: &AppHandle<R>, service_id: &str) -> Servi
     let Some(service_value) = value.get(SERVICE_PREFS_KEY).and_then(|m| m.get(service_id)) else {
         return ServicePreferences::default();
     };
-    let prefs = serde_json::from_value::<ServicePreferences>(service_value.clone())
-        .unwrap_or_default();
+    let prefs =
+        serde_json::from_value::<ServicePreferences>(service_value.clone()).unwrap_or_default();
     let had_rules = service_value
         .get("labelPrinterRules")
         .map(|v| v.is_array())
@@ -464,12 +464,7 @@ pub fn unique_download_path(file_name: &str) -> PathBuf {
             return p;
         }
     }
-    dir.join(format!(
-        "{}-{}{}",
-        stem,
-        uuid::Uuid::new_v4(),
-        ext
-    ))
+    dir.join(format!("{}-{}{}", stem, uuid::Uuid::new_v4(), ext))
 }
 
 fn save_to_downloads(file_name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
@@ -487,7 +482,11 @@ fn parse_printer_tsv(stdout: &str) -> Vec<PrinterInfo> {
         if name.is_empty() {
             continue;
         }
-        let is_default = parts.next().unwrap_or("false").trim().eq_ignore_ascii_case("true");
+        let is_default = parts
+            .next()
+            .unwrap_or("false")
+            .trim()
+            .eq_ignore_ascii_case("true");
         printers.push(PrinterInfo { name, is_default });
     }
     printers
@@ -587,9 +586,7 @@ fn list_printers_win32() -> Result<Vec<PrinterInfo>, String> {
     let mut printers = Vec::with_capacity(returned as usize);
     for i in 0..returned as usize {
         let info = unsafe {
-            std::ptr::read_unaligned(
-                buffer.as_ptr().add(i * info_size) as *const PRINTER_INFO_4W,
-            )
+            std::ptr::read_unaligned(buffer.as_ptr().add(i * info_size) as *const PRINTER_INFO_4W)
         };
         let name = wide_ptr_to_string(info.pPrinterName);
         if name.is_empty() {
@@ -769,9 +766,9 @@ fn print_raw_silent(path: &Path, printer: Option<&str>) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let path_str = path.to_string_lossy();
-        let printer_name = printer
-            .filter(|p| !p.is_empty())
-            .ok_or_else(|| "raw Instant print requires a configured printer name on Windows".to_string())?;
+        let printer_name = printer.filter(|p| !p.is_empty()).ok_or_else(|| {
+            "raw Instant print requires a configured printer name on Windows".to_string()
+        })?;
         // Binary copy to the shared printer queue (standard raw thermal path).
         let dest = format!(r"\\localhost\{printer_name}");
         let output = output_hidden({
@@ -854,9 +851,7 @@ fn open_with_system(path: &Path) -> Result<(), String> {
 
 fn print_or_open_pdf(path: &Path, mode: LabelPrintMode, printer: &str) -> Result<(), String> {
     match mode {
-        LabelPrintMode::Instant => {
-            print_pdf_silent(path, Some(printer).filter(|p| !p.is_empty()))
-        }
+        LabelPrintMode::Instant => print_pdf_silent(path, Some(printer).filter(|p| !p.is_empty())),
         LabelPrintMode::System => open_with_system(path),
         LabelPrintMode::Save => Err("save mode should not print".into()),
     }

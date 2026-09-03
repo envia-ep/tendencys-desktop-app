@@ -1,0 +1,22 @@
+{
+  "name": "@tendencys/jarvis-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "worker": "tsx src/worker.ts",
+    "start": "tsx src/index.ts",
+    "test": "node --import tsx --test src/*.test.ts src/lib/*.test.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "hono": "^4.9.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "tsx": "^4.20.0",
+    "typescript": "~5.8.3"
+  }
+}

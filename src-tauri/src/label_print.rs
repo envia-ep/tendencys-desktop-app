@@ -59,10 +59,7 @@ pub fn catalog_size_from_pdf_bytes(bytes: &[u8]) -> Option<&'static str> {
 }
 
 pub fn is_raw_thermal_format(print_format: Option<&str>, file_name: &str) -> bool {
-    let fmt = print_format
-        .unwrap_or("")
-        .trim()
-        .to_ascii_uppercase();
+    let fmt = print_format.unwrap_or("").trim().to_ascii_uppercase();
     if matches!(fmt.as_str(), "ZPL" | "ZPLII" | "EPL") {
         return true;
     }

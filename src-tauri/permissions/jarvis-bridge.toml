@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "allow-jarvis-bridge"
+description = "Allows Jarvis device identity, envelope execution, result signing, and local grants"
+commands.allow = [
+  "jarvis_device_identity",
+  "jarvis_pin_server_key",
+  "jarvis_upsert_grant",
+  "jarvis_revoke_grant",
+  "jarvis_sign_tool_result",
+  "jarvis_execute_envelope"
+]

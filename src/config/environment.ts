@@ -2,12 +2,11 @@ import { usePreferencesStore } from "@/stores/preferences-store";
 import type { AppEnvironmentMode } from "@/lib/preferences";
 
 /**
- * Runtime environment the shell points at. `production` is whatever was
- * compiled in via `VITE_*` at build time (see `.env.example` / README
- * "Releasing" secrets) — for official signed releases that's prod; for an
- * unconfigured local build it's sandbox by default, same as today.
- * `dev` always resolves to the sandbox table below, regardless of what was
- * baked in, so the Settings toggle works identically in any build.
+ * Runtime environment the shell points at. `production` is prod Accounts
+ * (`accounts.envia.com`) plus the in-code product URLs, unless a `VITE_*`
+ * override was baked in at build time. `dev` always resolves to the sandbox
+ * table below, regardless of what was baked in, so the Settings toggle works
+ * identically in any build.
  *
  * Canonical type lives in `@/lib/preferences` (re-exported here) so this
  * module — which reads the live value from the preferences store — stays a

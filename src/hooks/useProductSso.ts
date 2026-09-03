@@ -66,6 +66,7 @@ export function useProductSso() {
   const shellView = useServiceStore((s) => s.shellView);
   const showHome = useServiceStore((s) => s.showHome);
   const showDevelopers = useServiceStore((s) => s.showDevelopers);
+  const showJarvis = useServiceStore((s) => s.showJarvis);
   const showSettings = useServiceStore((s) => s.showSettings);
   const showService = useServiceStore((s) => s.showService);
   const loadServiceData = useServiceStore((s) => s.loadServiceData);
@@ -728,6 +729,11 @@ export function useProductSso() {
     void setServiceVisible(false);
   }, [showDevelopers]);
 
+  const handleShowJarvis = useCallback(() => {
+    showJarvis();
+    void setServiceVisible(false);
+  }, [showJarvis]);
+
   const handleShowSettings = useCallback(() => {
     showSettings();
     void setServiceVisible(false);
@@ -755,6 +761,10 @@ export function useProductSso() {
       }
       if (target.id === "developers") {
         handleShowDevelopers();
+        return;
+      }
+      if (target.id === "jarvis") {
+        handleShowJarvis();
         return;
       }
       if (target.id === "settings") {
@@ -788,6 +798,7 @@ export function useProductSso() {
     handleSelectService,
     handleShowHome,
     handleShowDevelopers,
+    handleShowJarvis,
     handleShowSettings,
     resolveService,
   ]);
@@ -837,6 +848,7 @@ export function useProductSso() {
     handleOpenServicePath,
     handleShowHome,
     handleShowDevelopers,
+    handleShowJarvis,
     handleShowSettings,
     handleNavigateBack,
     handleNavigateForward,

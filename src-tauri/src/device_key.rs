@@ -92,12 +92,15 @@ fn curl_config_path(path: &std::path::Path) -> String {
 }
 
 /// Accounts' Cloudflare zone challenges `reqwest`'s TLS/HTTP2 fingerprint on
-/// `/api/device-keys/*` (curl is never challenged, even with identical
-/// headers), so this shells out to the system `curl` binary for that one
-/// call so device-key registration can complete. Headers/body go through a
-/// `-K` config file (mode 0600, deleted immediately after) so the session
-/// token and public key never appear in `ps` output.
-fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value) -> Result<(u16, String), String> {
+/// `/api/device-keys/*` and `/api/login/device-key` (curl is never challenged,
+/// even with identical headers), so this shells out to the system `curl`
+/// binary. Headers/body go through a `-K` config file (mode 0600, deleted
+/// immediately after) so secrets never appear in `ps` output.
+fn curl_json_post(
+    url: &str,
+    headers: &[(&str, &str)],
+    body: &serde_json::Value,
+) -> Result<(u16, String), String> {
     use std::io::Write;
 
     let curl = curl_binary();
@@ -116,11 +119,7 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
     cfg.push_str(&format!("url = \"{}\"\n", url.replace('"', "\\\"")));
     cfg.push_str("header = \"Content-Type: application/json\"\n");
     for (k, v) in headers {
-        cfg.push_str(&format!(
-            "header = \"{}: {}\"\n",
-            k,
-            v.replace('"', "\\\"")
-        ));
+        cfg.push_str(&format!("header = \"{}: {}\"\n", k, v.replace('"', "\\\"")));
     }
     cfg.push_str(&format!(
         "data-binary = \"@{}\"\n",
@@ -153,6 +152,64 @@ fn curl_json_post(url: &str, headers: &[(&str, &str)], body: &serde_json::Value)
     let output = output.map_err(|e| {
         format!(
             "curl exec: {e} (binary={}). Device linking needs system curl.",
+            curl.display()
+        )
+    })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "curl failed (exit={}): stderr={} stdout={}",
+            output.status.code().unwrap_or(-1),
+            stderr.chars().take(400).collect::<String>(),
+            stdout.chars().take(200).collect::<String>(),
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut lines: Vec<&str> = stdout.lines().collect();
+    let status_line = lines.pop().unwrap_or("0");
+    let status: u16 = status_line.trim().parse().unwrap_or(0);
+    let body_text = lines.join("\n");
+    Ok((status, body_text))
+}
+
+/// Same Cloudflare workaround as `curl_json_post` for the unauthenticated
+/// options GET. reqwest's TLS fingerprint is challenged; system curl is not.
+fn curl_get(url: &str, headers: &[(&str, &str)]) -> Result<(u16, String), String> {
+    use std::io::Write;
+
+    let curl = curl_binary();
+    let mut cfg = String::new();
+    cfg.push_str("request = \"GET\"\n");
+    cfg.push_str(&format!("url = \"{}\"\n", url.replace('"', "\\\"")));
+    for (k, v) in headers {
+        cfg.push_str(&format!("header = \"{}: {}\"\n", k, v.replace('"', "\\\"")));
+    }
+    cfg.push_str("silent\nshow-error\n");
+    cfg.push_str("write-out = \"\\n%{http_code}\"\n");
+
+    let cfg_path = std::env::temp_dir().join(format!("envia-dk-curl-{}.cfg", Uuid::new_v4()));
+    {
+        let mut f = fs::File::create(&cfg_path).map_err(|e| format!("curl cfg write: {e}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = f.set_permissions(fs::Permissions::from_mode(0o600));
+        }
+        f.write_all(cfg.as_bytes())
+            .map_err(|e| format!("curl cfg write: {e}"))?;
+    }
+
+    let output = output_hidden({
+        let mut cmd = Command::new(&curl);
+        cmd.arg("-K").arg(&cfg_path);
+        cmd
+    });
+    let _ = fs::remove_file(&cfg_path);
+
+    let output = output.map_err(|e| {
+        format!(
+            "curl exec: {e} (binary={}). Device login needs system curl.",
             curl.display()
         )
     })?;
@@ -269,12 +326,15 @@ fn read_meta(app: &tauri::AppHandle, account_id: &str) -> Result<Option<DeviceKe
         return Ok(None);
     }
     let raw = fs::read_to_string(&path).map_err(|e| format!("read meta: {e}"))?;
-    let meta: DeviceKeyMeta =
-        serde_json::from_str(&raw).map_err(|e| format!("parse meta: {e}"))?;
+    let meta: DeviceKeyMeta = serde_json::from_str(&raw).map_err(|e| format!("parse meta: {e}"))?;
     Ok(Some(meta))
 }
 
-fn write_meta(app: &tauri::AppHandle, account_id: &str, meta: &DeviceKeyMeta) -> Result<(), String> {
+fn write_meta(
+    app: &tauri::AppHandle,
+    account_id: &str,
+    meta: &DeviceKeyMeta,
+) -> Result<(), String> {
     let path = meta_path(app, account_id)?;
     let raw = serde_json::to_string_pretty(meta).map_err(|e| format!("serialize meta: {e}"))?;
     fs::write(&path, raw).map_err(|e| format!("write meta: {e}"))
@@ -297,13 +357,20 @@ fn log_register_token_shape(token: &str) {
     let payload = token
         .split('.')
         .nth(1)
-        .and_then(|seg| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(seg).ok())
+        .and_then(|seg| {
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(seg)
+                .ok()
+        })
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
     match payload {
         Some(json) => {
             let has_id = json.get("id").map(|v| !v.is_null()).unwrap_or(false);
             let aud = json.get("aud").and_then(|v| v.as_str());
-            log::info!("[sso] register token hasId={has_id} aud={aud:?} len={}", token.len());
+            log::info!(
+                "[sso] register token hasId={has_id} aud={aud:?} len={}",
+                token.len()
+            );
         }
         None => log::info!("[sso] register token undecodable len={}", token.len()),
     }
@@ -389,18 +456,6 @@ struct OptionsResponse {
     challenge: String,
 }
 
-/// Encode a 429 so the TS layer can detect it and back off instead of retrying.
-/// Shape: `RATE_LIMITED|<retry-after-seconds-or-empty>|<raw-body>`. The body may
-/// be JSON (app-level 429) or HTML (Cloudflare edge 429) — TS parses defensively.
-fn rate_limited_err(headers: &reqwest::header::HeaderMap, body: &str) -> String {
-    let retry_after = headers
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
-    format!("RATE_LIMITED|{retry_after}|{body}")
-}
-
 #[derive(Serialize)]
 struct LoginBody<'a> {
     token: &'a str,
@@ -413,7 +468,10 @@ struct LoginBody<'a> {
     machine_fingerprint_version: Option<&'a str>,
 }
 
-fn register_payload(meta: &DeviceKeyMeta, machine: &crate::machine_fingerprint::MachineFingerprint) -> serde_json::Value {
+fn register_payload(
+    meta: &DeviceKeyMeta,
+    machine: &crate::machine_fingerprint::MachineFingerprint,
+) -> serde_json::Value {
     serde_json::json!({
         "device_id": meta.device_id,
         "public_key": meta.public_key,
@@ -439,29 +497,25 @@ pub async fn login_with_device_key(
     let base = resolve_accounts_base(&accounts_base_url)?;
     let meta = read_meta(&app, &id)?.ok_or_else(|| "no device key".to_string())?;
     let machine = crate::machine_fingerprint::get_or_create_machine_fingerprint(&app)?;
-    let client = reqwest::Client::new();
 
     let options_url = format!(
         "{}/api/device-keys/authentication/options?device_id={}",
         base,
         urlencoding::encode(&meta.device_id)
     );
-    let options_res = client
-        .get(&options_url)
-        .send()
-        .await
-        .map_err(|e| format!("options request: {e}"))?;
-    let options_status = options_res.status();
-    let options_headers = options_res.headers().clone();
-    let options_body_text = options_res.text().await.unwrap_or_default();
+    let (options_status_u16, options_body_text) = curl_get(&options_url, &[])?;
+    let options_status = reqwest::StatusCode::from_u16(options_status_u16)
+        .map_err(|e| format!("options: bad status {options_status_u16}: {e}"))?;
     if !options_status.is_success() {
         if options_status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(rate_limited_err(&options_headers, &options_body_text));
+            return Err(format!("RATE_LIMITED||{options_body_text}"));
         }
-        return Err(format!("options failed ({options_status}): {options_body_text}"));
+        return Err(format!(
+            "options failed ({options_status}): {options_body_text}"
+        ));
     }
-    let options: OptionsResponse = serde_json::from_str(&options_body_text)
-        .map_err(|e| format!("options parse: {e}"))?;
+    let options: OptionsResponse =
+        serde_json::from_str(&options_body_text).map_err(|e| format!("options parse: {e}"))?;
 
     let signature = sign_challenge_bytes(&app, &id, &options.challenge)?;
 
@@ -472,32 +526,25 @@ pub async fn login_with_device_key(
         urlencoding::encode(&redirect_url_b64)
     );
     let login_url = format!("{}/api/login/device-key", base);
-    let login_res = client
-        .post(&login_url)
-        .header("Authorization", "Bearer device-key")
-        .header("Content-Type", "application/json")
-        .header("Referer", &referer)
-        .json(&LoginBody {
-            token: "",
-            device_id: &meta.device_id,
-            challenge: &options.challenge,
-            signature: &signature,
-            machine_fingerprint: Some(&machine.fingerprint),
-            machine_fingerprint_version: Some(&machine.version),
-        })
-        .send()
-        .await
-        .map_err(|e| format!("login request: {e}"))?;
-
-    let status = login_res.status();
-    let headers = login_res.headers().clone();
-    let body_text = login_res
-        .text()
-        .await
-        .map_err(|e| format!("login read: {e}"))?;
+    let login_body = serde_json::to_value(LoginBody {
+        token: "",
+        device_id: &meta.device_id,
+        challenge: &options.challenge,
+        signature: &signature,
+        machine_fingerprint: Some(&machine.fingerprint),
+        machine_fingerprint_version: Some(&machine.version),
+    })
+    .map_err(|e| format!("login body: {e}"))?;
+    let (status_u16, body_text) = curl_json_post(
+        &login_url,
+        &[("Authorization", "Bearer device-key"), ("Referer", &referer)],
+        &login_body,
+    )?;
+    let status = reqwest::StatusCode::from_u16(status_u16)
+        .map_err(|e| format!("login: bad status {status_u16}: {e}"))?;
     if !status.is_success() {
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(rate_limited_err(&headers, &body_text));
+            return Err(format!("RATE_LIMITED||{body_text}"));
         }
         return Err(format!("login failed ({status}): {body_text}"));
     }
@@ -530,10 +577,7 @@ pub async fn register_device_key(
     let register_body = register_payload(&meta, &machine);
     let (status_u16, body_text) = curl_json_post(
         &url,
-        &[
-            ("Authorization", &session_token),
-            ("Referer", &referer),
-        ],
+        &[("Authorization", &session_token), ("Referer", &referer)],
         &register_body,
     )?;
     let status = reqwest::StatusCode::from_u16(status_u16)
@@ -552,10 +596,7 @@ pub async fn register_device_key(
             let retry_body = register_payload(&meta, &machine);
             let (retry_status_u16, retry_body_text) = curl_json_post(
                 &url,
-                &[
-                    ("Authorization", &session_token),
-                    ("Referer", &referer),
-                ],
+                &[("Authorization", &session_token), ("Referer", &referer)],
                 &retry_body,
             )?;
             let status = reqwest::StatusCode::from_u16(retry_status_u16)
@@ -563,10 +604,7 @@ pub async fn register_device_key(
             let body: serde_json::Value = serde_json::from_str(&retry_body_text)
                 .map_err(|e| format!("register retry parse: {e}"))?;
             if !status.is_success() {
-                return Err(format!(
-                    "register failed ({status}): {}",
-                    body.to_string()
-                ));
+                return Err(format!("register failed ({status}): {}", body.to_string()));
             }
             let method_id = body
                 .get("doc")
@@ -579,10 +617,7 @@ pub async fn register_device_key(
             }
             return Ok(updated);
         }
-        return Err(format!(
-            "register failed ({status}): {}",
-            body.to_string()
-        ));
+        return Err(format!("register failed ({status}): {}", body.to_string()));
     }
 
     let method_id = body

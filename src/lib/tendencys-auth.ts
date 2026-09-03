@@ -12,7 +12,7 @@ import {
 
 const PROD_TENDENCYS_BASE_URL =
   import.meta.env.VITE_TENDENCYS_BASE_URL ||
-  "https://accounts-sandbox.envia.com";
+  "https://accounts.envia.com";
 
 /** Envia.com desktop site_id (accountsdb / ecartdb). Override via VITE_SHELL_SITE_ID. */
 const PROD_SHELL_SITE_ID =

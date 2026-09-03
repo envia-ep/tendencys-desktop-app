@@ -9,23 +9,40 @@ Any AI config change must be mirrored: a `.cursor/rules/*.mdc` rule has an
 equivalent block here in `AGENTS.md`, and vice versa. Keep the two in sync when
 adding, editing, or removing agent guidance.
 
-## Local SSO / deep-link testing
+## Local run — always Envia.com.app
 
-Accounts shell login redirects to `tendencys://authentication`. macOS opens the
-app that owns that scheme: the **Envia.com.app** bundle
-(`productName: Envia.com`), not the Cargo binary named `tendencys-desktop`.
+The product the user sees is **Envia.com.app** (`productName: Envia.com`).
+The Cargo binary is named `tendencys-desktop` and is **not** the app.
 
-When the user needs sign-in or deep-link testing to work:
+When the user says run, launch, open, restart, redeploy, or "localhost":
+
+1. Quit every instance first (`Envia.com.app` and `tendencys-desktop`).
+2. Start Vite on `:1420` if it is not already running (`npm run dev`).
+3. Rebuild the debug bundle and open **that** app:
 
 ```bash
+osascript -e 'quit app "Envia.com"'
+pkill -f 'target/debug/tendencys-desktop' || true
 npm run tauri build -- --debug
 open src-tauri/target/debug/bundle/macos/Envia.com.app
 ```
 
-Do **not** use `npm run tauri:dev` for Accounts login handoff — it runs
-`target/debug/tendencys-desktop`, which does not register `tendencys://` on
-macOS. Quit any other Envia.com.app first so only one instance owns the scheme.
-See `README.md` Development section.
+A debug **Envia.com.app** loads `http://localhost:1420` when Vite is up, so
+frontend edits hot-reload without another rebuild. If Vite was down at launch,
+the app serves the last bundled `dist/` — quit and reopen (no rebuild) after
+starting `npm run dev`. Rebuild again after Rust/Tauri (`src-tauri/`) changes.
+
+Do **not** rebuild for frontend-only changes while Vite HMR is attached.
+
+Do **not** run `npm run tauri:dev` unless the user explicitly types `tauri:dev`.
+"Localhost" and "hot reload" do **not** mean `tauri:dev`.
+
+`tauri:dev` starts `target/debug/tendencys-desktop`, which does not register
+`tendencys://` on macOS, so Accounts login handoff fails. Only one Envia.com
+instance may own that scheme.
+
+Jarvis API stays on `http://127.0.0.1:8788` (`npm run jarvis:dev`). That is
+separate from which desktop binary you open.
 
 ## Releasing the desktop app
 

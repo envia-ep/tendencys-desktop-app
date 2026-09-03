@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.4.19",
   "type": "module",
+  "workspaces": [
+    "server"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -10,7 +13,10 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "release:version": "node scripts/bump-version.mjs"
+    "release:version": "node scripts/bump-version.mjs",
+    "jarvis:dev": "JARVIS_INLINE_WORKER=1 npm run dev --workspace=server",
+    "jarvis:worker": "npm run worker --workspace=server",
+    "jarvis:test": "npm test --workspace=server"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

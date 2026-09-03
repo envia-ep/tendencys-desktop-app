@@ -6,6 +6,7 @@ import { DeviceKeyWarningBanner } from "@/components/DeviceKeyWarningBanner";
 import { DockTipBanner } from "@/components/DockTipBanner";
 import { HomeHub } from "@/components/home/HomeHub";
 import { DevelopersHub } from "@/components/developers/DevelopersHub";
+import { JarvisHub } from "@/components/jarvis/JarvisHub";
 import { DesktopSettings } from "@/components/settings/DesktopSettings";
 import { useServiceStore } from "@/stores/service-store";
 import { useProductSso } from "@/hooks/useProductSso";
@@ -26,6 +27,7 @@ export function AppShell() {
     handleOpenServicePath,
     handleShowHome,
     handleShowDevelopers,
+    handleShowJarvis,
     handleShowSettings,
     handleNavigateBack,
     handleNavigateForward,
@@ -47,6 +49,7 @@ export function AppShell() {
           onSelectService={handleSelectService}
           onShowHome={handleShowHome}
           onShowDevelopers={handleShowDevelopers}
+          onShowJarvis={handleShowJarvis}
           onShowSettings={handleShowSettings}
           onToggleCollapsed={toggleMenuCollapsed}
           onNavigateBack={handleNavigateBack}
@@ -59,6 +62,14 @@ export function AppShell() {
 
         {shellView === "home" && (
           <HomeHub onOpenService={handleSelectService} />
+        )}
+        {shellView === "jarvis" && (
+          <JarvisHub
+            onOpenService={handleSelectService}
+            onShowHome={handleShowHome}
+            onShowDevelopers={handleShowDevelopers}
+            onShowSettings={handleShowSettings}
+          />
         )}
         {shellView === "developers" && (
           <DevelopersHub

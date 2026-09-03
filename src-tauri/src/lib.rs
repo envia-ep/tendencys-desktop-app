@@ -1,11 +1,18 @@
 mod desktop_files;
 mod device_key;
+mod jarvis_bridge;
 mod label_print;
 mod machine_fingerprint;
 mod process_util;
+mod vite_dev;
 mod webview_manager;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+use jarvis_bridge::{
+    jarvis_device_identity, jarvis_execute_envelope, jarvis_pin_server_key, jarvis_revoke_grant,
+    jarvis_sign_tool_result, jarvis_upsert_grant, JarvisBridgeState,
+};
 
 use desktop_files::{desktop_deliver_file, list_printers, print_test_page, save_bytes};
 use device_key::{
@@ -184,6 +191,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ServiceWebviews::default())
+        .manage(Mutex::new(JarvisBridgeState::default()))
         .invoke_handler(tauri::generate_handler![
             validate_accounts_token,
             has_device_key,
@@ -214,7 +222,13 @@ pub fn run() {
             desktop_report_nav,
             desktop_open_or_tab,
             focus_product_tab,
-            close_product_tab
+            close_product_tab,
+            jarvis_device_identity,
+            jarvis_pin_server_key,
+            jarvis_upsert_grant,
+            jarvis_revoke_grant,
+            jarvis_sign_tool_result,
+            jarvis_execute_envelope
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -272,6 +286,31 @@ pub fn run() {
                         .targets(targets)
                         .build(),
                 )?;
+            }
+
+            // Debug .app: attach to Vite when :1420 is up so frontend HMR works
+            // without `tauri dev` (that binary does not own tendencys://).
+            #[cfg(debug_assertions)]
+            {
+                use tauri::Manager;
+                if let Some(url) = crate::vite_dev::vite_dev_url() {
+                    match url.parse() {
+                        Ok(parsed) => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                if let Err(err) = window.navigate(parsed) {
+                                    log::warn!("[dev] vite navigate failed: {err}");
+                                } else {
+                                    log::info!("[dev] shell loading {url} (Vite HMR)");
+                                }
+                            }
+                        }
+                        Err(err) => log::warn!("[dev] vite url parse failed: {err}"),
+                    }
+                } else {
+                    log::info!(
+                        "[dev] Vite not on :1420 — bundled dist. Run `npm run dev` for HMR."
+                    );
+                }
             }
 
             // Keep child webviews glued to the content area; last window hides
@@ -471,6 +510,5 @@ async fn validate_accounts_token(
         return Err(format!("Accounts authorization failed ({status}): {body}"));
     }
 
-    serde_json::from_str(&body)
-        .map_err(|err| format!("Invalid Accounts JSON: {err}; body={body}"))
+    serde_json::from_str(&body).map_err(|err| format!("Invalid Accounts JSON: {err}; body={body}"))
 }

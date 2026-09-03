@@ -6,6 +6,14 @@
     "main",
     "shell-*"
   ],
+  "remote": {
+    "urls": [
+      "http://localhost:1420",
+      "http://localhost:1420/*",
+      "http://127.0.0.1:1420",
+      "http://127.0.0.1:1420/*"
+    ]
+  },
   "permissions": [
     "core:default",
     "core:window:allow-hide",
@@ -38,11 +46,24 @@
         },
         {
           "url": "http://localhost:8080"
+        },
+        {
+          "url": "http://localhost:8788"
+        },
+        {
+          "url": "http://localhost:8788/**"
+        },
+        {
+          "url": "http://127.0.0.1:8788"
+        },
+        {
+          "url": "http://127.0.0.1:8788/**"
         }
       ]
     },
     "allow-validate-accounts-token",
     "allow-device-key",
+    "allow-jarvis-bridge",
     "allow-select-service",
     "allow-navigate-service",
     "allow-service-history-back",

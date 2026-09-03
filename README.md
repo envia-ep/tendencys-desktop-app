@@ -121,30 +121,26 @@ Adding a service that isn't SSO-ready yet: set `ssoReady: false` so the shell sk
 
 ## Development
 
-Accounts shell login redirects to `tendencys://authentication` and macOS opens whichever app owns that URL scheme — the product bundle **Envia.com.app** (`productName: Envia.com` in `tauri.conf.json`), not the Cargo binary named `tendencys-desktop`.
+The app you open is always **Envia.com.app** (`productName: Envia.com` in `tauri.conf.json`). The Cargo binary is named `tendencys-desktop` and does not register `tendencys://` on macOS, so Accounts login will not hand off to it.
 
-**For sign-in / deep-link testing (recommended):**
+**Default local run** (quit other instances first so this build owns `tendencys://`):
 
 ```bash
 npm install
-# Quit any other Envia.com.app (release or older debug) so this build owns tendencys://
+npm run dev   # Vite on :1420 — leave running for frontend HMR
+osascript -e 'quit app "Envia.com"'
+pkill -f 'target/debug/tendencys-desktop' || true
 npm run tauri build -- --debug
 open src-tauri/target/debug/bundle/macos/Envia.com.app
 ```
 
-**Hot-reload UI only** (no reliable Accounts deep-link handoff on macOS — `tauri:dev` runs the bare `target/debug/tendencys-desktop` binary, which does not register `tendencys://`):
+A debug **Envia.com.app** loads `http://localhost:1420` when Vite is up, so React/CSS edits hot-reload without another rebuild. `tendencys://` still belongs to the `.app`. If Vite was down at launch, the app uses the last bundled `dist/` — start `npm run dev`, then quit and reopen the same `.app` (no rebuild). Rebuild after Rust/Tauri changes.
 
-```bash
-npm run tauri:dev
-```
+Do not use `npm run tauri:dev` for a normal local run, "localhost", or sign-in. That command starts `target/debug/tendencys-desktop` (no `tendencys://`).
 
-Keep a single Envia.com instance. If Accounts "Open app" lands on the wrong build, quit every Envia.com process and reopen the debug `Envia.com.app` above.
+Keep a single Envia.com instance. If Accounts "Open app" lands on the wrong build, quit every Envia.com / `tendencys-desktop` process and reopen the debug `Envia.com.app` above.
 
-For frontend-only development (browser, no Tauri APIs — native webviews, device keys, and the updater are all no-ops outside Tauri):
-
-```bash
-npm run dev
-```
+For frontend-only development in a browser (no Tauri APIs — native webviews, device keys, and the updater are all no-ops outside Tauri), `npm run dev` alone is enough.
 
 Open the multi-root workspace from the parent folder:
 
