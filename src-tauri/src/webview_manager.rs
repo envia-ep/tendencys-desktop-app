@@ -479,7 +479,10 @@ fn emit_verification_required_if_stepup(
 /// this exception the desktop treats the hop as an SSO failure and restarts the
 /// whole chain on every visit.
 fn is_temporal_token_relay(url: &tauri::Url) -> bool {
-    url.path() == "/login" && url.query_pairs().any(|(k, _)| k == "t")
+    url.path() == "/login"
+        && url
+            .query_pairs()
+            .any(|(k, _)| k == "t" || k == "authorization")
 }
 
 /// Decode a JWT payload WITHOUT verifying the signature and return its claim
@@ -1225,7 +1228,11 @@ fn build_service_webview(
             let is_sso_relay = is_accounts_host(loaded_url) && loaded_url.path() == "/login-sites";
             // Shipping (and similar) land on `/authentication` before the
             // temporal-token hop — not a finished product load.
-            let is_auth_callback = loaded_url.path() == "/authentication";
+            let is_auth_callback = loaded_url.path() == "/authentication"
+                || (loaded_url.path() == "/login"
+                    && loaded_url
+                        .query_pairs()
+                        .any(|(k, _)| k == "authorization" || k == "t"));
             if !is_accounts_host(loaded_url)
                 && !is_third_party_auth_asset(loaded_url)
                 && loaded_url.path() != "/login-sites"

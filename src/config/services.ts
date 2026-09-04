@@ -47,15 +47,17 @@ export const SERVICES: ServiceDefinition[] = [
   {
     id: "envia-shipping",
     name: "Envia Shipping",
+    // Next app (envia-clients). PHP `ship.envia.com/authentication` still 302s
+    // to `shipping.envia.com/login?t=`, and /login only exchanges `authorization`.
     url:
-      import.meta.env.VITE_ENVIA_SHIPPING_URL || "https://ship.envia.com",
+      import.meta.env.VITE_ENVIA_SHIPPING_URL || "https://shipping.envia.com",
     siteId:
       import.meta.env.VITE_ENVIA_SHIPPING_SITE_ID ||
       "62f1259459ad8b9e8dc0b85c",
     icon: "shipping",
     accentColor: "#0066CC",
     authMode: "login-sites",
-    authCallbackPath: "/authentication",
+    authCallbackPath: "/login",
     quickLinks: [
       { label: "Dashboard", path: "/" },
       { label: "Shipments", path: "/shipments" },
