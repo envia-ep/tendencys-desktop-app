@@ -10,6 +10,7 @@
       "https://*.ecart.com/*",
       "https://*.ecartapi.com/*",
       "https://*.ecartpay.com/*",
+      "https://oauth.ecartapi.com/*",
       "https://oauth-deve.herokuapp.com/*",
       "https://parapaquetes.com/*",
       "https://*.parapaquetes.com/*",

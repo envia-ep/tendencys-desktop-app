@@ -633,9 +633,11 @@ fn is_product_tab_host(url: &tauri::Url) -> bool {
         // (NEXT_PUBLIC_ECART_OAUTH_HOSTNAME in dev) lives on Heroku, outside the
         // *.ecartapi.com suffix below — without it the new-window request falls
         // through to the system browser instead of staying embedded as a tab.
-        // Prod (`oauth.ecartapi.com`) is already covered by the `.ecartapi.com`
-        // suffix. Keep this list to explicit hosts only — never a `*.herokuapp.com`
-        // wildcard (that would allowlist every Heroku app as an in-app tab).
+        // Prod (`oauth.ecartapi.com`) is listed explicitly too (it also matches
+        // the `.ecartapi.com` suffix). Keep this list to explicit hosts only —
+        // never a `*.herokuapp.com` wildcard (that would allowlist every Heroku
+        // app as an in-app tab).
+        "oauth.ecartapi.com",
         "oauth-deve.herokuapp.com",
     ];
     if EXACT.iter().any(|h| host == *h) {
