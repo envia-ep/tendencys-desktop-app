@@ -343,6 +343,24 @@ const DESKTOP_BRIDGE_SCRIPT: &str = r#"
       return null;
     }
   };
+
+  // WKWebView does not reliably fire the native new-window handler for a plain
+  // `<a target="_blank">` click (no window.open call). The product
+  // "Integrar mi e-commerce" button is exactly that, so without this the click
+  // is a no-op inside the webview. Intercept such clicks in the capture phase
+  // and route the resolved absolute URL through the same in-app-tab / external
+  // bridge used by window.open. Only plain primary-button clicks are handled;
+  // cmd/ctrl/middle-click and already-handled clicks fall through untouched.
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[target="_blank"]') : null;
+    if (!a) return;
+    var href = a.href;
+    if (!href || !/^https?:/i.test(href)) return;
+    e.preventDefault();
+    openExternalOrTab(href);
+  }, true);
 })();
 "#;
 
@@ -611,6 +629,14 @@ fn is_product_tab_host(url: &tauri::Url) -> bool {
         "accounts.ecart.com",
         "accounts-sandbox.envia.com",
         "ship.envia.com",
+        // Ecart API "Integrar mi e-commerce" OAuth handoff. The dev OAuth host
+        // (NEXT_PUBLIC_ECART_OAUTH_HOSTNAME in dev) lives on Heroku, outside the
+        // *.ecartapi.com suffix below — without it the new-window request falls
+        // through to the system browser instead of staying embedded as a tab.
+        // Prod (`oauth.ecartapi.com`) is already covered by the `.ecartapi.com`
+        // suffix. Keep this list to explicit hosts only — never a `*.herokuapp.com`
+        // wildcard (that would allowlist every Heroku app as an in-app tab).
+        "oauth-deve.herokuapp.com",
     ];
     if EXACT.iter().any(|h| host == *h) {
         return true;
